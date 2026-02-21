@@ -17,6 +17,23 @@
 swift build
 ```
 
+## Install
+
+Use the reusable installer script:
+
+```bash
+scripts/install.sh --prefix /usr/local
+```
+
+If you prefer a user-local install without `sudo`:
+
+```bash
+scripts/install.sh --prefix "$HOME/.local"
+```
+
+The binary is installed to `<prefix>/bin/screencommander`.
+For user-local installs, ensure `~/.local/bin` is on your `PATH`.
+
 ## Permissions
 
 `screencommander` requires macOS privacy permissions:
