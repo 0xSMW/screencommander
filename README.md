@@ -1,6 +1,6 @@
 # screencommander
 
-<img width="900" height="623" alt="image" src="https://github.com/user-attachments/assets/a4e026a7-39d2-4895-8fbc-5bc9ca761a06" />
+<img width="900" height="525" alt="image" src="https://github.com/user-attachments/assets/ea6eccab-5db4-4df1-b8e3-741914167e2d" />
 
 `screencommander` is a macOS 14+ CLI that drives a terminal-first observe -> decide -> act automation loop:
 
