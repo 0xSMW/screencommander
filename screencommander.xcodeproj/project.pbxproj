@@ -6,6 +6,45 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		36B1AE082F498592000EE647 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 36B1AE0A2F498592000EE647 /* ArgumentParser */; };
+		36B1ADE52F498592000EE647 /* TypeCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC52F498592000EE647 /* TypeCommand.swift */; };
+		36B1ADE62F498592000EE647 /* SequenceCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC42F498592000EE647 /* SequenceCommand.swift */; };
+		36B1ADE72F498592000EE647 /* CaptureRetentionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD52F498592000EE647 /* CaptureRetentionManager.swift */; };
+		36B1ADE82F498592000EE647 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADCA2F498592000EE647 /* Permissions.swift */; };
+		36B1ADE92F498592000EE647 /* StatePathsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADE22F498592000EE647 /* StatePathsTests.swift */; };
+		36B1ADEA2F498592000EE647 /* KeySequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD02F498592000EE647 /* KeySequence.swift */; };
+		36B1ADEB2F498592000EE647 /* KeysCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC12F498592000EE647 /* KeysCommand.swift */; };
+		36B1ADEC2F498592000EE647 /* CoordinateMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC72F498592000EE647 /* CoordinateMapping.swift */; };
+		36B1ADED2F498592000EE647 /* CleanupCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADBE2F498592000EE647 /* CleanupCommand.swift */; };
+		36B1ADEE2F498592000EE647 /* KeyCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC02F498592000EE647 /* KeyCommand.swift */; };
+		36B1ADEF2F498592000EE647 /* ScreenCaptureKitCapturer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADBB2F498592000EE647 /* ScreenCaptureKitCapturer.swift */; };
+		36B1ADF02F498592000EE647 /* MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD22F498592000EE647 /* MouseController.swift */; };
+		36B1ADF12F498592000EE647 /* KeyCodesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADDE2F498592000EE647 /* KeyCodesTests.swift */; };
+		36B1ADF22F498592000EE647 /* KeySequenceParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADDF2F498592000EE647 /* KeySequenceParserTests.swift */; };
+		36B1ADF32F498592000EE647 /* Displays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC82F498592000EE647 /* Displays.swift */; };
+		36B1ADF42F498592000EE647 /* ScreenCommanderEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADE02F498592000EE647 /* ScreenCommanderEngineTests.swift */; };
+		36B1ADF52F498592000EE647 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD62F498592000EE647 /* Models.swift */; };
+		36B1ADF62F498592000EE647 /* KeySequenceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD12F498592000EE647 /* KeySequenceParser.swift */; };
+		36B1ADF72F498592000EE647 /* ScreenCommanderEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADCB2F498592000EE647 /* ScreenCommanderEngine.swift */; };
+		36B1ADF82F498592000EE647 /* CaptureRetentionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADDC2F498592000EE647 /* CaptureRetentionManagerTests.swift */; };
+		36B1ADF92F498592000EE647 /* StatePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADCC2F498592000EE647 /* StatePaths.swift */; };
+		36B1ADFA2F498592000EE647 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADB82F498592000EE647 /* Package.swift */; };
+		36B1ADFB2F498592000EE647 /* ScreenshotCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC32F498592000EE647 /* ScreenshotCommand.swift */; };
+		36B1ADFC2F498592000EE647 /* RootCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC22F498592000EE647 /* RootCommand.swift */; };
+		36B1ADFD2F498592000EE647 /* KeyCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADCF2F498592000EE647 /* KeyCodes.swift */; };
+		36B1ADFE2F498592000EE647 /* ImageWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADBA2F498592000EE647 /* ImageWriter.swift */; };
+		36B1ADFF2F498592000EE647 /* KeyboardController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADCE2F498592000EE647 /* KeyboardController.swift */; };
+		36B1AE002F498592000EE647 /* SnapshotMetadataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADE12F498592000EE647 /* SnapshotMetadataStoreTests.swift */; };
+		36B1AE012F498592000EE647 /* Errors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADC92F498592000EE647 /* Errors.swift */; };
+		36B1AE022F498592000EE647 /* ScreenCapturer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADBC2F498592000EE647 /* ScreenCapturer.swift */; };
+		36B1AE032F498592000EE647 /* ClickCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADBF2F498592000EE647 /* ClickCommand.swift */; };
+		36B1AE042F498592000EE647 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD92F498592000EE647 /* main.swift */; };
+		36B1AE052F498592000EE647 /* CoordinateMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADDD2F498592000EE647 /* CoordinateMapperTests.swift */; };
+		36B1AE062F498592000EE647 /* SystemKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD32F498592000EE647 /* SystemKeys.swift */; };
+		36B1AE072F498592000EE647 /* SnapshotMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B1ADD72F498592000EE647 /* SnapshotMetadataStore.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		36B1ADA82F48CBFB000EE647 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -20,21 +59,52 @@
 
 /* Begin PBXFileReference section */
 		36B1ADAA2F48CBFB000EE647 /* screencommander */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = screencommander; sourceTree = BUILT_PRODUCTS_DIR; };
+		36B1ADB62F498592000EE647 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
+		36B1ADB72F498592000EE647 /* Package.resolved */ = {isa = PBXFileReference; lastKnownFileType = text; path = Package.resolved; sourceTree = "<group>"; };
+		36B1ADB82F498592000EE647 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
+		36B1ADB92F498592000EE647 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		36B1ADBA2F498592000EE647 /* ImageWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageWriter.swift; sourceTree = "<group>"; };
+		36B1ADBB2F498592000EE647 /* ScreenCaptureKitCapturer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureKitCapturer.swift; sourceTree = "<group>"; };
+		36B1ADBC2F498592000EE647 /* ScreenCapturer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapturer.swift; sourceTree = "<group>"; };
+		36B1ADBE2F498592000EE647 /* CleanupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupCommand.swift; sourceTree = "<group>"; };
+		36B1ADBF2F498592000EE647 /* ClickCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickCommand.swift; sourceTree = "<group>"; };
+		36B1ADC02F498592000EE647 /* KeyCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommand.swift; sourceTree = "<group>"; };
+		36B1ADC12F498592000EE647 /* KeysCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeysCommand.swift; sourceTree = "<group>"; };
+		36B1ADC22F498592000EE647 /* RootCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootCommand.swift; sourceTree = "<group>"; };
+		36B1ADC32F498592000EE647 /* ScreenshotCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCommand.swift; sourceTree = "<group>"; };
+		36B1ADC42F498592000EE647 /* SequenceCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SequenceCommand.swift; sourceTree = "<group>"; };
+		36B1ADC52F498592000EE647 /* TypeCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeCommand.swift; sourceTree = "<group>"; };
+		36B1ADC72F498592000EE647 /* CoordinateMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateMapping.swift; sourceTree = "<group>"; };
+		36B1ADC82F498592000EE647 /* Displays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Displays.swift; sourceTree = "<group>"; };
+		36B1ADC92F498592000EE647 /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
+		36B1ADCA2F498592000EE647 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
+		36B1ADCB2F498592000EE647 /* ScreenCommanderEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCommanderEngine.swift; sourceTree = "<group>"; };
+		36B1ADCC2F498592000EE647 /* StatePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatePaths.swift; sourceTree = "<group>"; };
+		36B1ADCE2F498592000EE647 /* KeyboardController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardController.swift; sourceTree = "<group>"; };
+		36B1ADCF2F498592000EE647 /* KeyCodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCodes.swift; sourceTree = "<group>"; };
+		36B1ADD02F498592000EE647 /* KeySequence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeySequence.swift; sourceTree = "<group>"; };
+		36B1ADD12F498592000EE647 /* KeySequenceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeySequenceParser.swift; sourceTree = "<group>"; };
+		36B1ADD22F498592000EE647 /* MouseController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseController.swift; sourceTree = "<group>"; };
+		36B1ADD32F498592000EE647 /* SystemKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemKeys.swift; sourceTree = "<group>"; };
+		36B1ADD52F498592000EE647 /* CaptureRetentionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRetentionManager.swift; sourceTree = "<group>"; };
+		36B1ADD62F498592000EE647 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		36B1ADD72F498592000EE647 /* SnapshotMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotMetadataStore.swift; sourceTree = "<group>"; };
+		36B1ADD92F498592000EE647 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		36B1ADDC2F498592000EE647 /* CaptureRetentionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRetentionManagerTests.swift; sourceTree = "<group>"; };
+		36B1ADDD2F498592000EE647 /* CoordinateMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateMapperTests.swift; sourceTree = "<group>"; };
+		36B1ADDE2F498592000EE647 /* KeyCodesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCodesTests.swift; sourceTree = "<group>"; };
+		36B1ADDF2F498592000EE647 /* KeySequenceParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeySequenceParserTests.swift; sourceTree = "<group>"; };
+		36B1ADE02F498592000EE647 /* ScreenCommanderEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCommanderEngineTests.swift; sourceTree = "<group>"; };
+		36B1ADE12F498592000EE647 /* SnapshotMetadataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotMetadataStoreTests.swift; sourceTree = "<group>"; };
+		36B1ADE22F498592000EE647 /* StatePathsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatePathsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		36B1ADAC2F48CBFB000EE647 /* screencommander */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = screencommander;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		36B1ADA72F48CBFB000EE647 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				36B1AE082F498592000EE647 /* ArgumentParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,7 +114,12 @@
 		36B1ADA12F48CBFB000EE647 = {
 			isa = PBXGroup;
 			children = (
-				36B1ADAC2F48CBFB000EE647 /* screencommander */,
+				36B1ADB62F498592000EE647 /* AGENTS.md */,
+				36B1ADB72F498592000EE647 /* Package.resolved */,
+				36B1ADB82F498592000EE647 /* Package.swift */,
+				36B1ADB92F498592000EE647 /* README.md */,
+				36B1ADDB2F498592000EE647 /* Sources */,
+				36B1ADE42F498592000EE647 /* Tests */,
 				36B1ADAB2F48CBFB000EE647 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -55,6 +130,110 @@
 				36B1ADAA2F48CBFB000EE647 /* screencommander */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		36B1ADBD2F498592000EE647 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADBA2F498592000EE647 /* ImageWriter.swift */,
+				36B1ADBB2F498592000EE647 /* ScreenCaptureKitCapturer.swift */,
+				36B1ADBC2F498592000EE647 /* ScreenCapturer.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+		36B1ADC62F498592000EE647 /* CLI */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADBE2F498592000EE647 /* CleanupCommand.swift */,
+				36B1ADBF2F498592000EE647 /* ClickCommand.swift */,
+				36B1ADC02F498592000EE647 /* KeyCommand.swift */,
+				36B1ADC12F498592000EE647 /* KeysCommand.swift */,
+				36B1ADC22F498592000EE647 /* RootCommand.swift */,
+				36B1ADC32F498592000EE647 /* ScreenshotCommand.swift */,
+				36B1ADC42F498592000EE647 /* SequenceCommand.swift */,
+				36B1ADC52F498592000EE647 /* TypeCommand.swift */,
+			);
+			path = CLI;
+			sourceTree = "<group>";
+		};
+		36B1ADCD2F498592000EE647 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADC72F498592000EE647 /* CoordinateMapping.swift */,
+				36B1ADC82F498592000EE647 /* Displays.swift */,
+				36B1ADC92F498592000EE647 /* Errors.swift */,
+				36B1ADCA2F498592000EE647 /* Permissions.swift */,
+				36B1ADCB2F498592000EE647 /* ScreenCommanderEngine.swift */,
+				36B1ADCC2F498592000EE647 /* StatePaths.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		36B1ADD42F498592000EE647 /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADCE2F498592000EE647 /* KeyboardController.swift */,
+				36B1ADCF2F498592000EE647 /* KeyCodes.swift */,
+				36B1ADD02F498592000EE647 /* KeySequence.swift */,
+				36B1ADD12F498592000EE647 /* KeySequenceParser.swift */,
+				36B1ADD22F498592000EE647 /* MouseController.swift */,
+				36B1ADD32F498592000EE647 /* SystemKeys.swift */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		36B1ADD82F498592000EE647 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADD52F498592000EE647 /* CaptureRetentionManager.swift */,
+				36B1ADD62F498592000EE647 /* Models.swift */,
+				36B1ADD72F498592000EE647 /* SnapshotMetadataStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		36B1ADDA2F498592000EE647 /* ScreenCommander */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADBD2F498592000EE647 /* Capture */,
+				36B1ADC62F498592000EE647 /* CLI */,
+				36B1ADCD2F498592000EE647 /* Core */,
+				36B1ADD42F498592000EE647 /* Input */,
+				36B1ADD82F498592000EE647 /* Persistence */,
+				36B1ADD92F498592000EE647 /* main.swift */,
+			);
+			path = ScreenCommander;
+			sourceTree = "<group>";
+		};
+		36B1ADDB2F498592000EE647 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADDA2F498592000EE647 /* ScreenCommander */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		36B1ADE32F498592000EE647 /* ScreenCommanderTests */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADDC2F498592000EE647 /* CaptureRetentionManagerTests.swift */,
+				36B1ADDD2F498592000EE647 /* CoordinateMapperTests.swift */,
+				36B1ADDE2F498592000EE647 /* KeyCodesTests.swift */,
+				36B1ADDF2F498592000EE647 /* KeySequenceParserTests.swift */,
+				36B1ADE02F498592000EE647 /* ScreenCommanderEngineTests.swift */,
+				36B1ADE12F498592000EE647 /* SnapshotMetadataStoreTests.swift */,
+				36B1ADE22F498592000EE647 /* StatePathsTests.swift */,
+			);
+			path = ScreenCommanderTests;
+			sourceTree = "<group>";
+		};
+		36B1ADE42F498592000EE647 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				36B1ADE32F498592000EE647 /* ScreenCommanderTests */,
+			);
+			path = Tests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -72,11 +251,9 @@
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				36B1ADAC2F48CBFB000EE647 /* screencommander */,
-			);
 			name = screencommander;
 			packageProductDependencies = (
+				36B1AE0A2F498592000EE647 /* ArgumentParser */,
 			);
 			productName = screencommander;
 			productReference = 36B1ADAA2F48CBFB000EE647 /* screencommander */;
@@ -105,6 +282,9 @@
 				Base,
 			);
 			mainGroup = 36B1ADA12F48CBFB000EE647;
+			packageReferences = (
+				36B1AE092F498592000EE647 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 36B1ADAB2F48CBFB000EE647 /* Products */;
@@ -121,10 +301,56 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				36B1ADE52F498592000EE647 /* TypeCommand.swift in Sources */,
+				36B1ADE62F498592000EE647 /* SequenceCommand.swift in Sources */,
+				36B1ADE72F498592000EE647 /* CaptureRetentionManager.swift in Sources */,
+				36B1ADE82F498592000EE647 /* Permissions.swift in Sources */,
+				36B1ADEA2F498592000EE647 /* KeySequence.swift in Sources */,
+				36B1ADEB2F498592000EE647 /* KeysCommand.swift in Sources */,
+				36B1ADEC2F498592000EE647 /* CoordinateMapping.swift in Sources */,
+				36B1ADED2F498592000EE647 /* CleanupCommand.swift in Sources */,
+				36B1ADEE2F498592000EE647 /* KeyCommand.swift in Sources */,
+				36B1ADEF2F498592000EE647 /* ScreenCaptureKitCapturer.swift in Sources */,
+				36B1ADF02F498592000EE647 /* MouseController.swift in Sources */,
+				36B1ADF32F498592000EE647 /* Displays.swift in Sources */,
+				36B1ADF52F498592000EE647 /* Models.swift in Sources */,
+				36B1ADF62F498592000EE647 /* KeySequenceParser.swift in Sources */,
+				36B1ADF72F498592000EE647 /* ScreenCommanderEngine.swift in Sources */,
+				36B1ADF92F498592000EE647 /* StatePaths.swift in Sources */,
+				36B1ADFB2F498592000EE647 /* ScreenshotCommand.swift in Sources */,
+				36B1ADFC2F498592000EE647 /* RootCommand.swift in Sources */,
+				36B1ADFD2F498592000EE647 /* KeyCodes.swift in Sources */,
+				36B1ADFE2F498592000EE647 /* ImageWriter.swift in Sources */,
+				36B1ADFF2F498592000EE647 /* KeyboardController.swift in Sources */,
+				36B1AE012F498592000EE647 /* Errors.swift in Sources */,
+				36B1AE022F498592000EE647 /* ScreenCapturer.swift in Sources */,
+				36B1AE032F498592000EE647 /* ClickCommand.swift in Sources */,
+				36B1AE042F498592000EE647 /* main.swift in Sources */,
+				36B1AE062F498592000EE647 /* SystemKeys.swift in Sources */,
+				36B1AE072F498592000EE647 /* SnapshotMetadataStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		36B1AE092F498592000EE647 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		36B1AE0A2F498592000EE647 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 36B1AE092F498592000EE647 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		36B1ADAF2F48CBFB000EE647 /* Debug */ = {
