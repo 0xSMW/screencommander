@@ -11,7 +11,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 ## Prerequisites
 
 - macOS 14+.
-- `screencommander` built/runnable (`swift run screencommander ...`).
+- `screencommander` installed and available on `PATH`.
 - Permissions granted:
   - Screen Recording (for screenshots and default action pre/post shots).
   - Accessibility (for `click`, `type`, `key`, `sequence`).
@@ -25,35 +25,37 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 5. Use `--no-postshot` only when you explicitly want less output/faster runs, but it is not recommended.
 6. Default `click` is human-equivalent (compensated); use `--raw` only for strict low-level behavior.
 7. Default `type` mode is `paste` (`cmd+v`) for reliable full payload input.
+8. Prefer managed defaults (`~/Library/Caches/screencommander/...`); use explicit `--out`/`--meta` only when you need custom paths or a specific historical capture.
 
 ## Fast Start
 
 ```bash
-swift run screencommander doctor
-swift run screencommander screenshot --out /tmp/desk.png
-# Inspect /tmp/desk.png and pick x,y in pixel space (top-left origin)
-swift run screencommander click <x> <y> --meta /tmp/desk.json
-swift run screencommander type "hello world"
-swift run screencommander key "enter"
+screencommander screenshot
+# Inspect the printed image path and pick x,y in pixel space (top-left origin)
+screencommander click <x> <y>
+screencommander type "hello world"
+screencommander key "enter"
 ```
+
+`doctor` reports permissions with traffic lights (`🟢` granted, `🔴` denied).
 
 ## Action Commands (Recommended Defaults)
 
 - Click:
   ```bash
-  swift run screencommander click <x> <y> --meta <meta.json>
+  screencommander click <x> <y>
   ```
 - Double click:
   ```bash
-  swift run screencommander click <x> <y> --meta <meta.json> --double
+  screencommander click <x> <y> --double
   ```
 - Type:
   ```bash
-  swift run screencommander type "text to input"
+  screencommander type "text to input"
   ```
 - Key chord:
   ```bash
-  swift run screencommander key "cmd+tab"
+  screencommander key "cmd+tab"
   ```
 
 All above emit pre/post screenshot paths by default.
@@ -63,7 +65,7 @@ All above emit pre/post screenshot paths by default.
 Use `sequence` for one-shot ordered workflows (`click` -> `type` -> `key`).
 
 ```bash
-swift run screencommander sequence --file ./sequence.json
+screencommander sequence --file ./sequence.json
 ```
 
 Example:
@@ -71,7 +73,7 @@ Example:
 ```json
 {
   "steps": [
-    { "click": { "x": 935, "y": 1074, "meta": "./last-screenshot.json" } },
+    { "click": { "x": 935, "y": 1074, "meta": "~/Library/Caches/screencommander/last-screenshot.json" } },
     { "type": { "text": "hello from sequence", "mode": "paste" } },
     { "key": { "chord": "enter" } }
   ]
@@ -81,7 +83,7 @@ Example:
 ## Troubleshooting
 
 - Missing permission:
-  - Run `swift run screencommander doctor`.
+  - Run `screencommander doctor`.
   - Follow the printed System Settings guidance/deeplink.
 - Click appears to target wrong element:
   - Capture a fresh screenshot and use its matching metadata.
@@ -93,9 +95,9 @@ Example:
 - Need deterministic validation after actions:
   - Use default pre/post capture and inspect printed `Preshot`/`Postshot` paths.
 
-## Portable Execution Notes
+## Execution Notes
 
-- Replace `swift run screencommander ...` with `screencommander ...` when installed on PATH.
+- This skill assumes `screencommander` is installed and available on `PATH`.
 - Keep this skill focused on command orchestration and verification, not app-specific assumptions.
 
 ## App Playbooks (Generic)
