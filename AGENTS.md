@@ -1,4 +1,6 @@
 # AGENTS.md
+For practical day-to-day operation of `screencommander`, use `SKILL.md` as the primary runbook (workflow, command patterns, validation, and troubleshooting).
+
 ## Quickstart: Correct Terminal Usage
 
 Use this flow to go from launching the tool to interacting with on-screen content reliably.
@@ -13,17 +15,17 @@ Use this flow to go from launching the tool to interacting with on-screen conten
    ```
 3. Capture a Retina screenshot + metadata sidecar:
    ```bash
-   swift run screencommander screenshot --out /tmp/desk.png
+   swift run screencommander screenshot --out ~/Library/Caches/screencommander/captures/desk.png
    ```
-   This writes `/tmp/desk.png` and `/tmp/desk.json` (or `last-screenshot.json` when using defaults).
+   This writes `~/Library/Caches/screencommander/captures/desk.png` and `~/Library/Caches/screencommander/captures/desk.json` (or `~/Library/Caches/screencommander/last-screenshot.json` when using defaults).
 4. Open the image in any viewer and pick a pixel coordinate `(x, y)` in screenshot space (origin: top-left).
 5. Click content at that pixel using the matching metadata:
    ```bash
-   swift run screencommander click <x> <y> --meta /tmp/desk.json
+   swift run screencommander click <x> <y> --meta ~/Library/Caches/screencommander/last-screenshot.json
    ```
 6. If UI selection needs two presses (e.g., list/sidebar rows), use double-click:
    ```bash
-   swift run screencommander click <x> <y> --meta /tmp/desk.json --double
+   swift run screencommander click <x> <y> --meta ~/Library/Caches/screencommander/last-screenshot.json --double
    ```
 7. Send keyboard input to the focused app:
    ```bash
@@ -35,9 +37,12 @@ Use this flow to go from launching the tool to interacting with on-screen conten
 Notes:
 - `click` coordinates are screenshot pixels by default; do not mix metadata from a different screenshot.
 - If a target window is not foregrounded, send two clicks: the first click sets cursor/focus position, and the second click performs the intended control interaction.
-- `click`, `type`, and `key` now capture both pre-action and post-action screenshots by default for immediate before/after feedback.
+- `click`, `type`, `key`, and `keys` now capture both pre-action and post-action screenshots by default for immediate before/after feedback.
 - Disable default before/after capture with `--no-postshot` when scripting speed/output noise matters.
 - `sequence` runs bundled actions (`click`, `type`, `key`) in strict order from a JSON file and captures before/after screenshots per step by default.
+- `keys` supports explicit step sequences, for example:
+  - `screencommander keys press:cmd+tab press:cmd+tab`
+- `cleanup` prunes old artifacts from `~/Library/Caches/screencommander/captures` only.
 - If permission is missing, commands fail fast with explicit guidance and a System Settings deeplink.
 - For installed usage, replace `swift run screencommander ...` with `screencommander ...`.
 - Input/send fallback when `key "enter"` or `key "return"` does not send:
