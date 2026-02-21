@@ -1,0 +1,23 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Local tooling
+.claude/
+
+# screencommander runtime artifacts
+Screenshot-*.png
+Screenshot-*.json
+last-screenshot.json
+
+# Local archives
+*.zip

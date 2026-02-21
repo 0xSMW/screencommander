@@ -1,0 +1,3 @@
+import ArgumentParser
+
+RootCommand.main()

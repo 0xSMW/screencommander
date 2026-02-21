@@ -1,0 +1,170 @@
+# screencommander
+
+`screencommander` is a macOS 14+ CLI that drives a terminal-first observe -> decide -> act automation loop:
+
+1. Observe with Retina-aware screenshot capture.
+2. Decide with deterministic coordinate mapping from metadata.
+3. Act with global mouse and keyboard event synthesis.
+
+## Requirements
+
+- macOS 14.0+
+- Xcode Command Line Tools (for `swift`)
+
+## Build
+
+```bash
+swift build
+```
+
+## Permissions
+
+`screencommander` requires macOS privacy permissions:
+
+1. Screen Recording permission for `screenshot`
+- System Settings path: Privacy & Security > Screen Recording
+- Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`
+
+2. Accessibility permission for `click`, `type`, and `key`
+- System Settings path: Privacy & Security > Accessibility
+- Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
+
+On denial, commands fail fast with explicit remediation text and stable exit codes.
+
+## Commands
+
+### Screenshot
+
+```bash
+swift run screencommander screenshot \
+  --display main \
+  --out ./captures/desk.png \
+  --format png \
+  --meta ./captures/desk.json \
+  --cursor
+```
+
+JSON output variant:
+
+```bash
+swift run screencommander screenshot --json
+```
+
+Behavior:
+
+- Captures with ScreenCaptureKit `SCScreenshotManager`.
+- Writes image and JSON metadata.
+- Always updates `./last-screenshot.json` for downstream commands.
+
+### Click
+
+```bash
+swift run screencommander click 640 320 --space pixels
+```
+
+Using explicit metadata and double-right-click:
+
+```bash
+swift run screencommander click 0.25 0.25 \
+  --space normalized \
+  --meta ./captures/desk.json \
+  --button right \
+  --double
+```
+
+Behavior:
+
+- Defaults to metadata path `./last-screenshot.json`.
+- Maps screenshot coordinates into global Quartz coordinates deterministically.
+- Captures pre-action and post-action screenshots by default and prints both paths.
+- Disable before/after capture with `--no-postshot`.
+
+### Type
+
+```bash
+swift run screencommander type "hello world"
+```
+
+With per-character delay and JSON output:
+
+```bash
+swift run screencommander type "delayed text" --delay-ms 50 --json
+```
+
+Behavior:
+
+- Defaults to paste mode (`cmd+v`) for reliable full-text input.
+- Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+
+### Key
+
+```bash
+swift run screencommander key "enter"
+swift run screencommander key "cmd+shift+4"
+swift run screencommander key "option+tab" --json
+```
+
+Supported modifier aliases include `cmd|command`, `opt|option|alt`, and `ctrl|control`.
+
+Behavior:
+
+- Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+
+### Sequence
+
+Run an ordered bundle of actions from JSON:
+
+```bash
+swift run screencommander sequence --file ./sequence.json
+```
+
+Example `sequence.json`:
+
+```json
+{
+  "steps": [
+    { "click": { "x": 935, "y": 1074, "meta": "./last-screenshot.json" } },
+    { "type": { "text": "hello from sequence", "mode": "paste" } },
+    { "key": { "chord": "enter" } }
+  ]
+}
+```
+
+Behavior:
+
+- Executes steps in order.
+- Captures pre-action and post-action screenshots around each step by default.
+- Disable per-step before/after capture with `--no-postshot`.
+
+## Metadata Schema
+
+```json
+{
+  "capturedAtISO8601": "2026-02-20T12:34:56.789Z",
+  "displayID": 69733248,
+  "displayBoundsPoints": { "x": 0, "y": 0, "w": 1512, "h": 982 },
+  "imageSizePixels": { "w": 3024, "h": 1964 },
+  "pointPixelScale": 2,
+  "imagePath": "/absolute/path/to/Screenshot-20260220-123456.png"
+}
+```
+
+## Exit Codes
+
+- `10`: screen recording permission denied
+- `11`: accessibility permission denied
+- `20`: capture failed
+- `21`: image write failed
+- `30`: metadata read/write failed
+- `40`: invalid coordinate
+- `41`: mapping failed
+- `50`: input synthesis failed
+- `60`: invalid arguments or chord parse
+
+## Future Considerations
+
+These are intentionally not implemented in this initial scope:
+
+- Split CLI and a background `.app`/XPC helper for distribution and TCC ergonomics.
+- Add pre-macOS 14 capture fallback backend.
+- Add an interactive REPL on top of the same engine interfaces.
