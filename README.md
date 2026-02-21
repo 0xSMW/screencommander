@@ -2,11 +2,11 @@
 
 <img width="900" height="525" alt="image" src="https://github.com/user-attachments/assets/ea6eccab-5db4-4df1-b8e3-741914167e2d" />
 
-`screencommander` is a macOS 14+ CLI that drives a terminal-first observe -> decide -> act automation loop:
+`screencommander` is a macOS 14+ CLI that drives a terminal-first observe -> decide -> act automation loop for agents to operate the desktop through computer use:
 
-1. Observe with Retina-aware screenshot capture.
-2. Decide with deterministic coordinate mapping from metadata.
-3. Act with global mouse and keyboard event synthesis.
+1. Observe with Retina-aware screenshot capture
+2. Decide with deterministic coordinate mapping from metadata
+3. Act with global mouse and keyboard event synthesis
 
 ## Requirements
 
