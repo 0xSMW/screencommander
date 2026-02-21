@@ -16,7 +16,7 @@ struct ClickCommand: ParsableCommand {
     @Option(name: .long, help: "Coordinate input space.")
     var space: CoordinateSpace = .pixels
 
-    @Option(name: .long, help: "Metadata JSON path. Defaults to ./last-screenshot.json.")
+    @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
     var meta: String?
 
     @Option(name: .long, help: "Mouse button.")

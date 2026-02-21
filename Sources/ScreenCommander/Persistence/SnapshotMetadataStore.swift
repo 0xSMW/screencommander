@@ -10,8 +10,9 @@ final class SnapshotMetadataStore: SnapshotMetadataStoring {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let lastMetadataURL: URL
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, lastMetadataURL: URL? = nil) {
         self.fileManager = fileManager
 
         let encoder = JSONEncoder()
@@ -19,11 +20,13 @@ final class SnapshotMetadataStore: SnapshotMetadataStoring {
         self.encoder = encoder
 
         self.decoder = JSONDecoder()
+        self.lastMetadataURL = lastMetadataURL
+            ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
+                .appendingPathComponent("last-screenshot.json", isDirectory: false)
     }
 
     var defaultLastMetadataURL: URL {
-        URL(fileURLWithPath: fileManager.currentDirectoryPath)
-            .appendingPathComponent("last-screenshot.json", isDirectory: false)
+        lastMetadataURL
     }
 
     func save(metadata: ScreenshotMetadata, at metadataURL: URL, updateLastAt lastURL: URL?) throws {

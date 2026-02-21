@@ -10,7 +10,7 @@ struct ScreenshotCommand: ParsableCommand {
     @Option(name: .long, help: "Display ID or 'main'.")
     var display: String = "main"
 
-    @Option(name: .long, help: "Output image path. Defaults to ./Screenshot-<timestamp>.<ext>.")
+    @Option(name: .long, help: "Output image path. Defaults to ~/Library/Caches/screencommander/captures/Screenshot-<timestamp>.<ext>.")
     var out: String?
 
     @Option(name: .long, help: "Image format.")
