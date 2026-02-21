@@ -50,6 +50,19 @@ On denial, commands fail fast with explicit remediation text and stable exit cod
 
 ## Commands
 
+### Doctor
+
+```bash
+swift run screencommander doctor
+swift run screencommander doctor --json
+```
+
+Behavior:
+
+- Reports permission status with traffic lights (`🟢` granted, `🔴` denied).
+- Reports active displays with IDs and bounds in points.
+- Exits `0` even if permissions are missing; use output for remediation.
+
 ### Screenshot
 
 ```bash
