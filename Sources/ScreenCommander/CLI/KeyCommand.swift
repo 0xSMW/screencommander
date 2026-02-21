@@ -4,10 +4,10 @@ import Foundation
 struct KeyCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "key",
-        abstract: "Inject a key chord such as cmd+shift+4 or enter."
+        abstract: "Inject a key chord or special key such as fn+f5, cmd+tab, or volumeup."
     )
 
-    @Argument(help: "Chord in <modifier+key> format.")
+    @Argument(help: "Chord in <modifier+key> format. Examples: cmd+shift+4, ctrl+up, fn+f5, volumeup, spotlight, raycast, missioncontrol, launchpad.")
     var chord: String
 
     @Flag(
