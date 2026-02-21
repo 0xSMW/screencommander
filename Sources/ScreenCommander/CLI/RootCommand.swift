@@ -6,6 +6,7 @@ struct RootCommand: ParsableCommand {
         commandName: "screencommander",
         abstract: "Capture screenshots and synthesize global mouse and keyboard input.",
         subcommands: [
+            DoctorCommand.self,
             ScreenshotCommand.self,
             ClickCommand.self,
             TypeCommand.self,
