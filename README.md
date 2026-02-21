@@ -19,6 +19,14 @@
 swift build
 ```
 
+## Fast Capability Guide
+
+For a concise, operations-first guide to `screencommander` capabilities and reliable command patterns, see:
+
+- `SKILL.md`
+
+This is the same skill/runbook AGENTS use to quickly understand and operate the CLI.
+
 ## Install
 
 Use the reusable installer script:
