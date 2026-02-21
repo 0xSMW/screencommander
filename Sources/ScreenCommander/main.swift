@@ -16,7 +16,7 @@ private let screenCommanderBanner = """
                      ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝  ╚═╝
 
 ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-                                  [ TERMINAL UI CONTROL // RETINA PRECISION // ONLINE ]
+
 """
 
 let arguments = Array(CommandLine.arguments.dropFirst())
