@@ -1,72 +1,6 @@
 import CoreGraphics
 import Foundation
 
-struct PointD: Codable, Sendable {
-    var x: Double
-    var y: Double
-}
-
-struct ScreenshotRequest {
-    var displayIdentifier: String
-    var outputPath: String?
-    var format: ImageFormat
-    var metadataPath: String?
-    var includeCursor: Bool
-    var updateLastMetadata: Bool
-}
-
-struct ScreenshotResult: Codable, Sendable {
-    var imagePath: String
-    var metadataPath: String
-    var lastMetadataPath: String
-    var metadata: ScreenshotMetadata
-}
-
-struct ClickRequest {
-    var x: Double
-    var y: Double
-    var coordinateSpace: CoordinateSpace
-    var metadataPath: String?
-    var button: MouseButtonChoice
-    var doubleClick: Bool
-    var primeClick: Bool
-    var humanLike: Bool
-}
-
-struct ClickResult: Codable, Sendable {
-    var metadataPath: String
-    var resolved: ResolvedCoordinate
-    var button: MouseButtonChoice
-    var doubleClick: Bool
-    var primeClick: Bool
-    var humanLike: Bool
-}
-
-struct TypeRequest {
-    var text: String
-    var delayMilliseconds: Int?
-    var inputMode: TextInputMode
-}
-
-struct TypeResult: Codable, Sendable {
-    var textLength: Int
-    var delayMilliseconds: Int?
-    var inputMode: TextInputMode
-}
-
-enum TextInputMode: String, Codable, Sendable {
-    case paste
-    case unicode
-}
-
-struct KeyRequest {
-    var chord: String
-}
-
-struct KeyResult: Codable, Sendable {
-    var normalizedChord: String
-}
-
 final class ScreenCommanderEngine {
     private let permissions: PermissionChecking
     private let displays: DisplayResolving
@@ -76,7 +10,9 @@ final class ScreenCommanderEngine {
     private let coordinateMapper: CoordinateMapper
     private let mouseController: MouseControlling
     private let keyboardController: KeyboardControlling
+    private let retention: CaptureRetentionManaging
     private let fileManager: FileManager
+    private let statePaths: StatePaths
     private let now: () -> Date
 
     init(
@@ -88,6 +24,8 @@ final class ScreenCommanderEngine {
         coordinateMapper: CoordinateMapper,
         mouseController: MouseControlling,
         keyboardController: KeyboardControlling,
+        retention: CaptureRetentionManaging,
+        statePaths: StatePaths,
         fileManager: FileManager = .default,
         now: @escaping () -> Date = Date.init
     ) {
@@ -99,12 +37,18 @@ final class ScreenCommanderEngine {
         self.coordinateMapper = coordinateMapper
         self.mouseController = mouseController
         self.keyboardController = keyboardController
+        self.retention = retention
+        self.statePaths = statePaths
         self.fileManager = fileManager
         self.now = now
     }
 
     static func live(fileManager: FileManager = .default) -> ScreenCommanderEngine {
-        let metadataStore = SnapshotMetadataStore(fileManager: fileManager)
+        let statePaths = StatePaths(fileManager: fileManager)
+        let metadataStore = SnapshotMetadataStore(
+            fileManager: fileManager,
+            lastMetadataURL: statePaths.lastMetadataURL
+        )
 
         return ScreenCommanderEngine(
             permissions: Permissions(),
@@ -115,11 +59,19 @@ final class ScreenCommanderEngine {
             coordinateMapper: CoordinateMapper(),
             mouseController: MouseController(),
             keyboardController: KeyboardController(),
+            retention: CaptureRetentionManager(fileManager: fileManager),
+            statePaths: statePaths,
             fileManager: fileManager
         )
     }
 
     func screenshot(_ request: ScreenshotRequest) async throws -> ScreenshotResult {
+        _ = try? retention.pruneCaptures(
+            in: statePaths.capturesDirectoryURL,
+            olderThan: 24 * 60 * 60,
+            now: now()
+        )
+
         try permissions.ensureScreenRecordingAccess(prompt: true)
 
         let display = try await displays.resolveDisplay(identifier: request.displayIdentifier)
@@ -210,6 +162,28 @@ final class ScreenCommanderEngine {
         return KeyResult(normalizedChord: chord.normalized)
     }
 
+    func keys(_ request: KeysRequest) throws -> KeysResult {
+        let sequence = try KeySequenceParser.parse(request.steps)
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+        try keyboardController.run(sequence: sequence)
+
+        return KeysResult(normalizedSteps: sequence.steps.map { $0.normalized })
+    }
+
+    func cleanup(_ request: CleanupRequest) throws -> CleanupResult {
+        let olderThanHours = request.olderThanHours ?? 24
+        guard olderThanHours >= 0 else {
+            throw ScreenCommanderError.invalidArguments("--older-than-hours must be non-negative.")
+        }
+
+        return try retention.pruneCaptures(
+            in: statePaths.capturesDirectoryURL,
+            olderThan: TimeInterval(olderThanHours * 60 * 60),
+            now: now()
+        )
+    }
+
     private func resolvedImageURL(explicitPath: String?, format: ImageFormat) -> URL {
         if let explicitPath {
             return resolvedURL(for: explicitPath)
@@ -217,8 +191,7 @@ final class ScreenCommanderEngine {
 
         let timestamp = Self.filenameTimestampFormatter.string(from: now())
         let filename = "Screenshot-\(timestamp).\(format.fileExtension)"
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath)
-            .appendingPathComponent(filename)
+        return statePaths.capturesDirectoryURL.appendingPathComponent(filename)
     }
 
     private func resolvedMetadataURL(explicitPath: String?, imageURL: URL) -> URL {

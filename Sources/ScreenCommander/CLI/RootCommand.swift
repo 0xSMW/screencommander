@@ -10,6 +10,8 @@ struct RootCommand: ParsableCommand {
             ClickCommand.self,
             TypeCommand.self,
             KeyCommand.self,
+            KeysCommand.self,
+            CleanupCommand.self,
             SequenceCommand.self
         ],
         defaultSubcommand: ScreenshotCommand.self
@@ -18,6 +20,10 @@ struct RootCommand: ParsableCommand {
 
 enum CommandRuntime {
     static let engine = ScreenCommanderEngine.live()
+    private static let fileManager = FileManager.default
+    private static let statePaths = StatePaths(fileManager: fileManager)
+    private static let fallbackActionShotsDirectory = fileManager.temporaryDirectory
+        .appendingPathComponent("screencommander-actionshots", isDirectory: true)
     private static let shotDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
@@ -65,33 +71,68 @@ enum CommandRuntime {
     static func captureActionScreenshot(prefix: String) -> ActionScreenshotResult? {
         let timestamp = shotDateFormatter.string(from: Date())
         let filename = "\(prefix)-\(timestamp).png"
-        let outputPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent(filename)
-            .path
 
-        let request = ScreenshotRequest(
-            displayIdentifier: "main",
-            outputPath: outputPath,
-            format: .png,
-            metadataPath: nil,
-            includeCursor: false,
-            updateLastMetadata: false
-        )
+        let outputDirectories = [statePaths.capturesDirectoryURL, fallbackActionShotsDirectory]
+        var lastFailure: Error?
 
-        do {
-            let result = try AsyncBridge.run {
-                try await engine.screenshot(request)
+        for (attemptIndex, directoryURL) in outputDirectories.enumerated() {
+            do {
+                try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+                let request = ScreenshotRequest(
+                    displayIdentifier: "main",
+                    outputPath: directoryURL.appendingPathComponent(filename).path,
+                    format: .png,
+                    metadataPath: nil,
+                    includeCursor: false,
+                    updateLastMetadata: false
+                )
+
+                let result = try AsyncBridge.run {
+                    try await engine.screenshot(request)
+                }
+
+                return ActionScreenshotResult(
+                    imagePath: result.imagePath,
+                    metadataPath: result.metadataPath
+                )
+            } catch {
+                lastFailure = error
+                if shouldFallbackToTemp(
+                    after: error,
+                    attemptIndex: attemptIndex,
+                    totalAttempts: outputDirectories.count
+                ) {
+                    continue
+                }
+
+                break
             }
-            return ActionScreenshotResult(
-                imagePath: result.imagePath,
-                metadataPath: result.metadataPath
-            )
-        } catch let error as ScreenCommanderError {
+        }
+
+        if let error = lastFailure as? ScreenCommanderError {
             writeError("warning: \(prefix.lowercased()) failed: \(error.description)")
-            return nil
-        } catch {
+        } else if let error = lastFailure {
             writeError("warning: \(prefix.lowercased()) failed: \(error.localizedDescription)")
-            return nil
+        }
+
+        return nil
+    }
+
+    private static func shouldFallbackToTemp(after error: Error, attemptIndex: Int, totalAttempts: Int) -> Bool {
+        guard attemptIndex < (totalAttempts - 1) else {
+            return false
+        }
+
+        guard let error = error as? ScreenCommanderError else {
+            return true
+        }
+
+        switch error {
+        case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed:
+            return false
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments:
+            return true
         }
     }
 }
