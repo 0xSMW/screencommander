@@ -63,8 +63,8 @@ On denial, commands fail fast with explicit remediation text and stable exit cod
 ### Doctor
 
 ```bash
-swift run screencommander doctor
-swift run screencommander doctor --json
+screencommander doctor
+screencommander doctor --json
 ```
 
 Behavior:
@@ -76,7 +76,7 @@ Behavior:
 ### Screenshot
 
 ```bash
-swift run screencommander screenshot \
+screencommander screenshot \
   --display main \
   --out ~/Library/Caches/screencommander/captures/desk.png \
   --format png \
@@ -87,7 +87,7 @@ swift run screencommander screenshot \
 JSON output variant:
 
 ```bash
-swift run screencommander screenshot --json
+screencommander screenshot --json
 ```
 
 Behavior:
@@ -95,19 +95,19 @@ Behavior:
 - Captures with ScreenCaptureKit `SCScreenshotManager`.
 - Writes image and JSON metadata.
 - Default image path: `~/Library/Caches/screencommander/captures/<timestamp>.png`
-- Default metadata path: `~/Library/Caches/screencommander/last-screenshot.json`
-- Updates managed `last-screenshot.json` by default (for `--out` defaults and `--meta` default lookup).
+- Default metadata path: `<image>.json` (for example `~/Library/Caches/screencommander/captures/<timestamp>.json`)
+- Also updates managed `~/Library/Caches/screencommander/last-screenshot.json` by default.
 
 ### Click
 
 ```bash
-swift run screencommander click 640 320 --space pixels
+screencommander click 640 320 --space pixels
 ```
 
 Using explicit metadata and double-right-click:
 
 ```bash
-swift run screencommander click 0.25 0.25 \
+screencommander click 0.25 0.25 \
   --space normalized \
   --meta ./captures/desk.json \
   --button right \
@@ -124,13 +124,13 @@ Behavior:
 ### Type
 
 ```bash
-swift run screencommander type "hello world"
+screencommander type "hello world"
 ```
 
 With per-character delay and JSON output:
 
 ```bash
-swift run screencommander type "delayed text" --delay-ms 50 --json
+screencommander type "delayed text" --mode unicode --delay-ms 50 --json
 ```
 
 Behavior:
@@ -141,12 +141,12 @@ Behavior:
 ### Key
 
 ```bash
-swift run screencommander key "enter"
-swift run screencommander key "cmd+shift+4"
-swift run screencommander key "option+tab" --json
-swift run screencommander key "spotlight"
-swift run screencommander key "missioncontrol"
-swift run screencommander key "launchpad"
+screencommander key "enter"
+screencommander key "cmd+shift+4"
+screencommander key "option+tab" --json
+screencommander key "spotlight"
+screencommander key "missioncontrol"
+screencommander key "launchpad"
 ```
 
 Supported modifier aliases include `cmd|command`, `opt|option|alt`, and `ctrl|control`.
@@ -160,17 +160,17 @@ Behavior:
 ### Keys
 
 ```bash
-swift run screencommander keys "press:cmd+tab" "press:cmd+tab"
-swift run screencommander keys "press:next" "sleep:100" "press:prev"
+screencommander keys "press:cmd+tab" "press:cmd+tab"
+screencommander keys "press:next" "sleep:100" "press:prev"
 ```
 
 `keys` executes `down`/`up`/`press`/`sleep` steps in strict order.
-For repeated shortcuts, include modifiers explicitly in each `press` step (for example `press:cmd+tab`).
+For repeated modifier-based shortcuts, include modifiers explicitly in each `press` step (for example `press:cmd+tab`). Standalone keys such as `press:next` and `press:prev` do not require modifiers.
 
 ### Cleanup
 
 ```bash
-swift run screencommander cleanup --older-than-hours 24
+screencommander cleanup --older-than-hours 24
 ```
 
 Prunes managed capture artifacts (`png`, `jpg`, `jpeg`, `json`) in `~/Library/Caches/screencommander/captures` older than the configured age.
@@ -180,7 +180,7 @@ Prunes managed capture artifacts (`png`, `jpg`, `jpeg`, `json`) in `~/Library/Ca
 Run an ordered bundle of actions from JSON:
 
 ```bash
-swift run screencommander sequence --file ./sequence.json
+screencommander sequence --file ./sequence.json
 ```
 
 Example `sequence.json`:
