@@ -8,6 +8,8 @@
 2. Decide with deterministic coordinate mapping from metadata
 3. Act with global mouse and keyboard event synthesis
 
+This is also compatible with non-vision model workflows (for example `codex-5.3-codex-spark`) by relying on coordinate + metadata control rather than in-model screenshot understanding.
+
 ## Requirements
 
 - macOS 14.0+
