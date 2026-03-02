@@ -203,6 +203,34 @@ Behavior:
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
 
+## Scripting (JSON output)
+
+For automation and scripts, the CLI can emit **exactly one** JSON object to stdout (success or error). Use this to parse results without scraping human output.
+
+- **Per-command:** Add `--json` to any command (e.g. `screencommander doctor --json`).
+- **Global:** Use `--output json` before the subcommand, or set `SCREENCOMMANDER_OUTPUT=json` so every command defaults to JSON.
+- **One-line output:** Use `--compact` (or `SCREENCOMMANDER_JSON_COMPACT=1`) when output is JSON for smaller, faster-to-parse output.
+- **Precedence:** Per-command `--json` overrides root `--output` over env over default (human).
+
+Example:
+
+```bash
+# Single command
+screencommander doctor --json
+
+# Global JSON for the run
+screencommander --output json screenshot --out /tmp/cap.png
+
+# Env var for whole script
+export SCREENCOMMANDER_OUTPUT=json
+screencommander doctor
+screencommander cleanup --json --compact
+```
+
+With JSON mode, **stdout is exactly one JSON object**: either a success envelope (`"status": "ok"`, `result`, optional `exitCode`) or an error envelope (`"status": "error"`, `error.code`, `error.message`, `exitCode`). Scripts can read stdout once and branch on `status`. For the full contract (envelope fields and per-command `result` shapes), see [docs/json-output-schema.md](docs/json-output-schema.md).
+
+For maximum speed in scripts, combine `--json --compact --no-postshot` (and optionally `--output json` or the env var) so action commands skip before/after screenshots and emit one-line JSON.
+
 ## Metadata Schema
 
 ```json

@@ -35,6 +35,7 @@ Use this flow to go from launching the tool to interacting with on-screen conten
    ```
 
 Notes:
+- **Scripting:** Use `--json` or `--output json` (or `SCREENCOMMANDER_OUTPUT=json`) for machine-readable output; stdout is exactly one JSON object (success or error). Use `--compact` for one-line JSON. See README “Scripting (JSON output)” and `docs/json-output-schema.md`.
 - `click` coordinates are screenshot pixels by default; do not mix metadata from a different screenshot.
 - If a target window is not foregrounded, send two clicks: the first click sets cursor/focus position, and the second click performs the intended control interaction.
 - `click`, `type`, `key`, and `keys` now capture both pre-action and post-action screenshots by default for immediate before/after feedback.
