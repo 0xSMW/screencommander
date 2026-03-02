@@ -13,19 +13,23 @@ struct KeysCommand: ParsableCommand {
     @Flag(name: .long, help: "Capture before/after screenshots around the action (enabled by default).")
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "keys")
+        defer { OutputOptions.current = nil }
         do {
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.keys(KeysRequest(steps: steps))
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
 
-            if json {
+            if format == .json {
                 try CommandRuntime.emitJSON(
                     command: "keys",
-                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult)
+                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
+                    compact: compact
                 )
                 return
             }

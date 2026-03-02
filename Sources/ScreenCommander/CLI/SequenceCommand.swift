@@ -17,10 +17,13 @@ struct SequenceCommand: ParsableCommand {
     )
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "sequence")
+        defer { OutputOptions.current = nil }
         do {
             let fileURL = resolvedURL(for: file)
             let data = try Data(contentsOf: fileURL)
@@ -49,14 +52,14 @@ struct SequenceCommand: ParsableCommand {
                 )
                 outputs.append(stepResult)
 
-                if !json {
+                if format != .json {
                     print("Step \(stepResult.index): \(stepResult.action) ok")
                 }
             }
 
             let result = SequenceRunResult(file: fileURL.path, steps: outputs)
-            if json {
-                try CommandRuntime.emitJSON(command: "sequence", result: result)
+            if format == .json {
+                try CommandRuntime.emitJSON(command: "sequence", result: result, compact: compact)
                 return
             }
 

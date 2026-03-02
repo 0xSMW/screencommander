@@ -7,15 +7,18 @@ struct DoctorCommand: ParsableCommand {
         abstract: "Report permission and display health with traffic-light status."
     )
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "doctor")
+        defer { OutputOptions.current = nil }
         do {
             let report = try DoctorService().collect()
 
-            if json {
-                try CommandRuntime.emitJSON(command: "doctor", result: report)
+            if format == .json {
+                try CommandRuntime.emitJSON(command: "doctor", result: report, compact: compact)
                 return
             }
 

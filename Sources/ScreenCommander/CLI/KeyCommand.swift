@@ -17,19 +17,23 @@ struct KeyCommand: ParsableCommand {
     )
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "key")
+        defer { OutputOptions.current = nil }
         do {
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.key(KeyRequest(chord: chord))
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
 
-            if json {
+            if format == .json {
                 try CommandRuntime.emitJSON(
                     command: "key",
-                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult)
+                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
+                    compact: compact
                 )
                 return
             }

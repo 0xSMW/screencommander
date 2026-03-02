@@ -56,6 +56,21 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Invalid arguments: \(message)"
         }
     }
+
+    /// Stable snake_case code for JSON error envelope; detail goes in `message`.
+    var stableCode: String {
+        switch self {
+        case .permissionDeniedScreenRecording: return "permission_denied_screen_recording"
+        case .permissionDeniedAccessibility: return "permission_denied_accessibility"
+        case .captureFailed: return "capture_failed"
+        case .imageWriteFailed: return "image_write_failed"
+        case .metadataFailure: return "metadata_failure"
+        case .invalidCoordinate: return "invalid_coordinate"
+        case .mappingFailed: return "mapping_failed"
+        case .inputSynthesisFailed: return "input_synthesis_failed"
+        case .invalidArguments: return "invalid_arguments"
+        }
+    }
 }
 
 func writeError(_ message: String) {

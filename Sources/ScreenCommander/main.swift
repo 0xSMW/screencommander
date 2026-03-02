@@ -20,6 +20,7 @@ private let screenCommanderBanner = """
 """
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+OutputOptions.preScan(CommandLine.arguments)
 let isRootHelpInvocation = arguments.count == 1 && ["--help", "-h", "help"].contains(arguments[0])
 if isRootHelpInvocation {
     print(screenCommanderBanner)

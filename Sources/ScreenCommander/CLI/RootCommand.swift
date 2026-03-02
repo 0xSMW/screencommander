@@ -1,6 +1,46 @@
 import ArgumentParser
 import Foundation
 
+/// Output format for scriptability; when .json, stdout is exactly one JSON object (success or error).
+enum OutputFormat: String, ExpressibleByArgument {
+    case human
+    case json
+}
+
+/// Global output options: pre-scanned from argv and env so subcommands can resolve effective format.
+enum OutputOptions {
+    static var preScanned: (output: String?, compact: Bool) = (nil, false)
+    static var current: (format: OutputFormat, compact: Bool, commandName: String)?
+
+    static func preScan(_ args: [String]) {
+        var output: String?
+        var compact = false
+        for i in args.indices {
+            if args[i] == "--output", i + 1 < args.count {
+                output = args[i + 1]
+            } else if args[i] == "--compact" {
+                compact = true
+            }
+        }
+        if output == nil, let env = ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"] {
+            output = env
+        }
+        if !compact, ProcessInfo.processInfo.environment["SCREENCOMMANDER_JSON_COMPACT"] == "1" {
+            compact = true
+        }
+        preScanned = (output, compact)
+    }
+
+    /// Resolve effective format: per-command --json > pre-scanned/root --output > env > human.
+    static func effective(jsonFlag: Bool) -> (format: OutputFormat, compact: Bool) {
+        let format: OutputFormat = jsonFlag
+            ? .json
+            : (preScanned.output?.lowercased() == "json" ? .json : (ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"]?.lowercased() == "json" ? .json : .human))
+        let compact = preScanned.compact || ProcessInfo.processInfo.environment["SCREENCOMMANDER_JSON_COMPACT"] == "1"
+        return (format, compact)
+    }
+}
+
 struct RootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "screencommander",
@@ -17,6 +57,12 @@ struct RootCommand: ParsableCommand {
         ],
         defaultSubcommand: ScreenshotCommand.self
     )
+
+    @Option(name: .long, help: "Output format for all subcommands: human (default) or json. With json, stdout is exactly one JSON object (success or error). Use for scripting.")
+    var output: String?
+
+    @Flag(name: .long, help: "When output is json, emit one-line compact JSON. Use with --output json for scripting.")
+    var compact: Bool = false
 }
 
 enum CommandRuntime {
@@ -33,16 +79,32 @@ enum CommandRuntime {
         return formatter
     }()
 
-    static func emitJSON<Result: Encodable>(command: String, result: Result) throws {
-        let envelope = CommandEnvelope(status: "ok", command: command, result: result)
+    static func emitJSON<Result: Encodable>(command: String, result: Result, compact: Bool = false) throws {
+        let exitCodeValue = 0
+        let envelope = CommandEnvelope(status: "ok", command: command, result: result, exitCode: exitCodeValue)
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = compact ? [.sortedKeys] : [.prettyPrinted, .sortedKeys]
 
         let data = try encoder.encode(envelope)
         guard let json = String(data: data, encoding: .utf8) else {
             throw ScreenCommanderError.metadataFailure("Could not encode JSON output.")
         }
         print(json)
+    }
+
+    /// Emit a single JSON error object to stdout so scripts get one parseable object on failure.
+    static func emitErrorJSON(command: String, error: ScreenCommanderError, exitCode: Int32, compact: Bool = false) {
+        let envelope = ErrorEnvelope(
+            status: "error",
+            command: command,
+            error: ErrorDetail(code: error.stableCode, message: error.description),
+            exitCode: exitCode
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = compact ? [.sortedKeys] : [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(envelope), let json = String(data: data, encoding: .utf8) {
+            print(json)
+        }
     }
 
     static func mapError(_ error: Error) -> Error {
@@ -55,16 +117,29 @@ enum CommandRuntime {
         }
 
         if let screenCommanderError = error as? ScreenCommanderError {
-            writeError(screenCommanderError.description)
+            if let current = OutputOptions.current, current.format == .json {
+                emitErrorJSON(command: current.commandName, error: screenCommanderError, exitCode: screenCommanderError.exitCode, compact: current.compact)
+            } else {
+                writeError(screenCommanderError.description)
+            }
             return ExitCode(screenCommanderError.exitCode)
         }
 
         if let validationError = error as? ValidationError {
             let wrapped = ScreenCommanderError.invalidArguments(validationError.message)
-            writeError(wrapped.description)
+            if let current = OutputOptions.current, current.format == .json {
+                emitErrorJSON(command: current.commandName, error: wrapped, exitCode: wrapped.exitCode, compact: current.compact)
+            } else {
+                writeError(wrapped.description)
+            }
             return ExitCode(wrapped.exitCode)
         }
 
+        if let current = OutputOptions.current, current.format == .json {
+            let generic = ScreenCommanderError.invalidArguments(error.localizedDescription)
+            emitErrorJSON(command: current.commandName, error: generic, exitCode: 60, compact: current.compact)
+            return ExitCode(60)
+        }
         writeError(error.localizedDescription)
         return ExitCode.failure
     }
@@ -142,6 +217,19 @@ struct CommandEnvelope<Result: Encodable>: Encodable {
     var status: String
     var command: String
     var result: Result
+    var exitCode: Int?
+}
+
+struct ErrorDetail: Encodable {
+    var code: String
+    var message: String
+}
+
+struct ErrorEnvelope: Encodable {
+    var status: String
+    var command: String
+    var error: ErrorDetail
+    var exitCode: Int32
 }
 
 struct ActionScreenshotResult: Codable, Sendable {

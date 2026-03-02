@@ -25,10 +25,13 @@ struct TypeCommand: ParsableCommand {
     )
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "type")
+        defer { OutputOptions.current = nil }
         do {
             let parsedDelay: Int?
             if let delayMS {
@@ -46,10 +49,11 @@ struct TypeCommand: ParsableCommand {
             )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
 
-            if json {
+            if format == .json {
                 try CommandRuntime.emitJSON(
                     command: "type",
-                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult)
+                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
+                    compact: compact
                 )
                 return
             }

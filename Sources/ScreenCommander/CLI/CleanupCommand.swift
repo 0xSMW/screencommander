@@ -10,15 +10,18 @@ struct CleanupCommand: ParsableCommand {
     @Option(name: .long, help: "Retention age in hours. Default is 24.")
     var olderThanHours: Int?
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (format, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (format, compact, "cleanup")
+        defer { OutputOptions.current = nil }
         do {
             let result = try CommandRuntime.engine.cleanup(CleanupRequest(olderThanHours: olderThanHours))
 
-            if json {
-                try CommandRuntime.emitJSON(command: "cleanup", result: result)
+            if format == .json {
+                try CommandRuntime.emitJSON(command: "cleanup", result: result, compact: compact)
                 return
             }
 

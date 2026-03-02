@@ -22,10 +22,13 @@ struct ScreenshotCommand: ParsableCommand {
     @Flag(name: .long, help: "Include cursor in screenshot.")
     var cursor: Bool = false
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
+        let (outputFormat, compact) = OutputOptions.effective(jsonFlag: json)
+        OutputOptions.current = (outputFormat, compact, "screenshot")
+        defer { OutputOptions.current = nil }
         do {
             let request = ScreenshotRequest(
                 displayIdentifier: display,
@@ -40,8 +43,8 @@ struct ScreenshotCommand: ParsableCommand {
                 try await CommandRuntime.engine.screenshot(request)
             }
 
-            if json {
-                try CommandRuntime.emitJSON(command: "screenshot", result: result)
+            if outputFormat == .json {
+                try CommandRuntime.emitJSON(command: "screenshot", result: result, compact: compact)
                 return
             }
 
