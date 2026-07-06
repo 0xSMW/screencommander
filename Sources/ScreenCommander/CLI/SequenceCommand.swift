@@ -17,6 +17,9 @@ struct SequenceCommand: ParsableCommand {
     )
     var postshot: Bool = true
 
+    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    var noDiff: Bool = false
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -40,6 +43,11 @@ struct SequenceCommand: ParsableCommand {
                 let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot-step\(index + 1)") : nil
                 let actionResult = try runStep(step)
                 let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot-step\(index + 1)") : nil
+                let diff = CommandRuntime.frameDiff(
+                    pre: preshotResult,
+                    post: postshotResult,
+                    skip: noDiff || step.noDiff
+                )
 
                 let stepResult = SequenceStepResult(
                     index: index + 1,
@@ -47,13 +55,15 @@ struct SequenceCommand: ParsableCommand {
                     click: actionResult.click,
                     type: actionResult.type,
                     key: actionResult.key,
-                    preshot: preshotResult,
-                    postshot: postshotResult
+                    preshot: preshotResult?.result,
+                    postshot: postshotResult?.result,
+                    diff: diff
                 )
                 outputs.append(stepResult)
 
                 if format != .json {
                     print("Step \(stepResult.index): \(stepResult.action) ok")
+                    CommandRuntime.printFrameDiff(diff)
                 }
             }
 
@@ -130,6 +140,7 @@ struct SequenceStepResult: Codable, Sendable {
     var key: KeyResult?
     var preshot: ActionScreenshotResult?
     var postshot: ActionScreenshotResult?
+    var diff: FrameDiffResult?
 }
 
 struct SequenceFile: Decodable {
@@ -140,6 +151,17 @@ enum SequenceStep: Decodable {
     case click(SequenceClickStep)
     case type(SequenceTypeStep)
     case key(SequenceKeyStep)
+
+    var noDiff: Bool {
+        switch self {
+        case .click(let step):
+            return step.noDiff ?? false
+        case .type(let step):
+            return step.noDiff ?? false
+        case .key(let step):
+            return step.noDiff ?? false
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case click
@@ -178,14 +200,17 @@ struct SequenceClickStep: Decodable {
     var double: Bool?
     var prime: Bool?
     var raw: Bool?
+    var noDiff: Bool?
 }
 
 struct SequenceTypeStep: Decodable {
     var text: String
     var delayMS: Int?
     var mode: TextInputMode?
+    var noDiff: Bool?
 }
 
 struct SequenceKeyStep: Decodable {
     var chord: String
+    var noDiff: Bool?
 }

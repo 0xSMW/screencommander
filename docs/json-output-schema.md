@@ -73,21 +73,25 @@ On failure in JSON mode, the same stdout contains:
 - **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `button`, `doubleClick`, `primeClick`, `humanLike`
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
+- **result.diff** (object or null): optional frame comparison between `preshot` and `postshot`; omitted or null when disabled with `--no-diff`, when either shot is missing, or when an image cannot be loaded. Shape: `{ changedFraction, changedRegion }`, where `changedFraction` is a number from `0.0` to `1.0` and `changedRegion` is either null or `{ x, y, w, h }` in post-shot pixel coordinates.
 
 ### type
 
 - **result.action**: `textLength`, `delayMilliseconds`, `inputMode`
 - **result.preshot** / **result.postshot**: same as click
+- **result.diff**: same as click
 
 ### key
 
 - **result.action**: `normalizedChord`
 - **result.preshot** / **result.postshot**: same as click
+- **result.diff**: same as click
 
 ### keys
 
 - **result.action**: `normalizedSteps` (array of strings)
 - **result.preshot** / **result.postshot**: same as click
+- **result.diff**: same as click
 
 ### cleanup
 
@@ -97,7 +101,7 @@ On failure in JSON mode, the same stdout contains:
 ### sequence
 
 - **result.file** (string): path to sequence file
-- **result.steps** (array): each step has `index`, `action`, `click`/`type`/`key`, `preshot`, `postshot`
+- **result.steps** (array): each step has `index`, `action`, `click`/`type`/`key`, `preshot`, `postshot`, and optional `diff`
 
 ## Compact JSON
 

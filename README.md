@@ -121,7 +121,9 @@ Behavior:
 - Defaults to metadata path `~/Library/Caches/screencommander/last-screenshot.json`.
 - Maps screenshot coordinates into global Quartz coordinates deterministically.
 - Captures pre-action and post-action screenshots by default and prints both paths.
+- Compares pre-action and post-action screenshots and reports a changed region when pixels differ.
 - Disable before/after capture with `--no-postshot`.
+- Disable only frame comparison with `--no-diff`.
 
 ### Type
 
@@ -139,6 +141,7 @@ Behavior:
 
 - Defaults to paste mode (`cmd+v`) for reliable full-text input.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+- Compares pre-action and post-action screenshots by default (`--no-diff` to disable).
 
 ### Key
 
@@ -158,6 +161,7 @@ System/media keys are also supported (for example `volumeup`, `volumedown`, `bri
 Behavior:
 
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+- Compares pre-action and post-action screenshots by default (`--no-diff` to disable).
 
 ### Keys
 
@@ -168,6 +172,7 @@ screencommander keys "press:next" "sleep:100" "press:prev"
 
 `keys` executes `down`/`up`/`press`/`sleep` steps in strict order.
 For repeated modifier-based shortcuts, include modifiers explicitly in each `press` step (for example `press:cmd+tab`). Standalone keys such as `press:next` and `press:prev` do not require modifiers.
+It captures and compares pre-action and post-action screenshots by default; use `--no-postshot` or `--no-diff` to disable those separately.
 
 ### Cleanup
 
@@ -202,6 +207,7 @@ Behavior:
 - Executes steps in order.
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
+- Compares each step's pre-action and post-action screenshots by default. Use command-level `--no-diff` or a step-level `noDiff: true` field to disable comparison.
 
 ## Scripting (JSON output)
 
@@ -229,7 +235,7 @@ screencommander cleanup --json --compact
 
 With JSON mode, **stdout is exactly one JSON object**: either a success envelope (`"status": "ok"`, `result`, optional `exitCode`) or an error envelope (`"status": "error"`, `error.code`, `error.message`, `exitCode`). Scripts can read stdout once and branch on `status`. For the full contract (envelope fields and per-command `result` shapes), see [docs/json-output-schema.md](docs/json-output-schema.md).
 
-For maximum speed in scripts, combine `--json --compact --no-postshot` (and optionally `--output json` or the env var) so action commands skip before/after screenshots and emit one-line JSON.
+For maximum speed in scripts, combine `--json --compact --no-postshot` (and optionally `--output json` or the env var) so action commands skip before/after screenshots and emit one-line JSON. Use `--no-diff` when you want captures but do not need frame comparison.
 
 ## Metadata Schema
 

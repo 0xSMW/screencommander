@@ -13,6 +13,9 @@ struct KeysCommand: ParsableCommand {
     @Flag(name: .long, help: "Capture before/after screenshots around the action (enabled by default).")
     var postshot: Bool = true
 
+    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    var noDiff: Bool = false
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -24,11 +27,17 @@ struct KeysCommand: ParsableCommand {
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.keys(KeysRequest(steps: steps))
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
                     command: "keys",
-                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
+                    result: ActionResultEnvelope(
+                        action: result,
+                        preshot: preshotResult?.result,
+                        postshot: postshotResult?.result,
+                        diff: diff
+                    ),
                     compact: compact
                 )
                 return
@@ -40,13 +49,14 @@ struct KeysCommand: ParsableCommand {
             }
 
             if let preshotResult {
-                print("Preshot image: \(preshotResult.imagePath)")
-                print("Preshot metadata: \(preshotResult.metadataPath)")
+                print("Preshot image: \(preshotResult.result.imagePath)")
+                print("Preshot metadata: \(preshotResult.result.metadataPath)")
             }
             if let postshotResult {
-                print("Postshot image: \(postshotResult.imagePath)")
-                print("Postshot metadata: \(postshotResult.metadataPath)")
+                print("Postshot image: \(postshotResult.result.imagePath)")
+                print("Postshot metadata: \(postshotResult.result.metadataPath)")
             }
+            CommandRuntime.printFrameDiff(diff)
         } catch {
             throw CommandRuntime.mapError(error)
         }
