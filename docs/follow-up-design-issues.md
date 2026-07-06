@@ -34,14 +34,6 @@ What to do: expose CLI and MCP override knobs for callers that need a different 
 
 Downside: new knobs add surface area and documentation burden, and callers can tune themselves into noisy or overly insensitive diffs.
 
-## Action Feedback Captures
-
-Intent: reduce the cost of every action doing full pre/post screenshot capture by default.
-
-What to do: introduce an explicit feedback policy, likely defaulting to lighter post-action feedback while keeping full before/after diff as an opt-in mode.
-
-Downside: users lose some automatic debugging context unless they request the heavier mode.
-
 ## Window Capture Re-Enumeration
 
 Intent: avoid resolving the same window/display information twice during `screenshot --window`.
