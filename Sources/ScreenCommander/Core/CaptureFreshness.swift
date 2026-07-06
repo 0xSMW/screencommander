@@ -69,10 +69,6 @@ final class MetadataFreshnessChecker: MetadataFreshnessChecking {
     }
 
     private static func liveDisplayBounds(displayID: UInt32) -> CGRect? {
-        guard CGGetActiveDisplayList(0, nil, nil) == .success else {
-            return nil
-        }
-
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
             return nil

@@ -11,14 +11,17 @@ enum OutputFormat: String, ExpressibleByArgument {
 /// Global output options: pre-scanned from argv and env so subcommands can resolve effective format.
 enum OutputOptions {
     static var preScanned: (output: String?, compact: Bool) = (nil, false)
+    static var preScannedOutputIsExplicit = false
     static var current: (format: OutputFormat, compact: Bool, commandName: String)?
 
     static func preScan(_ args: [String]) {
         var output: String?
+        var outputIsExplicit = false
         var compact = false
         for i in args.indices {
             if args[i] == "--output", i + 1 < args.count {
                 output = args[i + 1]
+                outputIsExplicit = true
             } else if args[i] == "--compact" {
                 compact = true
             }
@@ -30,16 +33,19 @@ enum OutputOptions {
             compact = true
         }
         preScanned = (output, compact)
+        preScannedOutputIsExplicit = outputIsExplicit
     }
 
     /// Resolve effective format: per-command --json > pre-scanned/root --output > env > human.
     static func effective(jsonFlag: Bool) throws -> (format: OutputFormat, compact: Bool) {
-        let configuredOutput = try preScanned.output.map(parseOutputFormat)
         let format: OutputFormat
         if jsonFlag {
+            if preScannedOutputIsExplicit, let output = preScanned.output {
+                _ = try parseOutputFormat(output)
+            }
             format = .json
-        } else if let configuredOutput {
-            format = configuredOutput
+        } else if let output = preScanned.output {
+            format = try parseOutputFormat(output)
         } else if let env = ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"] {
             format = try parseOutputFormat(env)
         } else {

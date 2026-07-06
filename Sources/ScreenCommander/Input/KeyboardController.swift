@@ -12,6 +12,8 @@ protocol KeyboardControlling {
 }
 
 final class KeyboardController: KeyboardControlling {
+    private static let pasteboardLock = NSLock()
+
     private let enterKeyDownHoldMicroseconds: useconds_t = 20_000
     private let pasteboardRestoreDelayMicroseconds: useconds_t = 250_000
     private let systemDownState = Int(0xA)
@@ -32,6 +34,9 @@ final class KeyboardController: KeyboardControlling {
     }
 
     func typeByPasting(text: String) throws {
+        Self.pasteboardLock.lock()
+        defer { Self.pasteboardLock.unlock() }
+
         let pasteboard = NSPasteboard.general
         let priorContents = PasteboardSnapshot.capture(from: pasteboard)
         pasteboard.clearContents()

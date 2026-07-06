@@ -67,7 +67,11 @@ final class JSONOutputSchemaTests: XCTestCase {
 
     func testExplicitHumanOutputOverridesJSONEnvironment() throws {
         OutputOptions.preScanned = (output: "human", compact: false)
-        defer { OutputOptions.preScanned = (nil, false) }
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
 
         let resolved = try OutputOptions.effective(jsonFlag: false)
 
@@ -76,19 +80,37 @@ final class JSONOutputSchemaTests: XCTestCase {
 
     func testInvalidOutputModeThrowsInsteadOfFallingBack() {
         OutputOptions.preScanned = (output: "jsno", compact: false)
-        defer { OutputOptions.preScanned = (nil, false) }
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
 
         XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: false)) { error in
             XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
         }
     }
 
-    func testInvalidOutputModeThrowsEvenWhenJsonFlagIsSet() {
+    func testInvalidExplicitOutputModeThrowsEvenWhenJsonFlagIsSet() {
         OutputOptions.preScanned = (output: "jsno", compact: false)
-        defer { OutputOptions.preScanned = (nil, false) }
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
 
         XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: true)) { error in
             XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
         }
+    }
+
+    func testJsonFlagOverridesInvalidEnvironmentOutput() throws {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        OutputOptions.preScannedOutputIsExplicit = false
+        defer { OutputOptions.preScanned = (nil, false) }
+
+        let resolved = try OutputOptions.effective(jsonFlag: true)
+
+        XCTAssertEqual(resolved.format, .json)
     }
 }

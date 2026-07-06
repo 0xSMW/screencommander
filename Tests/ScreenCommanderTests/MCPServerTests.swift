@@ -204,7 +204,7 @@ private struct MCPFixture {
     let observation: MCPFakeObservation
 }
 
-private func makeFixture(_ name: String) -> MCPFixture {
+private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) -> MCPFixture {
     let stateDir = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("screencommander-mcp-tests", isDirectory: true)
         .appendingPathComponent(name)
@@ -252,7 +252,8 @@ private func makeFixture(_ name: String) -> MCPFixture {
         observationSource: observation,
         frontmostApp: { nil },
         activateApp: { _ in },
-        statePaths: statePaths
+        statePaths: statePaths,
+        now: now
     )
 
     let registry = MCPToolRegistry(engine: engine, doctor: MCPFakeDoctor())
@@ -405,6 +406,88 @@ final class MCPServerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 150_000_000)
         XCTAssertFalse(try output.hasResponse(id: 30))
         XCTAssertFalse(try output.hasResponse(id: 31))
+    }
+
+    func testServeSessionLateCancelDoesNotCancelCompletedDependencyFollower() async throws {
+        let fixture = makeFixture("serve-late-cancel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":40,"method":"ping"}"#)
+        _ = try await output.waitForResponse(id: 40)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"dependsOn":40,"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":50,"until":"title~=never"}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":40}}"#)
+
+        let dependent = try await output.waitForResponse(id: 41, timeoutMS: 1_000)
+        XCTAssertEqual(dependent["result"]?["isError"]?.boolValue, true)
+        XCTAssertEqual(dependent["result"]?["structuredContent"]?["error"]?["code"]?.stringValue, "observe_timeout")
+    }
+
+    func testServeSessionInheritsScreenshotMetadataForDependentCoordinateAction() async throws {
+        let fixture = makeFixture("serve-inherit-metadata")
+        let window = WindowInfo(
+            windowID: 42,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: RectD(x: 0, y: 0, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+        fixture.targets.windows["Safari"] = window
+        fixture.targets.windows["42"] = window
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":50,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","path":"/tmp/inherited.png","updateLastMetadata":false}}}"#)
+        let screenshot = try await output.waitForResponse(id: 50)
+        let metadataPath = try XCTUnwrap(screenshot["result"]?["structuredContent"]?["result"]?["metadataPath"]?.stringValue)
+        XCTAssertEqual(metadataPath, "/tmp/inherited.json")
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":51,"method":"tools/call","params":{"dependsOn":50,"name":"click","arguments":{"x":0,"y":0}}}"#)
+        let click = try await output.waitForResponse(id: 51)
+        let action = try XCTUnwrap(click["result"]?["structuredContent"]?["result"]?["action"])
+        XCTAssertEqual(action["metadataPath"]?.stringValue, metadataPath)
+        XCTAssertEqual(fixture.mouse.clickPoints.count, 1)
+    }
+
+    func testParallelSafeDefaultScreenshotPathsAreUniqueWithinSameSecond() async throws {
+        let fixture = makeFixture(
+            "screenshot-unique-defaults",
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        try await initializeMCP(fixture.server)
+        fixture.targets.windows["Safari"] = WindowInfo(
+            windowID: 42,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: RectD(x: 0, y: 0, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+
+        let first = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":52,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","updateLastMetadata":false}}}"#
+        ))
+        let second = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":53,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","updateLastMetadata":false}}}"#
+        ))
+
+        let firstPath = try XCTUnwrap(first["result"]?["structuredContent"]?["result"]?["imagePath"]?.stringValue)
+        let secondPath = try XCTUnwrap(second["result"]?["structuredContent"]?["result"]?["imagePath"]?.stringValue)
+        XCTAssertNotEqual(firstPath, secondPath)
+        XCTAssertTrue(URL(fileURLWithPath: firstPath).lastPathComponent.hasPrefix("Screenshot-"))
+        XCTAssertTrue(URL(fileURLWithPath: secondPath).lastPathComponent.hasPrefix("Screenshot-"))
     }
 
     func testBlankLineIsIgnored() async throws {
@@ -662,6 +745,20 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(result["isError"]?.boolValue, true)
         XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
         XCTAssertEqual(fixture.keyboard.runCount, 0, "malformed step lists must not execute partially")
+    }
+
+    func testMalformedBooleanArgumentIsRejectedWithoutPartialExecution() async throws {
+        let fixture = makeFixture("malformed-bool")
+        try await initializeMCP(fixture.server)
+
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"click","arguments":{"x":10,"y":10,"strictMetadata":"true"}}}"#
+        ))
+
+        let result = try XCTUnwrap(response["result"])
+        XCTAssertEqual(result["isError"]?.boolValue, true)
+        XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
+        XCTAssertTrue(fixture.mouse.clickPoints.isEmpty, "malformed booleans must not silently default and execute")
     }
 
     func testToolsCallScreenshotJPEGReturnsJpegImageBlock() async throws {

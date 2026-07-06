@@ -16,6 +16,7 @@ final class MCPServeSession {
     private var dependents: [String: Set<String>] = [:]
     private var canceled: Set<String> = []
     private var completedBeforeRegistration: Set<String> = []
+    private var metadataContext: [String: String] = [:]
 
     init(server: MCPServer, writer: @escaping Writer) {
         self.server = server
@@ -56,7 +57,11 @@ final class MCPServeSession {
             guard !self.isCanceled(key) else {
                 return
             }
+            let request = self.requestByApplyingInheritedMetadata(request, dependencyKey: dependencyKey)
             if let line = await server.handle(request: request), !Task.isCancelled {
+                if let metadataPath = Self.extractMetadataPath(from: line) ?? Self.explicitMetadataPath(in: request) {
+                    self.setMetadataContext(metadataPath, for: key)
+                }
                 writer(line)
             }
         }
@@ -85,8 +90,11 @@ final class MCPServeSession {
         guard let dependencyKey else {
             return nil
         }
+        guard let dependencyTask = tasks[dependencyKey] else {
+            return nil
+        }
         dependents[dependencyKey, default: []].insert(key)
-        return tasks[dependencyKey]
+        return dependencyTask
     }
 
     private func setTask(_ task: Task<Void, Never>, for key: String) {
@@ -157,7 +165,68 @@ final class MCPServeSession {
         }
     }
 
+    private func requestByApplyingInheritedMetadata(
+        _ request: JSONRPCRequest,
+        dependencyKey: String?
+    ) -> JSONRPCRequest {
+        guard let dependencyKey,
+              let metadataPath = metadataContext(for: dependencyKey),
+              Self.canInheritMetadata(request) else {
+            return request
+        }
+
+        var request = request
+        guard var params = request.params?.objectValue else {
+            return request
+        }
+        var arguments = params["arguments"]?.objectValue ?? [:]
+        guard arguments["meta"] == nil || arguments["meta"] == .null else {
+            return request
+        }
+
+        arguments["meta"] = .string(metadataPath)
+        params["arguments"] = .object(arguments)
+        request.params = .object(params)
+        return request
+    }
+
+    private func metadataContext(for key: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return metadataContext[key]
+    }
+
+    private func setMetadataContext(_ metadataPath: String, for key: String) {
+        lock.lock()
+        metadataContext[key] = metadataPath
+        lock.unlock()
+    }
+
     private static func key(for id: JSONValue) -> String {
         (try? id.compactLine()) ?? String(describing: id)
+    }
+
+    private static func canInheritMetadata(_ request: JSONRPCRequest) -> Bool {
+        guard request.method == "tools/call",
+              let name = request.params?["name"]?.stringValue else {
+            return false
+        }
+        return ["click", "scroll", "drag", "move"].contains(name)
+    }
+
+    private static func explicitMetadataPath(in request: JSONRPCRequest) -> String? {
+        guard request.method == "tools/call" else {
+            return nil
+        }
+        return request.params?["arguments"]?["meta"]?.stringValue
+    }
+
+    private static func extractMetadataPath(from line: String) -> String? {
+        guard let data = line.data(using: .utf8),
+              let value = try? JSONDecoder().decode(JSONValue.self, from: data),
+              value["result"]?["isError"]?.boolValue != true else {
+            return nil
+        }
+        return value["result"]?["structuredContent"]?["result"]?["metadataPath"]?.stringValue
     }
 }

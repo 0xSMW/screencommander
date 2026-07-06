@@ -136,8 +136,8 @@ final class MCPToolRegistry {
                 outputPath: Self.stringArg(args, "path"),
                 format: format,
                 metadataPath: nil,
-                includeCursor: Self.boolArg(args, "includeCursor") ?? false,
-                updateLastMetadata: Self.boolArg(args, "updateLastMetadata") ?? true,
+                includeCursor: try Self.boolArg(args, "includeCursor") ?? false,
+                updateLastMetadata: try Self.boolArg(args, "updateLastMetadata") ?? true,
                 windowIdentifier: Self.stringArg(args, "window")
             )
             let result = try await engine.screenshot(request)
@@ -186,20 +186,20 @@ final class MCPToolRegistry {
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
-                doubleClick: Self.boolArg(args, "double") ?? false,
-                triple: Self.boolArg(args, "triple") ?? false,
-                primeClick: Self.boolArg(args, "prime") ?? false,
-                humanLike: !(Self.boolArg(args, "raw") ?? false),
+                doubleClick: try Self.boolArg(args, "double") ?? false,
+                triple: try Self.boolArg(args, "triple") ?? false,
+                primeClick: try Self.boolArg(args, "prime") ?? false,
+                humanLike: !(try Self.boolArg(args, "raw") ?? false),
                 modifiers: try Self.stringArrayArg(args, "modifiers") ?? [],
                 element: Self.stringArg(args, "element"),
                 elementID: Self.stringArg(args, "elementId"),
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                noCursor: Self.boolArg(args, "noCursor") ?? false,
-                strict: Self.boolArg(args, "strict") ?? false,
-                verifyTarget: Self.boolArg(args, "verifyTarget") ?? false,
-                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
+                noCursor: try Self.boolArg(args, "noCursor") ?? false,
+                strict: try Self.boolArg(args, "strict") ?? false,
+                verifyTarget: try Self.boolArg(args, "verifyTarget") ?? false,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.click(request)
             return try self.okOutcome(command: "click", result: ActionResultEnvelope(action: result))
@@ -231,7 +231,7 @@ final class MCPToolRegistry {
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                strict: Self.boolArg(args, "strict") ?? false
+                strict: try Self.boolArg(args, "strict") ?? false
             )
             let result = try await engine.type(request)
             return try self.okOutcome(command: "type", result: ActionResultEnvelope(action: result))
@@ -302,9 +302,9 @@ final class MCPToolRegistry {
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                noCursor: Self.boolArg(args, "noCursor") ?? false,
-                strict: Self.boolArg(args, "strict") ?? false,
-                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
+                noCursor: try Self.boolArg(args, "noCursor") ?? false,
+                strict: try Self.boolArg(args, "strict") ?? false,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.scroll(request)
             return try self.okOutcome(command: "scroll", result: ActionResultEnvelope(action: result))
@@ -338,7 +338,7 @@ final class MCPToolRegistry {
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
                 steps: try Self.intArg(args, "steps") ?? 12,
                 durationMS: try Self.intArg(args, "durationMs") ?? 300,
-                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.drag(request)
             return try self.okOutcome(command: "drag", result: ActionResultEnvelope(action: result))
@@ -364,7 +364,7 @@ final class MCPToolRegistry {
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
                 dwellMS: try Self.intArg(args, "dwellMs") ?? 0,
-                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.move(request)
             return try self.okOutcome(command: "move", result: ActionResultEnvelope(action: result))
@@ -390,12 +390,12 @@ final class MCPToolRegistry {
             let request = ElementsRequest(
                 appIdentifier: Self.stringArg(args, "app"),
                 windowID: try Self.uint32Arg(args, "windowId"),
-                allWindows: Self.boolArg(args, "allWindows") ?? false,
-                includeText: Self.boolArg(args, "text") ?? false,
+                allWindows: try Self.boolArg(args, "allWindows") ?? false,
+                includeText: try Self.boolArg(args, "text") ?? false,
                 maxDepth: try Self.intArg(args, "maxDepth") ?? 40,
                 maxElements: try Self.intArg(args, "maxElements") ?? 2000,
                 roles: try Self.stringArrayArg(args, "roles"),
-                visibleOnly: Self.boolArg(args, "visibleOnly") ?? false,
+                visibleOnly: try Self.boolArg(args, "visibleOnly") ?? false,
                 maxValueLength: try Self.intArg(args, "maxValueLength") ?? 200
             )
             let result = try await engine.elements(request)
@@ -521,8 +521,12 @@ final class MCPToolRegistry {
         args[key]?.stringValue
     }
 
-    private static func boolArg(_ args: JSONValue, _ key: String) -> Bool? {
-        args[key]?.boolValue
+    private static func boolArg(_ args: JSONValue, _ key: String) throws -> Bool? {
+        guard let value = args[key], value != .null else { return nil }
+        guard let bool = value.boolValue else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be a boolean.")
+        }
+        return bool
     }
 
     private static func doubleArg(_ args: JSONValue, _ key: String) throws -> Double? {

@@ -50,7 +50,18 @@ enum AppActivator {
         guard let runningApp = NSRunningApplication(processIdentifier: app.pid) else {
             throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
         }
-        runningApp.activate()
+        guard runningApp.activate() else {
+            throw ScreenCommanderError.inputSynthesisFailed("Could not activate app '\(app.name)' with PID \(app.pid).")
+        }
+        for _ in 0..<10 {
+            if runningApp.isActive {
+                return
+            }
+            usleep(25_000)
+        }
+        guard runningApp.isActive else {
+            throw ScreenCommanderError.inputSynthesisFailed("App '\(app.name)' with PID \(app.pid) did not become active.")
+        }
     }
 }
 

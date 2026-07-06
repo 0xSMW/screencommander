@@ -1079,7 +1079,8 @@ final class ScreenCommanderEngine {
         }
 
         let timestamp = Self.filenameTimestampFormatter.string(from: now())
-        let filename = "Screenshot-\(timestamp).\(format.fileExtension)"
+        let uniqueSuffix = UUID().uuidString.lowercased().prefix(8)
+        let filename = "Screenshot-\(timestamp)-\(uniqueSuffix).\(format.fileExtension)"
         return statePaths.capturesDirectoryURL.appendingPathComponent(filename)
     }
 
