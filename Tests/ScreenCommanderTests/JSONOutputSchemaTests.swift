@@ -78,4 +78,13 @@ final class JSONOutputSchemaTests: XCTestCase {
             XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
         }
     }
+
+    func testInvalidOutputModeThrowsEvenWhenJsonFlagIsSet() {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        defer { OutputOptions.preScanned = (nil, false) }
+
+        XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: true)) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+    }
 }

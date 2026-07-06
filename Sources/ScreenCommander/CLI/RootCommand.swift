@@ -34,11 +34,12 @@ enum OutputOptions {
 
     /// Resolve effective format: per-command --json > pre-scanned/root --output > env > human.
     static func effective(jsonFlag: Bool) throws -> (format: OutputFormat, compact: Bool) {
+        let configuredOutput = try preScanned.output.map(parseOutputFormat)
         let format: OutputFormat
         if jsonFlag {
             format = .json
-        } else if let output = preScanned.output {
-            format = try parseOutputFormat(output)
+        } else if let configuredOutput {
+            format = configuredOutput
         } else if let env = ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"] {
             format = try parseOutputFormat(env)
         } else {

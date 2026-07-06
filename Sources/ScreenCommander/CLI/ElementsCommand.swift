@@ -38,10 +38,10 @@ struct ElementsCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
+        defer { OutputOptions.current = nil }
         do {
             let (format, compact) = try OutputOptions.effective(jsonFlag: json)
             OutputOptions.current = (format, compact, "elements")
-            defer { OutputOptions.current = nil }
             let parsedRoles = roles.map {
                 $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             }

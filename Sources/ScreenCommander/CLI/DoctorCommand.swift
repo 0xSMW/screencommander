@@ -11,10 +11,10 @@ struct DoctorCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
+        defer { OutputOptions.current = nil }
         do {
             let (format, compact) = try OutputOptions.effective(jsonFlag: json)
             OutputOptions.current = (format, compact, "doctor")
-            defer { OutputOptions.current = nil }
             let report = try DoctorService().collect()
 
             if format == .json {

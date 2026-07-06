@@ -26,12 +26,13 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             throw ScreenCommanderError.captureFailed("Could not enumerate displays for window capture: \(error.localizedDescription)")
         }
 
-        guard let display = Self.displayContaining(windowFrame, in: content.displays) else {
+        let intersectingDisplays = content.displays.filter { $0.frame.intersects(windowFrame) }
+        guard let display = Self.displayContaining(windowFrame, in: intersectingDisplays) else {
             throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on a capturable display.")
         }
-        guard display.frame.contains(windowFrame) else {
+        guard intersectingDisplays.count == 1 else {
             throw ScreenCommanderError.captureFailed(
-                "Window \(window.info.windowID) spans multiple displays or extends outside display \(display.displayID); "
+                "Window \(window.info.windowID) spans multiple displays; "
                     + "window capture metadata requires one display scale."
             )
         }

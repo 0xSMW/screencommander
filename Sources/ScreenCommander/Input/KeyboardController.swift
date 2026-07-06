@@ -13,6 +13,7 @@ protocol KeyboardControlling {
 
 final class KeyboardController: KeyboardControlling {
     private let enterKeyDownHoldMicroseconds: useconds_t = 20_000
+    private let pasteboardRestoreDelayMicroseconds: useconds_t = 250_000
     private let systemDownState = Int(0xA)
     private let systemUpState = Int(0xB)
     private let systemAuxControlSubtype = Int16(0x08)
@@ -47,6 +48,10 @@ final class KeyboardController: KeyboardControlling {
             throw error
         }
 
+        // CGEvent posting only queues the paste chord; the target app may read the
+        // pasteboard on a later run-loop turn. Keep our text available briefly so a
+        // slow or newly focused target does not paste the restored previous contents.
+        usleep(pasteboardRestoreDelayMicroseconds)
         try priorContents.restore(to: pasteboard)
     }
 

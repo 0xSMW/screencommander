@@ -14,10 +14,10 @@ struct FocusCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
+        defer { OutputOptions.current = nil }
         do {
             let (outputFormat, compact) = try OutputOptions.effective(jsonFlag: json)
             OutputOptions.current = (outputFormat, compact, "focus")
-            defer { OutputOptions.current = nil }
             let request = FocusRequest(appIdentifier: app)
             let result = try AsyncBridge.run {
                 try await CommandRuntime.engine.focus(request)
