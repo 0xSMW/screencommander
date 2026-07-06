@@ -28,9 +28,11 @@ Downside: advisory metadata can be ignored by sloppy callers, while strict mode 
 
 Intent: make the "did anything change?" signal useful for small UI changes on large Retina screens.
 
-What to do: replace the fixed `64x64 / 0.04` policy with an adaptive or configurable policy.
+Decision: keep the fixed `64x64 / 0.04` default for compatibility.
 
-Downside: `changedFraction` and `changedRegion` values will shift for scripts that compare exact diff numbers.
+What to do: expose CLI and MCP override knobs for callers that need a different grid size or threshold. The default behavior should remain unchanged unless the caller opts in.
+
+Downside: new knobs add surface area and documentation burden, and callers can tune themselves into noisy or overly insensitive diffs.
 
 ## Action Feedback Captures
 
