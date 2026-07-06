@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -14,6 +15,7 @@ final class ScreenCommanderEngine {
     private let fileManager: FileManager
     private let statePaths: StatePaths
     private let now: () -> Date
+    let targetResolver: TargetResolving
 
     init(
         permissions: PermissionChecking,
@@ -26,6 +28,7 @@ final class ScreenCommanderEngine {
         keyboardController: KeyboardControlling,
         retention: CaptureRetentionManaging,
         statePaths: StatePaths,
+        targetResolver: TargetResolving = Targets(),
         fileManager: FileManager = .default,
         now: @escaping () -> Date = Date.init
     ) {
@@ -39,6 +42,7 @@ final class ScreenCommanderEngine {
         self.keyboardController = keyboardController
         self.retention = retention
         self.statePaths = statePaths
+        self.targetResolver = targetResolver
         self.fileManager = fileManager
         self.now = now
     }
@@ -61,6 +65,7 @@ final class ScreenCommanderEngine {
             keyboardController: KeyboardController(),
             retention: CaptureRetentionManager(fileManager: fileManager),
             statePaths: statePaths,
+            targetResolver: Targets(),
             fileManager: fileManager
         )
     }
@@ -74,14 +79,41 @@ final class ScreenCommanderEngine {
 
         try permissions.ensureScreenRecordingAccess(prompt: true)
 
-        let display = try await displays.resolveDisplay(identifier: request.displayIdentifier)
-        let captured = try await capturer.capture(display: display, includeCursor: request.includeCursor)
-
         let imageURL = resolvedImageURL(explicitPath: request.outputPath, format: request.format)
-        let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
-
         let metadataURL = resolvedMetadataURL(explicitPath: request.metadataPath, imageURL: imageURL)
         let lastMetadataURL = request.updateLastMetadata ? metadataStore.defaultLastMetadataURL : metadataURL
+
+        // Window capture path
+        if let windowIdentifier = request.windowIdentifier {
+            let (scWindow, windowInfo) = try await targetResolver.resolveWindow(identifier: windowIdentifier, app: nil)
+            let captured = try await capturer.capture(window: scWindow, includeCursor: request.includeCursor)
+            let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
+
+            let metadata = ScreenshotMetadata(
+                capturedAtISO8601: Self.iso8601Formatter.string(from: now()),
+                displayID: captured.displayID,
+                displayBoundsPoints: RectD(captured.displayBoundsPoints),
+                imageSizePixels: pixelSize,
+                pointPixelScale: captured.pointPixelScale,
+                imagePath: imageURL.path,
+                windowID: windowInfo.windowID,
+                windowBoundsPoints: windowInfo.boundsPoints
+            )
+
+            try metadataStore.save(metadata: metadata, at: metadataURL, updateLastAt: lastMetadataURL)
+
+            return ScreenshotResult(
+                imagePath: imageURL.path,
+                metadataPath: metadataURL.path,
+                lastMetadataPath: lastMetadataURL.path,
+                metadata: metadata
+            )
+        }
+
+        // Display capture path (existing behavior)
+        let display = try await displays.resolveDisplay(identifier: request.displayIdentifier)
+        let captured = try await capturer.capture(display: display, includeCursor: request.includeCursor)
+        let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
 
         let metadata = ScreenshotMetadata(
             capturedAtISO8601: Self.iso8601Formatter.string(from: now()),
@@ -100,6 +132,40 @@ final class ScreenCommanderEngine {
             lastMetadataPath: lastMetadataURL.path,
             metadata: metadata
         )
+    }
+
+    func windows(_ request: WindowsRequest) async throws -> WindowsResult {
+        try permissions.ensureScreenRecordingAccess(prompt: false)
+        let app: ResolvedApp?
+        if let id = request.appIdentifier {
+            app = try await targetResolver.resolveApp(identifier: id)
+        } else {
+            app = nil
+        }
+        let list = try await targetResolver.listWindows(app: app)
+        return WindowsResult(windows: list)
+    }
+
+    func focus(_ request: FocusRequest) async throws -> FocusResult {
+        let app = try await targetResolver.resolveApp(identifier: request.appIdentifier)
+
+        let priorApp: ResolvedApp?
+        if let frontmost = NSWorkspace.shared.frontmostApplication {
+            priorApp = ResolvedApp(
+                pid: frontmost.processIdentifier,
+                name: frontmost.localizedName ?? "(unknown)",
+                bundleID: frontmost.bundleIdentifier
+            )
+        } else {
+            priorApp = nil
+        }
+
+        guard let runningApp = NSRunningApplication(processIdentifier: app.pid) else {
+            throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
+        }
+        runningApp.activate(options: [.activateIgnoringOtherApps])
+
+        return FocusResult(app: app, priorApp: priorApp)
     }
 
     func click(_ request: ClickRequest) throws -> ClickResult {

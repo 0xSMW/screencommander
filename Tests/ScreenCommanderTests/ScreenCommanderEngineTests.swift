@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import ScreenCaptureKit
 import XCTest
 @testable import ScreenCommander
 
@@ -51,6 +52,11 @@ private final class FakeCapturer: ScreenCapturing {
     }
 
     func capture(display: ResolvedDisplay, includeCursor: Bool) async throws -> CapturedScreenshot {
+        calls += 1
+        return captureResult
+    }
+
+    func capture(window: SCWindow, includeCursor: Bool) async throws -> CapturedScreenshot {
         calls += 1
         return captureResult
     }
@@ -164,6 +170,38 @@ private final class FakeRetentionManager: CaptureRetentionManaging {
     func pruneCaptures(in directory: URL, olderThan: TimeInterval, now: Date) throws -> CleanupResult {
         calls.append(Call(directory: directory, olderThan: olderThan, now: now))
         return result
+    }
+}
+
+private final class FakeTargetResolver: TargetResolving {
+    var apps: [String: ResolvedApp] = [:]
+    var windowList: [WindowInfo] = []
+    var windowByIdentifier: [String: (SCWindow?, WindowInfo)] = [:]
+
+    func resolveApp(identifier: String) async throws -> ResolvedApp {
+        guard let app = apps[identifier] else {
+            throw ScreenCommanderError.appNotFound("No app for '\(identifier)' in fake.")
+        }
+        return app
+    }
+
+    func listWindows(app: ResolvedApp?) async throws -> [WindowInfo] {
+        if let app {
+            return windowList.filter { $0.pid == app.pid }
+        }
+        return windowList
+    }
+
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo) {
+        guard let pair = windowByIdentifier[identifier] else {
+            throw ScreenCommanderError.windowNotFound("No window for '\(identifier)' in fake.")
+        }
+        // Return a nil SCWindow placeholder — tests only check the WindowInfo side
+        // and capture(window:) on FakeCapturer ignores the SCWindow value.
+        if let scw = pair.0 {
+            return (scw, pair.1)
+        }
+        throw ScreenCommanderError.windowNotFound("No SCWindow for '\(identifier)' in fake.")
     }
 }
 
@@ -627,5 +665,120 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(retention.calls.count, 1)
         XCTAssertEqual(retention.calls[0].olderThan, 24 * 60 * 60)
         XCTAssertTrue(metadataStore.saved[0].updateLastAt == state.lastMetadataURL)
+    }
+
+    // MARK: - WP2 tests
+
+    func testWindowsListsAllWindows() async throws {
+        let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath("wp2-windows-all").path])
+        let resolver = FakeTargetResolver()
+        resolver.windowList = [
+            WindowInfo(windowID: 1, title: "Main Window", appName: "Safari", pid: 100, boundsPoints: RectD(x: 0, y: 0, w: 1280, h: 800), isOnScreen: true, layer: 0),
+            WindowInfo(windowID: 2, title: "Preferences", appName: "Safari", pid: 100, boundsPoints: RectD(x: 100, y: 100, w: 600, h: 400), isOnScreen: true, layer: 0)
+        ]
+
+        let engine = ScreenCommanderEngine(
+            permissions: FakePermissions(),
+            displays: NoopDisplays(),
+            capturer: FakeCapturer(captureResult: CapturedScreenshot(image: make1x1Image(), displayID: 1, displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1), pointPixelScale: 1)),
+            imageWriter: FakeImageWriter(returnedSize: SizeD(w: 1, h: 1)),
+            metadataStore: FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL),
+            coordinateMapper: CoordinateMapper(),
+            mouseController: FakeMouseController(),
+            keyboardController: FakeKeyboardController(),
+            retention: FakeRetentionManager(),
+            statePaths: state,
+            targetResolver: resolver
+        )
+
+        let result = try await engine.windows(WindowsRequest(appIdentifier: nil))
+        XCTAssertEqual(result.windows.count, 2)
+        XCTAssertEqual(result.windows[0].windowID, 1)
+        XCTAssertEqual(result.windows[1].windowID, 2)
+    }
+
+    func testWindowsFiltersByApp() async throws {
+        let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath("wp2-windows-filtered").path])
+        let resolver = FakeTargetResolver()
+        resolver.apps["Safari"] = ResolvedApp(pid: 100, name: "Safari", bundleID: "com.apple.safari")
+        resolver.windowList = [
+            WindowInfo(windowID: 1, title: "Safari Win", appName: "Safari", pid: 100, boundsPoints: RectD(x: 0, y: 0, w: 1280, h: 800), isOnScreen: true, layer: 0),
+            WindowInfo(windowID: 2, title: "Finder Win", appName: "Finder", pid: 200, boundsPoints: RectD(x: 0, y: 0, w: 800, h: 600), isOnScreen: true, layer: 0)
+        ]
+
+        let engine = ScreenCommanderEngine(
+            permissions: FakePermissions(),
+            displays: NoopDisplays(),
+            capturer: FakeCapturer(captureResult: CapturedScreenshot(image: make1x1Image(), displayID: 1, displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1), pointPixelScale: 1)),
+            imageWriter: FakeImageWriter(returnedSize: SizeD(w: 1, h: 1)),
+            metadataStore: FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL),
+            coordinateMapper: CoordinateMapper(),
+            mouseController: FakeMouseController(),
+            keyboardController: FakeKeyboardController(),
+            retention: FakeRetentionManager(),
+            statePaths: state,
+            targetResolver: resolver
+        )
+
+        let result = try await engine.windows(WindowsRequest(appIdentifier: "Safari"))
+        XCTAssertEqual(result.windows.count, 1)
+        XCTAssertEqual(result.windows[0].appName, "Safari")
+    }
+
+    func testCoordinateMapperWindowBoundsOverridesDisplayBounds() throws {
+        // Window at (500, 300) with size 800x600, scale 2.0
+        let windowBounds = RectD(x: 500, y: 300, w: 800, h: 600)
+        let metadata = ScreenshotMetadata(
+            capturedAtISO8601: "2024-01-01T00:00:00.000Z",
+            displayID: 0,
+            displayBoundsPoints: RectD(x: 0, y: 0, w: 2560, h: 1600),
+            imageSizePixels: SizeD(w: 1600, h: 1200),
+            pointPixelScale: 2.0,
+            imagePath: "/tmp/test.png",
+            windowID: 42,
+            windowBoundsPoints: windowBounds
+        )
+
+        let mapper = CoordinateMapper()
+        // Pixel (200, 100) -> points (100, 50) -> global (500+100, 300+50) = (600, 350)
+        let resolved = try mapper.map(x: 200, y: 100, space: .pixels, metadata: metadata)
+        XCTAssertEqual(resolved.globalX, 600.0)
+        XCTAssertEqual(resolved.globalY, 350.0)
+    }
+
+    func testCoordinateMapperWithoutWindowBoundsUsesDisplayBounds() throws {
+        let metadata = ScreenshotMetadata(
+            capturedAtISO8601: "2024-01-01T00:00:00.000Z",
+            displayID: 1,
+            displayBoundsPoints: RectD(x: 0, y: 0, w: 1280, h: 800),
+            imageSizePixels: SizeD(w: 2560, h: 1600),
+            pointPixelScale: 2.0,
+            imagePath: "/tmp/test.png"
+        )
+
+        let mapper = CoordinateMapper()
+        // Pixel (200, 100) -> points (100, 50) -> global (0+100, 0+50) = (100, 50)
+        let resolved = try mapper.map(x: 200, y: 100, space: .pixels, metadata: metadata)
+        XCTAssertEqual(resolved.globalX, 100.0)
+        XCTAssertEqual(resolved.globalY, 50.0)
+    }
+
+    func testMetadataBackwardCompatibilityWithoutWindowFields() throws {
+        // Old sidecar JSON without windowID/windowBoundsPoints should still decode
+        let json = """
+        {
+            "capturedAtISO8601": "2024-01-01T00:00:00.000Z",
+            "displayID": 1,
+            "displayBoundsPoints": {"x": 0, "y": 0, "w": 1280, "h": 800},
+            "imageSizePixels": {"w": 2560, "h": 1600},
+            "pointPixelScale": 2.0,
+            "imagePath": "/tmp/test.png"
+        }
+        """.data(using: .utf8)!
+
+        let metadata = try JSONDecoder().decode(ScreenshotMetadata.self, from: json)
+        XCTAssertNil(metadata.windowID)
+        XCTAssertNil(metadata.windowBoundsPoints)
+        XCTAssertEqual(metadata.displayID, 1)
     }
 }

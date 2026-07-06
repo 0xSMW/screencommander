@@ -203,6 +203,56 @@ Behavior:
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
 
+### Windows
+
+List visible windows, optionally filtered by app:
+
+```bash
+screencommander windows
+screencommander windows --app Safari
+screencommander windows --json
+```
+
+Behavior:
+
+- Requires Screen Recording permission.
+- Without `--app`, lists all visible windows across all apps.
+- `--app` accepts an app name (exact or prefix) or a PID.
+- Each row shows: `[windowID] AppName: "title" (WxH at X,Y, layer=N)`.
+- Exits non-zero with code `81` if the app is not found.
+
+### Screenshot (window capture)
+
+Capture a single window instead of the full display:
+
+```bash
+screencommander screenshot --window 12345
+screencommander screenshot --window Safari
+```
+
+Behavior:
+
+- `--window` accepts a numeric window ID or an app-name prefix (captures the frontmost window of that app).
+- The sidecar metadata gains optional `windowID` and `windowBoundsPoints` fields.
+- `click` coordinates from a window screenshot map correctly using the window bounds as the origin.
+- Without `--window`, screenshot behavior is unchanged (full display).
+
+### Focus
+
+Bring an app to the foreground:
+
+```bash
+screencommander focus --app Safari
+screencommander focus --app 1234
+screencommander focus --app Safari --json
+```
+
+Behavior:
+
+- `--app` accepts an app name (exact or prefix) or a PID.
+- Prints `Focused <AppName> (was: <PriorAppName>)`.
+- Exits non-zero with code `81` if the app is not found.
+
 ## Scripting (JSON output)
 
 For automation and scripts, the CLI can emit **exactly one** JSON object to stdout (success or error). Use this to parse results without scraping human output.
@@ -255,3 +305,5 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `41`: mapping failed
 - `50`: input synthesis failed
 - `60`: invalid arguments or chord parse
+- `80`: window not found (`--window` id/name matched nothing)
+- `81`: app not found (`--app` name/pid matched no running app)
