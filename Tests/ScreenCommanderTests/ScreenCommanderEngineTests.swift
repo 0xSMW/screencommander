@@ -56,7 +56,7 @@ private final class FakeCapturer: ScreenCapturing {
         return captureResult
     }
 
-    func capture(window: SCWindow, includeCursor: Bool) async throws -> CapturedScreenshot {
+    func capture(window: ResolvedWindow, includeCursor: Bool) async throws -> CapturedScreenshot {
         calls += 1
         return captureResult
     }
@@ -221,7 +221,8 @@ private final class FakeRetentionManager: CaptureRetentionManaging {
 private final class FakeTargetResolver: TargetResolving {
     var apps: [String: ResolvedApp] = [:]
     var windowList: [WindowInfo] = []
-    var windowByIdentifier: [String: (SCWindow?, WindowInfo)] = [:]
+    var windowByIdentifier: [String: WindowInfo] = [:]
+    private(set) var resolveWindowCalls: [String] = []
 
     func resolveApp(identifier: String) async throws -> ResolvedApp {
         guard let app = apps[identifier] else {
@@ -237,16 +238,13 @@ private final class FakeTargetResolver: TargetResolving {
         return windowList
     }
 
-    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo) {
-        guard let pair = windowByIdentifier[identifier] else {
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
+        resolveWindowCalls.append(identifier)
+        guard let info = windowByIdentifier[identifier] else {
             throw ScreenCommanderError.windowNotFound("No window for '\(identifier)' in fake.")
         }
-        // Return a nil SCWindow placeholder — tests only check the WindowInfo side
-        // and capture(window:) on FakeCapturer ignores the SCWindow value.
-        if let scw = pair.0 {
-            return (scw, pair.1)
-        }
-        throw ScreenCommanderError.windowNotFound("No SCWindow for '\(identifier)' in fake.")
+        // SCWindow cannot be constructed in tests; FakeCapturer ignores it.
+        return ResolvedWindow(info: info, scWindow: nil)
     }
 }
 
@@ -293,7 +291,7 @@ private final class FakeTargets: TargetResolving {
         return windowList
     }
 
-    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo) {
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
         throw ScreenCommanderError.windowNotFound("resolveWindow(identifier:app:) should not be used in this test")
     }
 }
@@ -1058,8 +1056,8 @@ final class ScreenCommanderEngineTests: XCTestCase {
             mouseController: FakeMouseController(),
             keyboardController: FakeKeyboardController(),
             retention: FakeRetentionManager(),
-            statePaths: state,
-            targetResolver: resolver
+            targets: resolver,
+            statePaths: state
         )
 
         let result = try await engine.windows(WindowsRequest(appIdentifier: nil))
@@ -1087,8 +1085,8 @@ final class ScreenCommanderEngineTests: XCTestCase {
             mouseController: FakeMouseController(),
             keyboardController: FakeKeyboardController(),
             retention: FakeRetentionManager(),
-            statePaths: state,
-            targetResolver: resolver
+            targets: resolver,
+            statePaths: state
         )
 
         let result = try await engine.windows(WindowsRequest(appIdentifier: "Safari"))
@@ -1151,6 +1149,291 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertNil(metadata.windowID)
         XCTAssertNil(metadata.windowBoundsPoints)
         XCTAssertEqual(metadata.displayID, 1)
+    }
+
+    private func makeWindowEngineFixture(
+        stateName: String,
+        resolver: FakeTargetResolver,
+        captured: CapturedScreenshot,
+        frontmostApp: @escaping () -> ResolvedApp? = { nil },
+        activateApp: @escaping (ResolvedApp) throws -> Void = { _ in }
+    ) -> (engine: ScreenCommanderEngine, metadataStore: FakeMetadataStore, imageWriter: FakeImageWriter, state: StatePaths) {
+        let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath(stateName).path])
+        let metadataStore = FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL)
+        let imageWriter = FakeImageWriter(returnedSize: SizeD(w: 1600, h: 1200))
+
+        let engine = ScreenCommanderEngine(
+            permissions: FakePermissions(),
+            displays: NoopDisplays(),
+            capturer: FakeCapturer(captureResult: captured),
+            imageWriter: imageWriter,
+            metadataStore: metadataStore,
+            coordinateMapper: CoordinateMapper(),
+            mouseController: FakeMouseController(),
+            keyboardController: FakeKeyboardController(),
+            retention: FakeRetentionManager(),
+            targets: resolver,
+            frontmostApp: frontmostApp,
+            activateApp: activateApp,
+            statePaths: state,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        return (engine, metadataStore, imageWriter, state)
+    }
+
+    func testScreenshotWindowCapturePersistsWindowMetadata() async throws {
+        let windowBounds = RectD(x: 500, y: 300, w: 800, h: 600)
+        let resolver = FakeTargetResolver()
+        resolver.windowByIdentifier["Safari"] = WindowInfo(
+            windowID: 42,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: windowBounds,
+            isOnScreen: true,
+            layer: 0
+        )
+
+        let (engine, metadataStore, _, state) = makeWindowEngineFixture(
+            stateName: "wp2-window-shot",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 7,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 2560, height: 1600),
+                pointPixelScale: 2
+            )
+        )
+
+        let result = try await engine.screenshot(
+            ScreenshotRequest(
+                displayIdentifier: "main",
+                outputPath: nil,
+                format: .png,
+                metadataPath: nil,
+                includeCursor: false,
+                updateLastMetadata: true,
+                windowIdentifier: "Safari"
+            )
+        )
+
+        XCTAssertEqual(resolver.resolveWindowCalls, ["Safari"])
+
+        // The persisted sidecar carries the resolved window bounds — the exact rect
+        // CoordinateMapper later uses to map window-relative pixels to global points.
+        XCTAssertEqual(result.metadata.windowID, 42)
+        XCTAssertEqual(result.metadata.windowBoundsPoints, windowBounds)
+        XCTAssertEqual(result.metadata.displayID, 7)
+        XCTAssertEqual(result.metadata.displayBoundsPoints, RectD(x: 0, y: 0, w: 2560, h: 1600))
+        XCTAssertEqual(result.metadata.pointPixelScale, 2)
+
+        XCTAssertEqual(metadataStore.saved.count, 1)
+        XCTAssertEqual(metadataStore.saved[0].metadata.windowID, 42)
+        XCTAssertEqual(metadataStore.saved[0].metadata.windowBoundsPoints, windowBounds)
+        XCTAssertEqual(metadataStore.saved[0].updateLastAt, state.lastMetadataURL)
+
+        // The in-memory capture rides along for frame diffing (no PNG re-decode).
+        XCTAssertNotNil(result.image)
+    }
+
+    func testScreenshotWindowMetadataRoundTripsThroughJSON() async throws {
+        let resolver = FakeTargetResolver()
+        resolver.windowByIdentifier["77"] = WindowInfo(
+            windowID: 77,
+            title: "Doc",
+            appName: "TextEdit",
+            pid: 33,
+            boundsPoints: RectD(x: 120, y: 90, w: 640, h: 480),
+            isOnScreen: true,
+            layer: 0
+        )
+
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-window-roundtrip",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                pointPixelScale: 2
+            )
+        )
+
+        let result = try await engine.screenshot(
+            ScreenshotRequest(
+                displayIdentifier: "main",
+                outputPath: nil,
+                format: .png,
+                metadataPath: nil,
+                includeCursor: false,
+                updateLastMetadata: true,
+                windowIdentifier: "77"
+            )
+        )
+
+        let encoded = try JSONEncoder().encode(result.metadata)
+        let decoded = try JSONDecoder().decode(ScreenshotMetadata.self, from: encoded)
+
+        XCTAssertEqual(decoded.windowID, 77)
+        XCTAssertEqual(decoded.windowBoundsPoints, RectD(x: 120, y: 90, w: 640, h: 480))
+        XCTAssertEqual(decoded.displayID, 1)
+        XCTAssertEqual(decoded.displayBoundsPoints, RectD(x: 0, y: 0, w: 1440, h: 900))
+        XCTAssertEqual(decoded.pointPixelScale, 2)
+    }
+
+    func testScreenshotWindowNotFoundPropagates() async {
+        let resolver = FakeTargetResolver()
+
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-window-missing",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                pointPixelScale: 1
+            )
+        )
+
+        do {
+            _ = try await engine.screenshot(
+                ScreenshotRequest(
+                    displayIdentifier: "main",
+                    outputPath: nil,
+                    format: .png,
+                    metadataPath: nil,
+                    includeCursor: false,
+                    updateLastMetadata: true,
+                    windowIdentifier: "Nope"
+                )
+            )
+            XCTFail("Expected window_not_found")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "window_not_found")
+            XCTAssertEqual(error.exitCode, 80)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    // MARK: - focus
+
+    func testFocusActivatesResolvedAppAndReportsPriorApp() async throws {
+        let safari = ResolvedApp(pid: 100, name: "Safari", bundleID: "com.apple.Safari")
+        let finder = ResolvedApp(pid: 200, name: "Finder", bundleID: "com.apple.finder")
+        let resolver = FakeTargetResolver()
+        resolver.apps["Safari"] = safari
+
+        var activated: [ResolvedApp] = []
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-focus",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                pointPixelScale: 1
+            ),
+            frontmostApp: { finder },
+            activateApp: { activated.append($0) }
+        )
+
+        let result = try await engine.focus(FocusRequest(appIdentifier: "Safari"))
+
+        XCTAssertEqual(result.app, safari)
+        XCTAssertEqual(result.priorApp, finder)
+        XCTAssertEqual(activated, [safari])
+    }
+
+    func testFocusReportsNilPriorAppWhenNoneIsFrontmost() async throws {
+        let safari = ResolvedApp(pid: 100, name: "Safari", bundleID: "com.apple.Safari")
+        let resolver = FakeTargetResolver()
+        resolver.apps["Safari"] = safari
+
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-focus-no-prior",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                pointPixelScale: 1
+            ),
+            frontmostApp: { nil }
+        )
+
+        let result = try await engine.focus(FocusRequest(appIdentifier: "Safari"))
+
+        XCTAssertEqual(result.app, safari)
+        XCTAssertNil(result.priorApp)
+    }
+
+    func testFocusThrowsAppNotFoundWhenAppIsGoneAtActivation() async {
+        let safari = ResolvedApp(pid: 100, name: "Safari", bundleID: "com.apple.Safari")
+        let resolver = FakeTargetResolver()
+        resolver.apps["Safari"] = safari
+
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-focus-gone",
+            resolver: resolver,
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                pointPixelScale: 1
+            ),
+            activateApp: { app in
+                throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
+            }
+        )
+
+        do {
+            _ = try await engine.focus(FocusRequest(appIdentifier: "Safari"))
+            XCTFail("Expected app_not_found")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "app_not_found")
+            XCTAssertEqual(error.exitCode, 81)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testFocusPropagatesAppNotFoundFromResolver() async {
+        let (engine, _, _, _) = makeWindowEngineFixture(
+            stateName: "wp2-focus-unresolved",
+            resolver: FakeTargetResolver(),
+            captured: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 1,
+                displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                pointPixelScale: 1
+            ),
+            activateApp: { _ in XCTFail("Activation must not run when resolution fails") }
+        )
+
+        do {
+            _ = try await engine.focus(FocusRequest(appIdentifier: "Ghost"))
+            XCTFail("Expected app_not_found")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "app_not_found")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    // MARK: - sleep helper
+
+    func testSleepTimerReturnsImmediatelyForNonPositiveValues() {
+        let start = Date()
+        SleepTimer.sleep(milliseconds: 0)
+        SleepTimer.sleep(milliseconds: -5)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 1.0)
+    }
+
+    func testSleepTimerChunkFitsInUseconds() {
+        // Guards the overflow fix: a full chunk converted to microseconds must fit
+        // in useconds_t (UInt32), so huge sleep/dwell values can never trap.
+        XCTAssertLessThanOrEqual(SleepTimer.maxChunkMilliseconds * 1_000, UInt64(UInt32.max))
     }
 
     // MARK: - elements (AX read core)

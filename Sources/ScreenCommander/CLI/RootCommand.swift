@@ -1,7 +1,6 @@
 import ArgumentParser
 import CoreGraphics
 import Foundation
-import ImageIO
 
 /// Output format for scriptability; when .json, stdout is exactly one JSON object (success or error).
 enum OutputFormat: String, ExpressibleByArgument {
@@ -180,12 +179,8 @@ enum CommandRuntime {
                     imagePath: result.imagePath,
                     metadataPath: result.metadataPath
                 )
-                guard let image = loadImage(from: result.imagePath) else {
-                    writeError("warning: \(prefix.lowercased()) diff image load failed: \(result.imagePath)")
-                    return ActionScreenshotCapture(result: screenshotResult, image: nil)
-                }
-
-                return ActionScreenshotCapture(result: screenshotResult, image: image)
+                // Diff against the in-memory capture — no PNG re-decode round trip.
+                return ActionScreenshotCapture(result: screenshotResult, image: result.image)
             } catch {
                 lastFailure = error
                 if shouldFallbackToTemp(
@@ -236,14 +231,6 @@ enum CommandRuntime {
         } else {
             print(String(format: "diff: %.1f%% changed", diff.changedFraction * 100))
         }
-    }
-
-    private static func loadImage(from path: String) -> CGImage? {
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard let source = CGImageSourceCreateWithURL(url, nil) else {
-            return nil
-        }
-        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
     private static func shouldFallbackToTemp(after error: Error, attemptIndex: Int, totalAttempts: Int) -> Bool {

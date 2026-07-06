@@ -156,9 +156,7 @@ struct SequenceCommand: ParsableCommand {
             guard sleep.ms >= 0 else {
                 throw ScreenCommanderError.invalidArguments("sleep.ms must be greater than or equal to zero.")
             }
-            if sleep.ms > 0 {
-                usleep(useconds_t(sleep.ms * 1_000))
-            }
+            SleepTimer.sleep(milliseconds: sleep.ms)
             return StepActionResult(action: "sleep", sleep: SequenceSleepResult(ms: sleep.ms))
         }
     }

@@ -248,6 +248,59 @@ final class AXBoundsMapperTests: XCTestCase {
         broken.pointPixelScale = 0
         XCTAssertNil(AXBoundsMapper.boundsPixels(for: RectD(x: 200, y: 250, w: 10, h: 10), metadata: broken))
     }
+
+    /// Window-scoped metadata: mirrors CoordinateMapper's `windowBoundsPoints ??
+    /// displayBoundsPoints` rule, with real display bounds alongside the window rect.
+    private var windowMetadata: ScreenshotMetadata {
+        var windowScoped = metadata
+        windowScoped.displayBoundsPoints = RectD(x: 0, y: 0, w: 2560, h: 1600)
+        windowScoped.imageSizePixels = SizeD(w: 1600, h: 1200)
+        windowScoped.windowID = 42
+        windowScoped.windowBoundsPoints = RectD(x: 500, y: 300, w: 800, h: 600)
+        return windowScoped
+    }
+
+    func testWindowMetadataMapsAgainstWindowBounds() {
+        // Global frame (600, 350, 100, 50) inside the window at (500, 300):
+        // pixels = ((600-500)*2, (350-300)*2, 100*2, 50*2).
+        let pixels = AXBoundsMapper.boundsPixels(
+            for: RectD(x: 600, y: 350, w: 100, h: 50),
+            metadata: windowMetadata
+        )
+        XCTAssertEqual(pixels, RectD(x: 200, y: 100, w: 200, h: 100))
+    }
+
+    func testWindowMetadataRejectsFramesOutsideWindowEvenWhenOnDisplay() {
+        // (100, 100) is well inside the display but outside the captured window,
+        // so it has no representation in the window screenshot's pixel space.
+        XCTAssertNil(
+            AXBoundsMapper.boundsPixels(
+                for: RectD(x: 100, y: 100, w: 10, h: 10),
+                metadata: windowMetadata
+            )
+        )
+    }
+}
+
+final class AXTreeUnavailableHeuristicTests: XCTestCase {
+    func testOneNodeNaturalTraversalIsUnusable() {
+        XCTAssertTrue(AXReader.indicatesUnusableTree(visitedCount: 1, truncated: false, maxDepth: 40))
+        XCTAssertTrue(AXReader.indicatesUnusableTree(visitedCount: 0, truncated: false, maxDepth: 40))
+    }
+
+    func testTruncatedTraversalIsNotUnusable() {
+        // --max-elements 1 halts after the root with truncated == true.
+        XCTAssertFalse(AXReader.indicatesUnusableTree(visitedCount: 1, truncated: true, maxDepth: 40))
+    }
+
+    func testDepthLimitedSingleRootIsNotUnusable() {
+        // --max-depth 1 on a single-window app visits only the root window.
+        XCTAssertFalse(AXReader.indicatesUnusableTree(visitedCount: 1, truncated: false, maxDepth: 1))
+    }
+
+    func testMultiNodeTreeIsNotUnusable() {
+        XCTAssertFalse(AXReader.indicatesUnusableTree(visitedCount: 5, truncated: false, maxDepth: 40))
+    }
 }
 
 final class AXIDPathTests: XCTestCase {

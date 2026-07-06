@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import ScreenCaptureKit
@@ -20,12 +21,31 @@ struct WindowInfo: Codable, Sendable {
     var layer: Int
 }
 
+/// A window resolved for capture. `scWindow` carries the live ScreenCaptureKit handle
+/// needed to build a content filter; it is optional so test fakes (which cannot
+/// construct `SCWindow`) can drive the window-capture path through the engine.
+struct ResolvedWindow {
+    var info: WindowInfo
+    var scWindow: SCWindow?
+}
+
 // MARK: - Protocol
 
 protocol TargetResolving {
     func resolveApp(identifier: String) async throws -> ResolvedApp
     func listWindows(app: ResolvedApp?) async throws -> [WindowInfo]
-    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo)
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow
+}
+
+/// Brings an app to the foreground. Lives behind an engine-injected closure so
+/// `focus` can be tested without touching live NSRunningApplication state.
+enum AppActivator {
+    static func activate(_ app: ResolvedApp) throws {
+        guard let runningApp = NSRunningApplication(processIdentifier: app.pid) else {
+            throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
+        }
+        runningApp.activate(options: [.activateIgnoringOtherApps])
+    }
 }
 
 // MARK: - Production implementation
@@ -99,7 +119,7 @@ final class Targets: TargetResolving {
         }
     }
 
-    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo) {
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
@@ -117,20 +137,22 @@ final class Targets: TargetResolving {
             guard let win = candidates.first(where: { $0.windowID == idValue }) else {
                 throw ScreenCommanderError.windowNotFound("No window with ID \(idValue).")
             }
-            let info = windowInfo(from: win)
-            return (win, info)
+            return ResolvedWindow(info: windowInfo(from: win), scWindow: win)
         }
 
-        // App-name prefix: frontmost window of that app (lowest layer = frontmost)
+        // App-name prefix: frontmost window of that app. All normal windows share
+        // layer 0, so prefer on-screen windows (off-screen/minimized ones have no
+        // defined ordering in the enumeration) before tie-breaking on layer.
         let lower = identifier.lowercased()
         let appWindows = candidates.filter {
             $0.owningApplication?.applicationName.lowercased().hasPrefix(lower) == true
         }
-        guard let win = appWindows.min(by: { $0.windowLayer < $1.windowLayer }) else {
+        let onScreenWindows = appWindows.filter { $0.isOnScreen }
+        let pool = onScreenWindows.isEmpty ? appWindows : onScreenWindows
+        guard let win = pool.min(by: { $0.windowLayer < $1.windowLayer }) else {
             throw ScreenCommanderError.windowNotFound("No window matching '\(identifier)'.")
         }
-        let info = windowInfo(from: win)
-        return (win, info)
+        return ResolvedWindow(info: windowInfo(from: win), scWindow: win)
     }
 
     private func windowInfo(from w: SCWindow) -> WindowInfo {

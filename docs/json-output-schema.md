@@ -73,6 +73,8 @@ On failure in JSON mode, the same stdout contains:
 
 The `windowID` and `windowBoundsPoints` fields are present only when `--window` was used. Old sidecars without these fields still decode (backward compatible).
 
+For `--window` captures, `displayID` and `displayBoundsPoints` describe the display containing the captured window (falling back to the main display when the window is off-screen); `windowBoundsPoints` carries the window's own frame in global points, and coordinate mapping uses `windowBoundsPoints` when present.
+
 ### windows
 
 Lists visible windows (requires Screen Recording permission).

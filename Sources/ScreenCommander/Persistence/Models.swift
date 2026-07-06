@@ -22,6 +22,30 @@ struct ScreenshotResult: Codable, Sendable {
     var metadataPath: String
     var lastMetadataPath: String
     var metadata: ScreenshotMetadata
+    /// The captured image, kept in memory for in-process consumers (frame diff)
+    /// so they need not re-decode the just-written PNG. Never serialized.
+    var image: CGImage?
+
+    init(
+        imagePath: String,
+        metadataPath: String,
+        lastMetadataPath: String,
+        metadata: ScreenshotMetadata,
+        image: CGImage? = nil
+    ) {
+        self.imagePath = imagePath
+        self.metadataPath = metadataPath
+        self.lastMetadataPath = lastMetadataPath
+        self.metadata = metadata
+        self.image = image
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case imagePath
+        case metadataPath
+        case lastMetadataPath
+        case metadata
+    }
 }
 
 struct ClickRequest {

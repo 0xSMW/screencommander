@@ -11,5 +11,5 @@ struct CapturedScreenshot {
 
 protocol ScreenCapturing {
     func capture(display: ResolvedDisplay, includeCursor: Bool) async throws -> CapturedScreenshot
-    func capture(window: SCWindow, includeCursor: Bool) async throws -> CapturedScreenshot
+    func capture(window: ResolvedWindow, includeCursor: Bool) async throws -> CapturedScreenshot
 }

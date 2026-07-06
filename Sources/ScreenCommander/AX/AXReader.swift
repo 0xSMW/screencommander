@@ -98,7 +98,11 @@ final class AXReader: AccessibilityReading {
             self.makeRecord(element: element, id: id, maxValueLength: options.maxValueLength)
         }
 
-        guard walk.visitedCount > 1 else {
+        if Self.indicatesUnusableTree(
+            visitedCount: walk.visitedCount,
+            truncated: walk.truncated,
+            maxDepth: options.maxDepth
+        ) {
             throw ScreenCommanderError.axTreeUnavailable(
                 "App '\(app.name)' (pid \(app.pid)) exposes no usable accessibility tree. "
                     + "The app may still be launching, or may not implement accessibility."
@@ -110,6 +114,15 @@ final class AXReader: AccessibilityReading {
             truncated: walk.truncated,
             elements: walk.records
         )
+    }
+
+    /// Empty/one-node trees signal an app with no usable AX tree (ax_tree_unavailable),
+    /// but only when traversal ended naturally: user-set limits (`--max-elements 1`
+    /// truncates after the root; `--max-depth 1` visits only the root of a
+    /// single-window app) legitimately stop at one node and must not be treated as
+    /// an unusable tree.
+    static func indicatesUnusableTree(visitedCount: Int, truncated: Bool, maxDepth: Int) -> Bool {
+        visitedCount <= 1 && !truncated && maxDepth > 1
     }
 
     func elementAt(globalPoint: CGPoint) throws -> AXElementRecord? {

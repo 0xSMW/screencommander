@@ -122,22 +122,25 @@ enum AXTextRenderer {
 /// space of a reference screenshot (`px = (globalPoint − metadataBounds.origin) × scale`).
 enum AXBoundsMapper {
     /// Returns pixel bounds only when the frame lies entirely within the metadata's
-    /// display bounds; otherwise `nil` (never throws — missing pixels are not an error).
+    /// reference bounds; otherwise `nil` (never throws — missing pixels are not an error).
+    ///
+    /// Mirrors the forward `CoordinateMapper` rule: window-scoped screenshots map
+    /// against `windowBoundsPoints`, display-scoped ones against `displayBoundsPoints`.
     static func boundsPixels(for boundsPoints: RectD, metadata: ScreenshotMetadata) -> RectD? {
         let scale = metadata.pointPixelScale
         guard scale > 0 else {
             return nil
         }
 
-        let displayBounds = metadata.displayBoundsPoints
+        let referenceBounds = metadata.windowBoundsPoints ?? metadata.displayBoundsPoints
         let frame = boundsPoints.cgRect
-        guard !frame.isNull, displayBounds.cgRect.contains(frame) else {
+        guard !frame.isNull, referenceBounds.cgRect.contains(frame) else {
             return nil
         }
 
         return RectD(
-            x: (boundsPoints.x - displayBounds.x) * scale,
-            y: (boundsPoints.y - displayBounds.y) * scale,
+            x: (boundsPoints.x - referenceBounds.x) * scale,
+            y: (boundsPoints.y - referenceBounds.y) * scale,
             w: boundsPoints.w * scale,
             h: boundsPoints.h * scale
         )

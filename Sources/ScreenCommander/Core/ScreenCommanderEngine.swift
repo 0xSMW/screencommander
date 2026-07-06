@@ -15,10 +15,10 @@ final class ScreenCommanderEngine {
     private let accessibilityReader: AccessibilityReading
     private let targets: TargetResolving
     private let frontmostApp: () -> ResolvedApp?
+    private let activateApp: (ResolvedApp) throws -> Void
     private let fileManager: FileManager
     private let statePaths: StatePaths
     private let now: () -> Date
-    let targetResolver: TargetResolving
 
     init(
         permissions: PermissionChecking,
@@ -33,8 +33,8 @@ final class ScreenCommanderEngine {
         accessibilityReader: AccessibilityReading = AXReader(),
         targets: TargetResolving = Targets(),
         frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
+        activateApp: @escaping (ResolvedApp) throws -> Void = AppActivator.activate,
         statePaths: StatePaths,
-        targetResolver: TargetResolving = Targets(),
         fileManager: FileManager = .default,
         now: @escaping () -> Date = Date.init
     ) {
@@ -50,8 +50,8 @@ final class ScreenCommanderEngine {
         self.accessibilityReader = accessibilityReader
         self.targets = targets
         self.frontmostApp = frontmostApp
+        self.activateApp = activateApp
         self.statePaths = statePaths
-        self.targetResolver = targetResolver
         self.fileManager = fileManager
         self.now = now
     }
@@ -76,8 +76,8 @@ final class ScreenCommanderEngine {
             accessibilityReader: AXReader(),
             targets: Targets(),
             frontmostApp: FrontmostApp.current,
+            activateApp: AppActivator.activate,
             statePaths: statePaths,
-            targetResolver: Targets(),
             fileManager: fileManager
         )
     }
@@ -97,8 +97,8 @@ final class ScreenCommanderEngine {
 
         // Window capture path
         if let windowIdentifier = request.windowIdentifier {
-            let (scWindow, windowInfo) = try await targetResolver.resolveWindow(identifier: windowIdentifier, app: nil)
-            let captured = try await capturer.capture(window: scWindow, includeCursor: request.includeCursor)
+            let window = try await targets.resolveWindow(identifier: windowIdentifier, app: nil)
+            let captured = try await capturer.capture(window: window, includeCursor: request.includeCursor)
             let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
 
             let metadata = ScreenshotMetadata(
@@ -108,8 +108,8 @@ final class ScreenCommanderEngine {
                 imageSizePixels: pixelSize,
                 pointPixelScale: captured.pointPixelScale,
                 imagePath: imageURL.path,
-                windowID: windowInfo.windowID,
-                windowBoundsPoints: windowInfo.boundsPoints
+                windowID: window.info.windowID,
+                windowBoundsPoints: window.info.boundsPoints
             )
 
             try metadataStore.save(metadata: metadata, at: metadataURL, updateLastAt: lastMetadataURL)
@@ -118,7 +118,8 @@ final class ScreenCommanderEngine {
                 imagePath: imageURL.path,
                 metadataPath: metadataURL.path,
                 lastMetadataPath: lastMetadataURL.path,
-                metadata: metadata
+                metadata: metadata,
+                image: captured.image
             )
         }
 
@@ -142,7 +143,8 @@ final class ScreenCommanderEngine {
             imagePath: imageURL.path,
             metadataPath: metadataURL.path,
             lastMetadataPath: lastMetadataURL.path,
-            metadata: metadata
+            metadata: metadata,
+            image: captured.image
         )
     }
 
@@ -150,33 +152,18 @@ final class ScreenCommanderEngine {
         try permissions.ensureScreenRecordingAccess(prompt: false)
         let app: ResolvedApp?
         if let id = request.appIdentifier {
-            app = try await targetResolver.resolveApp(identifier: id)
+            app = try await targets.resolveApp(identifier: id)
         } else {
             app = nil
         }
-        let list = try await targetResolver.listWindows(app: app)
+        let list = try await targets.listWindows(app: app)
         return WindowsResult(windows: list)
     }
 
     func focus(_ request: FocusRequest) async throws -> FocusResult {
-        let app = try await targetResolver.resolveApp(identifier: request.appIdentifier)
-
-        let priorApp: ResolvedApp?
-        if let frontmost = NSWorkspace.shared.frontmostApplication {
-            priorApp = ResolvedApp(
-                pid: frontmost.processIdentifier,
-                name: frontmost.localizedName ?? "(unknown)",
-                bundleID: frontmost.bundleIdentifier
-            )
-        } else {
-            priorApp = nil
-        }
-
-        guard let runningApp = NSRunningApplication(processIdentifier: app.pid) else {
-            throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
-        }
-        runningApp.activate(options: [.activateIgnoringOtherApps])
-
+        let app = try await targets.resolveApp(identifier: request.appIdentifier)
+        let priorApp = frontmostApp()
+        try activateApp(app)
         return FocusResult(app: app, priorApp: priorApp)
     }
 
@@ -313,9 +300,7 @@ final class ScreenCommanderEngine {
         )
 
         try mouseController.move(to: CGPoint(x: resolved.globalX, y: resolved.globalY))
-        if request.dwellMS > 0 {
-            usleep(useconds_t(request.dwellMS * 1_000))
-        }
+        SleepTimer.sleep(milliseconds: request.dwellMS)
 
         return MoveResult(
             metadataPath: metadataURL.path,
