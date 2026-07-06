@@ -195,17 +195,12 @@ final class MouseController: MouseControlling {
         let source = CGEventSource(stateID: .hidSystemState)
         let flags = try MouseModifiers.flags(for: modifiers)
 
-        if primeClick {
+        if primeClick || humanLike {
+            // `--prime` and human-like mode both mean "settle the pointer before
+            // clicking"; stack them as one move so callers do not get two
+            // indistinguishable pre-click motion events.
             try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
-            usleep(80_000)
-        }
-
-        if humanLike {
-            // Human-like timing primes cursor position without spending a real click.
-            // Focus belongs in the engine, where the target app/window is known and
-            // can be activated before this exact click sequence is posted.
-            try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
-            usleep(90_000)
+            usleep(humanLike ? 90_000 : 80_000)
         }
 
         if tripleClick {

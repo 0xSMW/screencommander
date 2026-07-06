@@ -70,4 +70,30 @@ final class MouseControllerTests: XCTestCase {
         XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 1)
         XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 1)
     }
+
+    func testPrimeAndHumanLikeShareOnePreClickMove() throws {
+        var eventTypes: [CGEventType] = []
+        var preClickMoves = 0
+        let controller = MouseController { event, _ in
+            eventTypes.append(event.type)
+            if event.type == .mouseMoved, event.getIntegerValueField(.mouseEventClickState) == 0 {
+                preClickMoves += 1
+            }
+        }
+
+        try controller.click(
+            at: CGPoint(x: 10, y: 20),
+            button: .left,
+            doubleClick: false,
+            tripleClick: false,
+            primeClick: true,
+            humanLike: true,
+            modifiers: [],
+            destination: .global
+        )
+
+        XCTAssertEqual(preClickMoves, 1)
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 1)
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 1)
+    }
 }
