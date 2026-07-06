@@ -8,7 +8,7 @@
 2. **Decide** — deterministic coordinate mapping from capture metadata (pixels, points, or normalized → global points, window-relative included), element ids and bounds that are directly clickable, and `--until` predicates for blocking until the UI reaches a state.
 3. **Act** — click, scroll, drag, hover, type, and key chords, delivered through a tier ladder: coordinate-free accessibility actions → process-targeted events posted straight to an app (cursor untouched, works on background windows) → global event synthesis. `--no-cursor` guarantees the pointer never moves.
 
-Vision models work from screenshots and pixel coordinates; non-vision models (for example `codex-5.3-codex-spark`) work from the element tree and text alone — same commands, same JSON envelopes. `serve --mcp` exposes the entire surface as MCP tools with screenshots returned in-band.
+Vision models work from screenshots and pixel coordinates. Non-vision models (for example `codex-5.3-codex-spark`) work from the element tree and text alone — same commands, same JSON envelopes. `serve --mcp` exposes the entire surface as MCP tools with screenshots returned in-band.
 
 ## Requirements
 
