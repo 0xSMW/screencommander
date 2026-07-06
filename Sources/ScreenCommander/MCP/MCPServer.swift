@@ -40,17 +40,13 @@ final class MCPServer {
         switch request.method {
         case "initialize":
             initialized = true
-            return .success(id: id, result: initializeResult(params: request.params))
+            return .success(id: id, result: initializeResult())
 
         case "ping":
             return .success(id: id, result: .object([:]))
 
         case "tools/list":
-            do {
-                return .success(id: id, result: try registry.listToolsResult())
-            } catch {
-                return .failure(id: id, code: JSONRPCErrorCode.internalError, message: "Could not list tools: \(error)")
-            }
+            return .success(id: id, result: registry.listToolsResult())
 
         case "tools/call":
             guard let name = request.params?["name"]?.stringValue else {
@@ -67,12 +63,13 @@ final class MCPServer {
         }
     }
 
-    private func initializeResult(params: JSONValue?) -> JSONValue {
-        // Echo the client's requested protocol version when it names one (we speak a
-        // single revision; version negotiation is the client's problem to detect).
-        let requested = params?["protocolVersion"]?.stringValue
+    private func initializeResult() -> JSONValue {
+        // We implement exactly one protocol revision. Per the MCP lifecycle spec, a
+        // server that doesn't support the requested version responds with one it
+        // DOES support (never a blind echo — that would falsely negotiate unknown
+        // revisions); the client then decides whether to proceed or disconnect.
         return .object([
-            "protocolVersion": .string(requested ?? Self.protocolVersion),
+            "protocolVersion": .string(Self.protocolVersion),
             "capabilities": .object([
                 "tools": .object(["listChanged": .bool(false)])
             ]),

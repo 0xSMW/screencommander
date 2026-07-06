@@ -89,11 +89,13 @@ private final class MCPFakeMouse: MouseControlling {
 }
 
 private final class MCPFakeKeyboard: KeyboardControlling {
+    private(set) var runCount = 0
+
     func type(text: String, delayMilliseconds: Int?) throws {}
     func typeByPasting(text: String) throws {}
     func press(chord: ParsedKeyChord) throws {}
     func pressSystemKey(_ key: SystemKey) throws {}
-    func run(sequence: KeySequence) throws {}
+    func run(sequence: KeySequence) throws { runCount += 1 }
 }
 
 private final class MCPFakeRetention: CaptureRetentionManaging {
@@ -197,6 +199,7 @@ private struct MCPFixture {
     let server: MCPServer
     let registry: MCPToolRegistry
     let mouse: MCPFakeMouse
+    let keyboard: MCPFakeKeyboard
     let targets: MCPFakeTargets
     let observation: MCPFakeObservation
 }
@@ -222,6 +225,7 @@ private func makeFixture(_ name: String) -> MCPFixture {
     )
 
     let mouse = MCPFakeMouse()
+    let keyboard = MCPFakeKeyboard()
     let targets = MCPFakeTargets()
     let observation = MCPFakeObservation()
 
@@ -240,7 +244,7 @@ private func makeFixture(_ name: String) -> MCPFixture {
         metadataStore: metadataStore,
         coordinateMapper: CoordinateMapper(),
         mouseController: mouse,
-        keyboardController: MCPFakeKeyboard(),
+        keyboardController: keyboard,
         retention: MCPFakeRetention(),
         accessibilityReader: MCPFakeReader(),
         axActions: MCPFakeAXActions(),
@@ -256,6 +260,7 @@ private func makeFixture(_ name: String) -> MCPFixture {
         server: MCPServer(registry: registry),
         registry: registry,
         mouse: mouse,
+        keyboard: keyboard,
         targets: targets,
         observation: observation
     )
@@ -280,7 +285,9 @@ final class MCPServerTests: XCTestCase {
 
         XCTAssertEqual(response["id"]?.intValue, 1)
         let result = try XCTUnwrap(response["result"])
-        XCTAssertEqual(result["protocolVersion"]?.stringValue, "2025-03-26")
+        // We speak exactly one revision; an unsupported request gets OUR version
+        // back (per the MCP lifecycle spec), never an echo of an unknown one.
+        XCTAssertEqual(result["protocolVersion"]?.stringValue, MCPServer.protocolVersion)
         XCTAssertEqual(result["serverInfo"]?["name"]?.stringValue, "screencommander")
         XCTAssertNotNil(result["capabilities"]?["tools"])
     }
@@ -471,6 +478,65 @@ final class MCPServerTests: XCTestCase {
         let envelope = try XCTUnwrap(result["structuredContent"])
         XCTAssertEqual(envelope["error"]?["code"]?.stringValue, "observe_timeout")
         XCTAssertEqual(envelope["exitCode"]?.intValue, 73)
+    }
+
+    // MARK: - Malformed-input regressions (review findings)
+
+    func testScrollRejectsOutOfInt32RangeDeltaInsteadOfTrapping() async throws {
+        let fixture = makeFixture("scroll-overflow")
+        // Int32.max + 1 — previously a trapping Int32() conversion that killed the server.
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"scroll","arguments":{"x":1,"y":1,"dx":2147483648}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"])
+        XCTAssertEqual(result["isError"]?.boolValue, true)
+        XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
+    }
+
+    func testElementsRejectsNegativeWindowIdInsteadOfTrapping() async throws {
+        let fixture = makeFixture("elements-negative-window")
+        // Previously a trapping UInt32() conversion.
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"elements","arguments":{"windowId":-1}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"])
+        XCTAssertEqual(result["isError"]?.boolValue, true)
+        XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
+    }
+
+    func testKeysRejectsMixedTypeStepsWithoutPartialExecution() async throws {
+        let fixture = makeFixture("keys-mixed-array")
+        // Previously compactMap dropped the 5 and executed only press:a.
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"keys","arguments":{"steps":["press:a",5]}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"])
+        XCTAssertEqual(result["isError"]?.boolValue, true)
+        XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
+        XCTAssertEqual(fixture.keyboard.runCount, 0, "malformed step lists must not execute partially")
+    }
+
+    func testToolsCallScreenshotJPEGReturnsJpegImageBlock() async throws {
+        let fixture = makeFixture("screenshot-jpeg")
+        fixture.targets.windows["Safari"] = WindowInfo(
+            windowID: 43,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: RectD(x: 10, y: 20, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","format":"jpeg","path":"/tmp/mcp-test.jpeg"}}}"#
+        ))
+
+        let content = try XCTUnwrap(response["result"]?["content"]?.arrayValue)
+        XCTAssertEqual(content.count, 2, "jpeg captures must include the in-band image block too")
+        XCTAssertEqual(content[0]["type"]?.stringValue, "image")
+        XCTAssertEqual(content[0]["mimeType"]?.stringValue, "image/jpeg")
+        XCTAssertNotNil(Data(base64Encoded: try XCTUnwrap(content[0]["data"]?.stringValue)))
     }
 
     func testObserveWaitRejectsOutOfRangeTimeout() async throws {

@@ -39,9 +39,9 @@ final class MCPToolRegistry {
         tools = buildTools()
     }
 
-    func listToolsResult() throws -> JSONValue {
+    func listToolsResult() -> JSONValue {
         .object([
-            "tools": .array(try tools.map { tool in
+            "tools": .array(tools.map { tool in
                 .object([
                     "name": .string(tool.name),
                     "description": .string(tool.description),
@@ -143,11 +143,11 @@ final class MCPToolRegistry {
             let result = try await engine.screenshot(request)
 
             var extra: [JSONValue] = []
-            if format == .png, let image = result.image, let png = try? Self.pngData(from: image) {
+            if let image = result.image, let encoded = try? Self.imageData(from: image, format: format) {
                 extra.append(.object([
                     "type": .string("image"),
-                    "data": .string(png.base64EncodedString()),
-                    "mimeType": .string("image/png"),
+                    "data": .string(encoded.base64EncodedString()),
+                    "mimeType": .string(format == .png ? "image/png" : "image/jpeg"),
                 ]))
             }
             return try self.okOutcome(command: "screenshot", result: result, extraContent: extra)
@@ -180,8 +180,8 @@ final class MCPToolRegistry {
             ])
         ) { [engine] args in
             let request = ClickRequest(
-                x: Self.doubleArg(args, "x"),
-                y: Self.doubleArg(args, "y"),
+                x: try Self.doubleArg(args, "x"),
+                y: try Self.doubleArg(args, "y"),
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
@@ -189,7 +189,7 @@ final class MCPToolRegistry {
                 triple: Self.boolArg(args, "triple") ?? false,
                 primeClick: Self.boolArg(args, "prime") ?? false,
                 humanLike: !(Self.boolArg(args, "raw") ?? false),
-                modifiers: Self.stringArrayArg(args, "modifiers") ?? [],
+                modifiers: try Self.stringArrayArg(args, "modifiers") ?? [],
                 element: Self.stringArg(args, "element"),
                 elementID: Self.stringArg(args, "elementId"),
                 role: Self.stringArg(args, "role"),
@@ -222,7 +222,7 @@ final class MCPToolRegistry {
         ) { [engine] args in
             let request = TypeRequest(
                 text: try Self.requireString(args, "text"),
-                delayMilliseconds: Self.intArg(args, "delayMs"),
+                delayMilliseconds: try Self.intArg(args, "delayMs"),
                 inputMode: try Self.enumArg(args, "mode", TextInputMode.self) ?? .paste,
                 element: Self.stringArg(args, "element"),
                 elementID: Self.stringArg(args, "elementId"),
@@ -257,7 +257,7 @@ final class MCPToolRegistry {
                 "steps": arrayProp("Key steps in order.", itemType: "string"),
             ], required: ["steps"])
         ) { [engine] args in
-            guard let steps = Self.stringArrayArg(args, "steps"), !steps.isEmpty else {
+            guard let steps = try Self.stringArrayArg(args, "steps"), !steps.isEmpty else {
                 throw ScreenCommanderError.invalidArguments("'steps' must be a non-empty array of strings.")
             }
             let result = try engine.keys(KeysRequest(steps: steps))
@@ -287,12 +287,12 @@ final class MCPToolRegistry {
             ])
         ) { [engine] args in
             let request = ScrollRequest(
-                x: Self.doubleArg(args, "x"),
-                y: Self.doubleArg(args, "y"),
+                x: try Self.doubleArg(args, "x"),
+                y: try Self.doubleArg(args, "y"),
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
-                dx: Int32(Self.intArg(args, "dx") ?? 0),
-                dy: Int32(Self.intArg(args, "dy") ?? 0),
+                dx: try Self.int32Arg(args, "dx") ?? 0,
+                dy: try Self.int32Arg(args, "dy") ?? 0,
                 unit: try Self.enumArg(args, "unit", ScrollUnit.self) ?? .lines,
                 element: Self.stringArg(args, "element"),
                 elementID: Self.stringArg(args, "elementId"),
@@ -331,8 +331,8 @@ final class MCPToolRegistry {
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
-                steps: Self.intArg(args, "steps") ?? 12,
-                durationMS: Self.intArg(args, "durationMs") ?? 300
+                steps: try Self.intArg(args, "steps") ?? 12,
+                durationMS: try Self.intArg(args, "durationMs") ?? 300
             )
             let result = try engine.drag(request)
             return try self.okOutcome(command: "drag", result: ActionResultEnvelope(action: result))
@@ -356,7 +356,7 @@ final class MCPToolRegistry {
                 y: try Self.requireDouble(args, "y"),
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
-                dwellMS: Self.intArg(args, "dwellMs") ?? 0
+                dwellMS: try Self.intArg(args, "dwellMs") ?? 0
             )
             let result = try engine.move(request)
             return try self.okOutcome(command: "move", result: ActionResultEnvelope(action: result))
@@ -381,14 +381,14 @@ final class MCPToolRegistry {
         ) { [engine] args in
             let request = ElementsRequest(
                 appIdentifier: Self.stringArg(args, "app"),
-                windowID: Self.intArg(args, "windowId").map(UInt32.init),
+                windowID: try Self.uint32Arg(args, "windowId"),
                 allWindows: Self.boolArg(args, "allWindows") ?? false,
                 includeText: Self.boolArg(args, "text") ?? false,
-                maxDepth: Self.intArg(args, "maxDepth") ?? 40,
-                maxElements: Self.intArg(args, "maxElements") ?? 2000,
-                roles: Self.stringArrayArg(args, "roles"),
+                maxDepth: try Self.intArg(args, "maxDepth") ?? 40,
+                maxElements: try Self.intArg(args, "maxElements") ?? 2000,
+                roles: try Self.stringArrayArg(args, "roles"),
                 visibleOnly: Self.boolArg(args, "visibleOnly") ?? false,
-                maxValueLength: Self.intArg(args, "maxValueLength") ?? 200
+                maxValueLength: try Self.intArg(args, "maxValueLength") ?? 200
             )
             let result = try await engine.elements(request)
             return try self.okOutcome(command: "elements", result: result)
@@ -487,7 +487,7 @@ final class MCPToolRegistry {
                 "olderThanHours": numberProp("Delete captures older than this many hours."),
             ])
         ) { [engine] args in
-            let result = try engine.cleanup(CleanupRequest(olderThanHours: Self.intArg(args, "olderThanHours")))
+            let result = try engine.cleanup(CleanupRequest(olderThanHours: try Self.intArg(args, "olderThanHours")))
             return try self.okOutcome(command: "cleanup", result: result)
         }
     }
@@ -504,6 +504,11 @@ final class MCPToolRegistry {
 
     // MARK: - Argument helpers
 
+    // Absent keys and explicit nulls mean "not provided"; a present value of the
+    // wrong shape is an invalid_arguments tool error, never a silent default or a
+    // trapping conversion — malformed automation input must not act partially or
+    // kill the server.
+
     private static func stringArg(_ args: JSONValue, _ key: String) -> String? {
         args[key]?.stringValue
     }
@@ -512,17 +517,49 @@ final class MCPToolRegistry {
         args[key]?.boolValue
     }
 
-    private static func doubleArg(_ args: JSONValue, _ key: String) -> Double? {
-        args[key]?.numberValue
+    private static func doubleArg(_ args: JSONValue, _ key: String) throws -> Double? {
+        guard let value = args[key], value != .null else { return nil }
+        guard let number = value.numberValue else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be a number.")
+        }
+        return number
     }
 
-    private static func intArg(_ args: JSONValue, _ key: String) -> Int? {
-        args[key]?.intValue
+    private static func intArg(_ args: JSONValue, _ key: String) throws -> Int? {
+        guard let value = args[key], value != .null else { return nil }
+        guard let int = value.intValue else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be an integer.")
+        }
+        return int
     }
 
-    private static func stringArrayArg(_ args: JSONValue, _ key: String) -> [String]? {
-        guard let array = args[key]?.arrayValue else { return nil }
-        return array.compactMap(\.stringValue)
+    private static func int32Arg(_ args: JSONValue, _ key: String) throws -> Int32? {
+        guard let int = try intArg(args, key) else { return nil }
+        guard let narrowed = Int32(exactly: int) else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be between \(Int32.min) and \(Int32.max).")
+        }
+        return narrowed
+    }
+
+    private static func uint32Arg(_ args: JSONValue, _ key: String) throws -> UInt32? {
+        guard let int = try intArg(args, key) else { return nil }
+        guard let narrowed = UInt32(exactly: int) else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be between 0 and \(UInt32.max).")
+        }
+        return narrowed
+    }
+
+    private static func stringArrayArg(_ args: JSONValue, _ key: String) throws -> [String]? {
+        guard let value = args[key], value != .null else { return nil }
+        guard let array = value.arrayValue else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be an array of strings.")
+        }
+        return try array.map { element in
+            guard let string = element.stringValue else {
+                throw ScreenCommanderError.invalidArguments("'\(key)' must contain only strings.")
+            }
+            return string
+        }
     }
 
     private static func requireString(_ args: JSONValue, _ key: String) throws -> String {
@@ -533,14 +570,14 @@ final class MCPToolRegistry {
     }
 
     private static func requireDouble(_ args: JSONValue, _ key: String) throws -> Double {
-        guard let value = doubleArg(args, key) else {
+        guard let value = try doubleArg(args, key) else {
             throw ScreenCommanderError.invalidArguments("Missing required number argument '\(key)'.")
         }
         return value
     }
 
     private static func requireInt(_ args: JSONValue, _ key: String) throws -> Int {
-        guard let value = intArg(args, key) else {
+        guard let value = try intArg(args, key) else {
             throw ScreenCommanderError.invalidArguments("Missing required integer argument '\(key)'.")
         }
         return value
@@ -599,21 +636,21 @@ final class MCPToolRegistry {
         ])
     }
 
-    /// In-memory PNG encode for the screenshot image block (the file on disk is
-    /// written by the engine as usual).
-    private static func pngData(from image: CGImage) throws -> Data {
+    /// In-memory encode for the screenshot image block, matching the requested
+    /// format (the file on disk is written by the engine as usual).
+    private static func imageData(from image: CGImage, format: ImageFormat) throws -> Data {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data as CFMutableData,
-            UTType.png.identifier as CFString,
+            format.utTypeIdentifier,
             1,
             nil
         ) else {
-            throw ScreenCommanderError.imageWriteFailed("Could not create in-memory PNG destination.")
+            throw ScreenCommanderError.imageWriteFailed("Could not create in-memory \(format.rawValue) destination.")
         }
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else {
-            throw ScreenCommanderError.imageWriteFailed("Could not encode in-memory PNG.")
+            throw ScreenCommanderError.imageWriteFailed("Could not encode in-memory \(format.rawValue).")
         }
         return data as Data
     }

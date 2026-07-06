@@ -78,11 +78,10 @@ enum JSONValue: Codable, Equatable, Sendable {
     }
 
     var intValue: Int? {
-        guard let number = numberValue, number.truncatingRemainder(dividingBy: 1) == 0,
-              number >= Double(Int.min), number <= Double(Int.max) else {
-            return nil
-        }
-        return Int(number)
+        // Exact conversion only: rejects fractions AND doubles that round past
+        // Int.max (Double(Int.max) rounds UP, so a >=/<= range check still traps).
+        guard let number = numberValue else { return nil }
+        return Int(exactly: number)
     }
 
     var arrayValue: [JSONValue]? {

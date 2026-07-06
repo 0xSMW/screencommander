@@ -21,6 +21,17 @@ final class MCPJSONRPCTests: XCTestCase {
         XCTAssertEqual(reencoded, value)
     }
 
+    func testIntValueRequiresExactRepresentation() {
+        XCTAssertEqual(JSONValue.number(3).intValue, 3)
+        XCTAssertEqual(JSONValue.number(-42).intValue, -42)
+        XCTAssertNil(JSONValue.number(2.5).intValue)
+        // Double(Int.max) rounds up past Int.max — a naive range check admits this
+        // value and Int() then traps. Int(exactly:) must reject it.
+        XCTAssertNil(JSONValue.number(9.223372036854776e18).intValue)
+        XCTAssertNil(JSONValue.number(-1e300).intValue)
+        XCTAssertNil(JSONValue.string("3").intValue)
+    }
+
     func testJSONValueEncodesWholeNumbersWithoutFraction() throws {
         let line = try JSONValue.object(["id": .number(7)]).compactLine()
         XCTAssertEqual(line, #"{"id":7}"#)
