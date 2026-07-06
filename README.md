@@ -54,7 +54,7 @@ For user-local installs, ensure `~/.local/bin` is on your `PATH`.
 - System Settings path: Privacy & Security > Screen Recording
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`
 
-2. Accessibility permission for `click`, `type`, and `key`
+2. Accessibility permission for `click`, `scroll`, `drag`, `move`, `type`, and `key`
 - System Settings path: Privacy & Security > Accessibility
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
 
@@ -116,12 +116,63 @@ screencommander click 0.25 0.25 \
   --double
 ```
 
+Modifier and middle/triple-click examples:
+
+```bash
+screencommander click 640 320 --button middle
+screencommander click 640 320 --modifiers cmd,shift
+screencommander click 640 320 --triple
+```
+
 Behavior:
 
 - Defaults to metadata path `~/Library/Caches/screencommander/last-screenshot.json`.
 - Maps screenshot coordinates into global Quartz coordinates deterministically.
+- Supports `--button left|right|middle`, `--double`, `--triple`, and `--modifiers cmd,shift,option,ctrl`.
 - Captures pre-action and post-action screenshots by default and prints both paths.
 - Disable before/after capture with `--no-postshot`.
+
+### Scroll
+
+```bash
+screencommander scroll 640 800 --dy -5
+screencommander scroll 640 800 --dy 300 --unit pixels
+screencommander scroll 640 800 --dx 2 --dy 0
+```
+
+Behavior:
+
+- Maps the target point through screenshot metadata, moves the cursor there, then posts a scroll event.
+- Uses line units by default; pass `--unit pixels` for pixel scrolling.
+- Requires at least one nonzero delta across `--dx` and `--dy`.
+- Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+
+### Drag
+
+```bash
+screencommander drag 300 400 900 400
+screencommander drag 300 400 900 400 --button right --steps 20 --duration-ms 600
+```
+
+Behavior:
+
+- Maps both endpoints through the same metadata and coordinate space.
+- Posts mouse-down, interpolated drag events, and mouse-up.
+- Defaults to `--steps 12` and `--duration-ms 300`.
+- Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+
+### Move
+
+```bash
+screencommander move 640 320
+screencommander move 640 320 --dwell-ms 250
+```
+
+Behavior:
+
+- Maps screenshot coordinates to global Quartz coordinates and posts one mouse-move event.
+- Sleeps after the move when `--dwell-ms` is provided.
+- Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
 
 ### Type
 
@@ -191,7 +242,10 @@ Example `sequence.json`:
 {
   "steps": [
     { "click": { "x": 935, "y": 1074, "meta": "./last-screenshot.json" } },
+    { "scroll": { "x": 935, "y": 800, "dy": -4 } },
+    { "move": { "x": 935, "y": 700, "dwellMS": 100 } },
     { "type": { "text": "hello from sequence", "mode": "paste" } },
+    { "sleep": { "ms": 100 } },
     { "key": { "chord": "enter" } }
   ]
 }
@@ -200,6 +254,7 @@ Example `sequence.json`:
 Behavior:
 
 - Executes steps in order.
+- Step keys are exactly one of `click`, `scroll`, `drag`, `move`, `type`, `key`, or `sleep`.
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
 
@@ -255,3 +310,5 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `41`: mapping failed
 - `50`: input synthesis failed
 - `60`: invalid arguments or chord parse
+
+WP1 adds no new exit codes.

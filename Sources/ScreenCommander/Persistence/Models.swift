@@ -29,8 +29,10 @@ struct ClickRequest {
     var metadataPath: String?
     var button: MouseButtonChoice
     var doubleClick: Bool
+    var triple: Bool
     var primeClick: Bool
     var humanLike: Bool
+    var modifiers: [String]
 }
 
 struct ClickResult: Codable, Sendable {
@@ -38,8 +40,63 @@ struct ClickResult: Codable, Sendable {
     var resolved: ResolvedCoordinate
     var button: MouseButtonChoice
     var doubleClick: Bool
+    var triple: Bool
     var primeClick: Bool
     var humanLike: Bool
+    var modifiers: [String]
+}
+
+struct ScrollRequest {
+    var x: Double
+    var y: Double
+    var coordinateSpace: CoordinateSpace
+    var metadataPath: String?
+    var dx: Int32
+    var dy: Int32
+    var unit: ScrollUnit
+}
+
+struct ScrollResult: Codable, Sendable {
+    var metadataPath: String
+    var resolved: ResolvedCoordinate
+    var dx: Int32
+    var dy: Int32
+    var unit: ScrollUnit
+}
+
+struct DragRequest {
+    var x1: Double
+    var y1: Double
+    var x2: Double
+    var y2: Double
+    var coordinateSpace: CoordinateSpace
+    var metadataPath: String?
+    var button: MouseButtonChoice
+    var steps: Int
+    var durationMS: Int
+}
+
+struct DragResult: Codable, Sendable {
+    var metadataPath: String
+    var from: ResolvedCoordinate
+    var to: ResolvedCoordinate
+    var button: MouseButtonChoice
+    var steps: Int
+    var durationMilliseconds: Int
+}
+
+struct MoveRequest {
+    var x: Double
+    var y: Double
+    var coordinateSpace: CoordinateSpace
+    var metadataPath: String?
+    var dwellMS: Int
+}
+
+struct MoveResult: Codable, Sendable {
+    var metadataPath: String
+    var resolved: ResolvedCoordinate
+    var dwellMilliseconds: Int
 }
 
 struct TypeRequest {

@@ -45,8 +45,12 @@ struct SequenceCommand: ParsableCommand {
                     index: index + 1,
                     action: actionResult.action,
                     click: actionResult.click,
+                    scroll: actionResult.scroll,
+                    drag: actionResult.drag,
+                    move: actionResult.move,
                     type: actionResult.type,
                     key: actionResult.key,
+                    sleep: actionResult.sleep,
                     preshot: preshotResult,
                     postshot: postshotResult
                 )
@@ -80,11 +84,52 @@ struct SequenceCommand: ParsableCommand {
                     metadataPath: click.meta,
                     button: click.button ?? .left,
                     doubleClick: click.double ?? false,
+                    triple: click.triple ?? false,
                     primeClick: click.prime ?? false,
-                    humanLike: !(click.raw ?? false)
+                    humanLike: !(click.raw ?? false),
+                    modifiers: try MouseModifiers.parse(click.modifiers)
                 )
             )
-            return StepActionResult(action: "click", click: result, type: nil, key: nil)
+            return StepActionResult(action: "click", click: result)
+        case .scroll(let scroll):
+            let result = try CommandRuntime.engine.scroll(
+                ScrollRequest(
+                    x: scroll.x,
+                    y: scroll.y,
+                    coordinateSpace: scroll.space ?? .pixels,
+                    metadataPath: scroll.meta,
+                    dx: scroll.dx ?? 0,
+                    dy: scroll.dy,
+                    unit: scroll.unit ?? .lines
+                )
+            )
+            return StepActionResult(action: "scroll", scroll: result)
+        case .drag(let drag):
+            let result = try CommandRuntime.engine.drag(
+                DragRequest(
+                    x1: drag.x1,
+                    y1: drag.y1,
+                    x2: drag.x2,
+                    y2: drag.y2,
+                    coordinateSpace: drag.space ?? .pixels,
+                    metadataPath: drag.meta,
+                    button: drag.button ?? .left,
+                    steps: drag.steps ?? 12,
+                    durationMS: drag.durationMS ?? 300
+                )
+            )
+            return StepActionResult(action: "drag", drag: result)
+        case .move(let move):
+            let result = try CommandRuntime.engine.move(
+                MoveRequest(
+                    x: move.x,
+                    y: move.y,
+                    coordinateSpace: move.space ?? .pixels,
+                    metadataPath: move.meta,
+                    dwellMS: move.dwellMS ?? 0
+                )
+            )
+            return StepActionResult(action: "move", move: result)
         case .type(let type):
             let result = try CommandRuntime.engine.type(
                 TypeRequest(
@@ -93,10 +138,18 @@ struct SequenceCommand: ParsableCommand {
                     inputMode: type.mode ?? .paste
                 )
             )
-            return StepActionResult(action: "type", click: nil, type: result, key: nil)
+            return StepActionResult(action: "type", type: result)
         case .key(let key):
             let result = try CommandRuntime.engine.key(KeyRequest(chord: key.chord))
-            return StepActionResult(action: "key", click: nil, type: nil, key: result)
+            return StepActionResult(action: "key", key: result)
+        case .sleep(let sleep):
+            guard sleep.ms >= 0 else {
+                throw ScreenCommanderError.invalidArguments("sleep.ms must be greater than or equal to zero.")
+            }
+            if sleep.ms > 0 {
+                usleep(useconds_t(sleep.ms * 1_000))
+            }
+            return StepActionResult(action: "sleep", sleep: SequenceSleepResult(ms: sleep.ms))
         }
     }
 
@@ -112,9 +165,13 @@ struct SequenceCommand: ParsableCommand {
 
 private struct StepActionResult {
     var action: String
-    var click: ClickResult?
-    var type: TypeResult?
-    var key: KeyResult?
+    var click: ClickResult? = nil
+    var scroll: ScrollResult? = nil
+    var drag: DragResult? = nil
+    var move: MoveResult? = nil
+    var type: TypeResult? = nil
+    var key: KeyResult? = nil
+    var sleep: SequenceSleepResult? = nil
 }
 
 struct SequenceRunResult: Codable, Sendable {
@@ -126,8 +183,12 @@ struct SequenceStepResult: Codable, Sendable {
     var index: Int
     var action: String
     var click: ClickResult?
+    var scroll: ScrollResult?
+    var drag: DragResult?
+    var move: MoveResult?
     var type: TypeResult?
     var key: KeyResult?
+    var sleep: SequenceSleepResult?
     var preshot: ActionScreenshotResult?
     var postshot: ActionScreenshotResult?
 }
@@ -138,20 +199,46 @@ struct SequenceFile: Decodable {
 
 enum SequenceStep: Decodable {
     case click(SequenceClickStep)
+    case scroll(SequenceScrollStep)
+    case drag(SequenceDragStep)
+    case move(SequenceMoveStep)
     case type(SequenceTypeStep)
     case key(SequenceKeyStep)
+    case sleep(SequenceSleepStep)
 
     private enum CodingKeys: String, CodingKey {
         case click
+        case scroll
+        case drag
+        case move
         case type
         case key
+        case sleep
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let presentKeys = container.allKeys
+        guard presentKeys.count == 1 else {
+            throw ScreenCommanderError.invalidArguments(
+                "Each sequence step must contain exactly one key: click, scroll, drag, move, type, key, or sleep."
+            )
+        }
 
         if container.contains(.click) {
             self = .click(try container.decode(SequenceClickStep.self, forKey: .click))
+            return
+        }
+        if container.contains(.scroll) {
+            self = .scroll(try container.decode(SequenceScrollStep.self, forKey: .scroll))
+            return
+        }
+        if container.contains(.drag) {
+            self = .drag(try container.decode(SequenceDragStep.self, forKey: .drag))
+            return
+        }
+        if container.contains(.move) {
+            self = .move(try container.decode(SequenceMoveStep.self, forKey: .move))
             return
         }
         if container.contains(.type) {
@@ -162,9 +249,13 @@ enum SequenceStep: Decodable {
             self = .key(try container.decode(SequenceKeyStep.self, forKey: .key))
             return
         }
+        if container.contains(.sleep) {
+            self = .sleep(try container.decode(SequenceSleepStep.self, forKey: .sleep))
+            return
+        }
 
         throw ScreenCommanderError.invalidArguments(
-            "Each sequence step must contain exactly one key: click, type, or key."
+            "Each sequence step must contain exactly one key: click, scroll, drag, move, type, key, or sleep."
         )
     }
 }
@@ -176,8 +267,40 @@ struct SequenceClickStep: Decodable {
     var meta: String?
     var button: MouseButtonChoice?
     var double: Bool?
+    var triple: Bool?
+    var modifiers: String?
     var prime: Bool?
     var raw: Bool?
+}
+
+struct SequenceScrollStep: Decodable {
+    var x: Double
+    var y: Double
+    var dx: Int32?
+    var dy: Int32
+    var unit: ScrollUnit?
+    var space: CoordinateSpace?
+    var meta: String?
+}
+
+struct SequenceDragStep: Decodable {
+    var x1: Double
+    var y1: Double
+    var x2: Double
+    var y2: Double
+    var button: MouseButtonChoice?
+    var steps: Int?
+    var durationMS: Int?
+    var space: CoordinateSpace?
+    var meta: String?
+}
+
+struct SequenceMoveStep: Decodable {
+    var x: Double
+    var y: Double
+    var dwellMS: Int?
+    var space: CoordinateSpace?
+    var meta: String?
 }
 
 struct SequenceTypeStep: Decodable {
@@ -188,4 +311,12 @@ struct SequenceTypeStep: Decodable {
 
 struct SequenceKeyStep: Decodable {
     var chord: String
+}
+
+struct SequenceSleepStep: Decodable {
+    var ms: Int
+}
+
+struct SequenceSleepResult: Codable, Sendable {
+    var ms: Int
 }

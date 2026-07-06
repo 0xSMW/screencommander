@@ -103,6 +103,12 @@ final class ScreenCommanderEngine {
     }
 
     func click(_ request: ClickRequest) throws -> ClickResult {
+        if request.doubleClick && request.triple {
+            throw ScreenCommanderError.invalidArguments("--double and --triple are mutually exclusive.")
+        }
+
+        let modifiers = try MouseModifiers.normalized(request.modifiers)
+
         try permissions.ensureAccessibilityAccess(prompt: true)
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
@@ -119,8 +125,10 @@ final class ScreenCommanderEngine {
             at: CGPoint(x: resolved.globalX, y: resolved.globalY),
             button: request.button,
             doubleClick: request.doubleClick,
+            tripleClick: request.triple,
             primeClick: request.primeClick,
-            humanLike: request.humanLike
+            humanLike: request.humanLike,
+            modifiers: modifiers
         )
 
         return ClickResult(
@@ -128,8 +136,113 @@ final class ScreenCommanderEngine {
             resolved: resolved,
             button: request.button,
             doubleClick: request.doubleClick,
+            triple: request.triple,
             primeClick: request.primeClick,
-            humanLike: request.humanLike
+            humanLike: request.humanLike,
+            modifiers: modifiers
+        )
+    }
+
+    func scroll(_ request: ScrollRequest) throws -> ScrollResult {
+        if request.dx == 0 && request.dy == 0 {
+            throw ScreenCommanderError.invalidArguments("At least one of --dx or --dy must be nonzero.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+
+        let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
+        let metadata = try metadataStore.load(from: metadataURL)
+        let resolved = try coordinateMapper.map(
+            x: request.x,
+            y: request.y,
+            space: request.coordinateSpace,
+            metadata: metadata
+        )
+
+        try mouseController.scroll(
+            at: CGPoint(x: resolved.globalX, y: resolved.globalY),
+            dx: request.dx,
+            dy: request.dy,
+            unit: request.unit
+        )
+
+        return ScrollResult(
+            metadataPath: metadataURL.path,
+            resolved: resolved,
+            dx: request.dx,
+            dy: request.dy,
+            unit: request.unit
+        )
+    }
+
+    func drag(_ request: DragRequest) throws -> DragResult {
+        if request.steps < 1 {
+            throw ScreenCommanderError.invalidArguments("--steps must be greater than zero.")
+        }
+        if request.durationMS < 0 {
+            throw ScreenCommanderError.invalidArguments("--duration-ms must be greater than or equal to zero.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+
+        let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
+        let metadata = try metadataStore.load(from: metadataURL)
+        let from = try coordinateMapper.map(
+            x: request.x1,
+            y: request.y1,
+            space: request.coordinateSpace,
+            metadata: metadata
+        )
+        let to = try coordinateMapper.map(
+            x: request.x2,
+            y: request.y2,
+            space: request.coordinateSpace,
+            metadata: metadata
+        )
+
+        try mouseController.drag(
+            from: CGPoint(x: from.globalX, y: from.globalY),
+            to: CGPoint(x: to.globalX, y: to.globalY),
+            button: request.button,
+            steps: request.steps,
+            durationMS: request.durationMS
+        )
+
+        return DragResult(
+            metadataPath: metadataURL.path,
+            from: from,
+            to: to,
+            button: request.button,
+            steps: request.steps,
+            durationMilliseconds: request.durationMS
+        )
+    }
+
+    func move(_ request: MoveRequest) throws -> MoveResult {
+        if request.dwellMS < 0 {
+            throw ScreenCommanderError.invalidArguments("--dwell-ms must be greater than or equal to zero.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+
+        let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
+        let metadata = try metadataStore.load(from: metadataURL)
+        let resolved = try coordinateMapper.map(
+            x: request.x,
+            y: request.y,
+            space: request.coordinateSpace,
+            metadata: metadata
+        )
+
+        try mouseController.move(to: CGPoint(x: resolved.globalX, y: resolved.globalY))
+        if request.dwellMS > 0 {
+            usleep(useconds_t(request.dwellMS * 1_000))
+        }
+
+        return MoveResult(
+            metadataPath: metadataURL.path,
+            resolved: resolved,
+            dwellMilliseconds: request.dwellMS
         )
     }
 
