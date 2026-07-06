@@ -1,10 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct ClickCommand: ParsableCommand {
+struct ScrollCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "click",
-        abstract: "Map screenshot coordinates to global space and post mouse events."
+        commandName: "scroll",
+        abstract: "Map screenshot coordinates and post a scroll wheel event."
     )
 
     @Argument(help: "X coordinate in selected coordinate space.")
@@ -13,29 +13,20 @@ struct ClickCommand: ParsableCommand {
     @Argument(help: "Y coordinate in selected coordinate space.")
     var y: String
 
+    @Option(name: .long, help: "Vertical scroll delta.")
+    var dy: Int32
+
+    @Option(name: .long, help: "Horizontal scroll delta.")
+    var dx: Int32 = 0
+
+    @Option(name: .long, help: "Scroll unit: lines (default) or pixels.")
+    var unit: ScrollUnit = .lines
+
     @Option(name: .long, help: "Coordinate input space.")
     var space: CoordinateSpace = .pixels
 
     @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
     var meta: String?
-
-    @Option(name: .long, help: "Mouse button.")
-    var button: MouseButtonChoice = .left
-
-    @Flag(name: .long, help: "Send a double-click sequence.")
-    var double: Bool = false
-
-    @Flag(name: .long, help: "Send a triple-click sequence.")
-    var triple: Bool = false
-
-    @Option(name: .long, help: "Comma-separated modifiers: cmd,shift,option,ctrl.")
-    var modifiers: String?
-
-    @Flag(name: .long, help: "Send an extra priming mouse-move first (useful when first action only positions cursor).")
-    var prime: Bool = false
-
-    @Flag(name: .long, help: "Use raw click events without human-like focus compensation.")
-    var raw: Bool = false
 
     @Flag(
         name: .long,
@@ -49,49 +40,39 @@ struct ClickCommand: ParsableCommand {
 
     mutating func run() throws {
         let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "click")
+        OutputOptions.current = (format, compact, "scroll")
         defer { OutputOptions.current = nil }
         do {
             guard let parsedX = Double(x), parsedX.isFinite,
                   let parsedY = Double(y), parsedY.isFinite else {
                 throw ScreenCommanderError.invalidArguments("x and y must be numeric values.")
             }
-            if double && triple {
-                throw ScreenCommanderError.invalidArguments("--double and --triple are mutually exclusive.")
-            }
-            let parsedModifiers = try MouseModifiers.parse(modifiers)
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
-            let result = try CommandRuntime.engine.click(
-                ClickRequest(
+            let result = try CommandRuntime.engine.scroll(
+                ScrollRequest(
                     x: parsedX,
                     y: parsedY,
                     coordinateSpace: space,
                     metadataPath: meta,
-                    button: button,
-                    doubleClick: double,
-                    triple: triple,
-                    primeClick: prime,
-                    humanLike: !raw,
-                    modifiers: parsedModifiers
+                    dx: dx,
+                    dy: dy,
+                    unit: unit
                 )
             )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
 
             if format == .json {
                 try CommandRuntime.emitJSON(
-                    command: "click",
+                    command: "scroll",
                     result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
                     compact: compact
                 )
                 return
             }
 
-            let clickKind = triple ? "triple-clicked" : (double ? "double-clicked" : "clicked")
-            print("\(clickKind.capitalized) \(button.rawValue) at global point (\(result.resolved.globalX), \(result.resolved.globalY)).")
-            if !result.modifiers.isEmpty {
-                print("Modifiers: \(result.modifiers.joined(separator: ","))")
-            }
+            print("Scrolled at global point (\(result.resolved.globalX), \(result.resolved.globalY)).")
+            print("Delta: dx=\(result.dx), dy=\(result.dy) \(result.unit.rawValue)")
             print("Metadata: \(result.metadataPath)")
             if let preshotResult {
                 print("Preshot image: \(preshotResult.imagePath)")

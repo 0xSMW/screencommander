@@ -106,20 +106,65 @@ private final class FakeMouseController: MouseControlling {
         let point: CGPoint
         let button: MouseButtonChoice
         let doubleClick: Bool
+        let tripleClick: Bool
         let primeClick: Bool
         let humanLike: Bool
+        let modifiers: [String]
+    }
+    struct ScrollCall {
+        let point: CGPoint
+        let dx: Int32
+        let dy: Int32
+        let unit: ScrollUnit
+    }
+    struct DragCall {
+        let from: CGPoint
+        let to: CGPoint
+        let button: MouseButtonChoice
+        let steps: Int
+        let durationMS: Int
+    }
+    struct MoveCall {
+        let point: CGPoint
     }
 
     private(set) var calls: [ClickCall] = []
+    private(set) var scrollCalls: [ScrollCall] = []
+    private(set) var dragCalls: [DragCall] = []
+    private(set) var moveCalls: [MoveCall] = []
 
     func click(
         at point: CGPoint,
         button: MouseButtonChoice,
         doubleClick: Bool,
+        tripleClick: Bool,
         primeClick: Bool,
-        humanLike: Bool
+        humanLike: Bool,
+        modifiers: [String]
     ) throws {
-        calls.append(ClickCall(point: point, button: button, doubleClick: doubleClick, primeClick: primeClick, humanLike: humanLike))
+        calls.append(
+            ClickCall(
+                point: point,
+                button: button,
+                doubleClick: doubleClick,
+                tripleClick: tripleClick,
+                primeClick: primeClick,
+                humanLike: humanLike,
+                modifiers: modifiers
+            )
+        )
+    }
+
+    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit) throws {
+        scrollCalls.append(ScrollCall(point: point, dx: dx, dy: dy, unit: unit))
+    }
+
+    func drag(from start: CGPoint, to end: CGPoint, button: MouseButtonChoice, steps: Int, durationMS: Int) throws {
+        dragCalls.append(DragCall(from: start, to: end, button: button, steps: steps, durationMS: durationMS))
+    }
+
+    func move(to point: CGPoint) throws {
+        moveCalls.append(MoveCall(point: point))
     }
 }
 
@@ -194,6 +239,54 @@ private func tempStatePath(_ name: String) -> URL {
 
     try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     return base
+}
+
+private struct InputEngineFixture {
+    let engine: ScreenCommanderEngine
+    let permissions: FakePermissions
+    let metadataStore: FakeMetadataStore
+    let mouse: FakeMouseController
+    let state: StatePaths
+}
+
+private func makeInputEngineFixture(_ name: String) -> InputEngineFixture {
+    let permissions = FakePermissions()
+    let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath(name).path])
+    let metadataStore = FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL)
+    let mouse = FakeMouseController()
+    let metadata = ScreenshotMetadata(
+        capturedAtISO8601: "2026-02-21T00:00:00Z",
+        displayID: 123,
+        displayBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+        imageSizePixels: SizeD(w: 800, h: 600),
+        pointPixelScale: 2,
+        imagePath: "/tmp/test.png"
+    )
+    metadataStore.seedLoad(metadata, at: state.lastMetadataURL)
+
+    let engine = ScreenCommanderEngine(
+        permissions: permissions,
+        displays: NoopDisplays(),
+        capturer: FakeCapturer(
+            captureResult: CapturedScreenshot(
+                image: make1x1Image(),
+                displayID: 123,
+                displayBoundsPoints: CGRect(x: 100, y: 200, width: 400, height: 300),
+                pointPixelScale: 2
+            )
+        ),
+        imageWriter: FakeImageWriter(returnedSize: SizeD(w: 1, h: 1)),
+        metadataStore: metadataStore,
+        coordinateMapper: CoordinateMapper(),
+        mouseController: mouse,
+        keyboardController: FakeKeyboardController(),
+        retention: FakeRetentionManager(),
+        statePaths: state,
+        fileManager: .default,
+        now: { Date(timeIntervalSince1970: 1_700_000_000) }
+    )
+
+    return InputEngineFixture(engine: engine, permissions: permissions, metadataStore: metadataStore, mouse: mouse, state: state)
 }
 
 final class ScreenCommanderEngineTests: XCTestCase {
@@ -400,8 +493,10 @@ final class ScreenCommanderEngineTests: XCTestCase {
                 metadataPath: nil,
                 button: .left,
                 doubleClick: false,
+                triple: false,
                 primeClick: false,
-                humanLike: true
+                humanLike: true,
+                modifiers: []
             )
         )
 
@@ -414,6 +509,234 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.resolved.globalY, 250)
         XCTAssertEqual(metadataStore.loadCalls, [state.lastMetadataURL])
         XCTAssertEqual(permissions.accessibilityChecks, 1)
+    }
+
+    func testScrollCallsMouseController() throws {
+        let fixture = makeInputEngineFixture("scroll")
+
+        let result = try fixture.engine.scroll(
+            ScrollRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                dx: 4,
+                dy: -3,
+                unit: .pixels
+            )
+        )
+
+        let call = try XCTUnwrap(fixture.mouse.scrollCalls.first)
+        XCTAssertEqual(call.point.x, 200)
+        XCTAssertEqual(call.point.y, 250)
+        XCTAssertEqual(call.dx, 4)
+        XCTAssertEqual(call.dy, -3)
+        XCTAssertEqual(call.unit, .pixels)
+        XCTAssertEqual(result.resolved.globalX, 200)
+        XCTAssertEqual(result.resolved.globalY, 250)
+        XCTAssertEqual(result.dx, 4)
+        XCTAssertEqual(result.dy, -3)
+        XCTAssertEqual(result.unit, .pixels)
+        XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
+    }
+
+    func testScrollRequiresNonzeroDelta() {
+        let fixture = makeInputEngineFixture("scroll-zero")
+
+        XCTAssertThrowsError(
+            try fixture.engine.scroll(
+                ScrollRequest(
+                    x: 200,
+                    y: 100,
+                    coordinateSpace: .pixels,
+                    metadataPath: nil,
+                    dx: 0,
+                    dy: 0,
+                    unit: .lines
+                )
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+        XCTAssertEqual(fixture.permissions.accessibilityChecks, 0)
+        XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
+    }
+
+    func testDragCallsMouseController() throws {
+        let fixture = makeInputEngineFixture("drag")
+
+        let result = try fixture.engine.drag(
+            DragRequest(
+                x1: 200,
+                y1: 100,
+                x2: 300,
+                y2: 200,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                button: .right,
+                steps: 8,
+                durationMS: 120
+            )
+        )
+
+        let call = try XCTUnwrap(fixture.mouse.dragCalls.first)
+        XCTAssertEqual(call.from.x, 200)
+        XCTAssertEqual(call.from.y, 250)
+        XCTAssertEqual(call.to.x, 250)
+        XCTAssertEqual(call.to.y, 300)
+        XCTAssertEqual(call.button, .right)
+        XCTAssertEqual(call.steps, 8)
+        XCTAssertEqual(call.durationMS, 120)
+        XCTAssertEqual(result.button, .right)
+        XCTAssertEqual(result.steps, 8)
+        XCTAssertEqual(result.durationMilliseconds, 120)
+        XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
+    }
+
+    func testMoveCallsMouseController() throws {
+        let fixture = makeInputEngineFixture("move")
+
+        let result = try fixture.engine.move(
+            MoveRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                dwellMS: 0
+            )
+        )
+
+        let call = try XCTUnwrap(fixture.mouse.moveCalls.first)
+        XCTAssertEqual(call.point.x, 200)
+        XCTAssertEqual(call.point.y, 250)
+        XCTAssertEqual(result.dwellMilliseconds, 0)
+        XCTAssertEqual(result.resolved.globalX, 200)
+        XCTAssertEqual(result.resolved.globalY, 250)
+        XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
+    }
+
+    func testClickWithModifiers() throws {
+        let fixture = makeInputEngineFixture("click-modifiers")
+
+        let result = try fixture.engine.click(
+            ClickRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                button: .middle,
+                doubleClick: false,
+                triple: false,
+                primeClick: false,
+                humanLike: true,
+                modifiers: ["cmd", "shift"]
+            )
+        )
+
+        let call = try XCTUnwrap(fixture.mouse.calls.first)
+        XCTAssertEqual(call.button, .middle)
+        XCTAssertEqual(call.modifiers, ["cmd", "shift"])
+        XCTAssertEqual(result.modifiers, ["cmd", "shift"])
+    }
+
+    func testClickTriple() throws {
+        let fixture = makeInputEngineFixture("click-triple")
+
+        let result = try fixture.engine.click(
+            ClickRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                button: .left,
+                doubleClick: false,
+                triple: true,
+                primeClick: false,
+                humanLike: true,
+                modifiers: []
+            )
+        )
+
+        let call = try XCTUnwrap(fixture.mouse.calls.first)
+        XCTAssertTrue(call.tripleClick)
+        XCTAssertFalse(call.doubleClick)
+        XCTAssertTrue(result.triple)
+    }
+
+    func testClickDoubleAndTripleMutuallyExclusive() {
+        let fixture = makeInputEngineFixture("click-double-triple")
+
+        XCTAssertThrowsError(
+            try fixture.engine.click(
+                ClickRequest(
+                    x: 200,
+                    y: 100,
+                    coordinateSpace: .pixels,
+                    metadataPath: nil,
+                    button: .left,
+                    doubleClick: true,
+                    triple: true,
+                    primeClick: false,
+                    humanLike: true,
+                    modifiers: []
+                )
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+        XCTAssertEqual(fixture.permissions.accessibilityChecks, 0)
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+    }
+
+    func testSequenceDecodesScrollStep() throws {
+        let data = Data(#"{"steps":[{"scroll":{"x":100,"y":200,"dy":-3}}]}"#.utf8)
+        let file = try JSONDecoder().decode(SequenceFile.self, from: data)
+
+        guard case .scroll(let step) = try XCTUnwrap(file.steps.first) else {
+            return XCTFail("Expected scroll step.")
+        }
+        XCTAssertEqual(step.x, 100)
+        XCTAssertEqual(step.y, 200)
+        XCTAssertEqual(step.dx, nil)
+        XCTAssertEqual(step.dy, -3)
+    }
+
+    func testSequenceDecodesDragStep() throws {
+        let data = Data(#"{"steps":[{"drag":{"x1":10,"y1":20,"x2":30,"y2":40,"button":"middle","steps":5,"durationMS":90}}]}"#.utf8)
+        let file = try JSONDecoder().decode(SequenceFile.self, from: data)
+
+        guard case .drag(let step) = try XCTUnwrap(file.steps.first) else {
+            return XCTFail("Expected drag step.")
+        }
+        XCTAssertEqual(step.x1, 10)
+        XCTAssertEqual(step.y1, 20)
+        XCTAssertEqual(step.x2, 30)
+        XCTAssertEqual(step.y2, 40)
+        XCTAssertEqual(step.button, .middle)
+        XCTAssertEqual(step.steps, 5)
+        XCTAssertEqual(step.durationMS, 90)
+    }
+
+    func testSequenceDecodesMoveStep() throws {
+        let data = Data(#"{"steps":[{"move":{"x":100,"y":200,"dwellMS":25}}]}"#.utf8)
+        let file = try JSONDecoder().decode(SequenceFile.self, from: data)
+
+        guard case .move(let step) = try XCTUnwrap(file.steps.first) else {
+            return XCTFail("Expected move step.")
+        }
+        XCTAssertEqual(step.x, 100)
+        XCTAssertEqual(step.y, 200)
+        XCTAssertEqual(step.dwellMS, 25)
+    }
+
+    func testSequenceDecodesSleepStep() throws {
+        let data = Data(#"{"steps":[{"sleep":{"ms":50}}]}"#.utf8)
+        let file = try JSONDecoder().decode(SequenceFile.self, from: data)
+
+        guard case .sleep(let step) = try XCTUnwrap(file.steps.first) else {
+            return XCTFail("Expected sleep step.")
+        }
+        XCTAssertEqual(step.ms, 50)
     }
 
     func testTypeAndKeysFlowThroughKeyboardController() throws {

@@ -5,7 +5,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 ## When to Use
 
 - You need to observe and interact with macOS UI from Terminal.
-- You need reliable clicks, text entry, key chords, or ordered multi-step automation.
+- You need reliable clicks, scrolls, drags, cursor moves, text entry, key chords, or ordered multi-step automation.
 - You want immediate visual verification before/after each action.
 
 ## Prerequisites
@@ -14,7 +14,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 - `screencommander` installed and available on `PATH`.
 - Permissions granted:
   - Screen Recording (for screenshots and default action pre/post shots).
-  - Accessibility (for `click`, `type`, `key`, `sequence`).
+  - Accessibility (for `click`, `scroll`, `drag`, `move`, `type`, `key`, `sequence`).
 
 ## Core Rules
 
@@ -49,6 +49,22 @@ screencommander key "enter"
   ```bash
   screencommander click <x> <y> --double
   ```
+- Modifier or middle click:
+  ```bash
+  screencommander click <x> <y> --button middle --modifiers cmd,shift
+  ```
+- Scroll below the fold:
+  ```bash
+  screencommander scroll <x> <y> --dy -5
+  ```
+- Drag:
+  ```bash
+  screencommander drag <x1> <y1> <x2> <y2>
+  ```
+- Move/hover:
+  ```bash
+  screencommander move <x> <y> --dwell-ms 250
+  ```
 - Type:
   ```bash
   screencommander type "text to input"
@@ -62,7 +78,7 @@ All above emit pre/post screenshot paths by default.
 
 ## Ordered Multi-Step Automation
 
-Use `sequence` for one-shot ordered workflows (`click` -> `type` -> `key`).
+Use `sequence` for one-shot ordered workflows (`click` -> `scroll` -> `move` -> `type` -> `key`).
 
 ```bash
 screencommander sequence --file ./sequence.json
@@ -74,7 +90,10 @@ Example:
 {
   "steps": [
     { "click": { "x": 935, "y": 1074, "meta": "~/Library/Caches/screencommander/last-screenshot.json" } },
+    { "scroll": { "x": 935, "y": 800, "dy": -4 } },
+    { "move": { "x": 935, "y": 720, "dwellMS": 100 } },
     { "type": { "text": "hello from sequence", "mode": "paste" } },
+    { "sleep": { "ms": 100 } },
     { "key": { "chord": "enter" } }
   ]
 }

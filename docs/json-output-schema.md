@@ -70,7 +70,25 @@ On failure in JSON mode, the same stdout contains:
 
 ### click
 
-- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `button`, `doubleClick`, `primeClick`, `humanLike`
+- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `button`, `doubleClick`, `triple`, `primeClick`, `humanLike`, `modifiers`
+- **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
+- **result.postshot** (object or null): same for post-shot
+
+### scroll
+
+- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `dx`, `dy`, `unit`
+- **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
+- **result.postshot** (object or null): same for post-shot
+
+### drag
+
+- **result.action** (object): `metadataPath`, `from` (ResolvedCoordinate), `to` (ResolvedCoordinate), `button`, `steps`, `durationMilliseconds`
+- **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
+- **result.postshot** (object or null): same for post-shot
+
+### move
+
+- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `dwellMilliseconds`
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
 
@@ -97,7 +115,7 @@ On failure in JSON mode, the same stdout contains:
 ### sequence
 
 - **result.file** (string): path to sequence file
-- **result.steps** (array): each step has `index`, `action`, `click`/`type`/`key`, `preshot`, `postshot`
+- **result.steps** (array): each step has `index`, `action`, one of `click`/`scroll`/`drag`/`move`/`type`/`key`/`sleep`, `preshot`, `postshot`
 
 ## Compact JSON
 
