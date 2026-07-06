@@ -1,11 +1,12 @@
 # screencommander Skill
 
-Use this skill to reliably control a macOS desktop through `screencommander` with a deterministic screenshot -> decide -> act loop.
+Use this skill to reliably control a macOS desktop through `screencommander` with a deterministic observe -> decide -> act loop. Prefer the accessibility tree over pixels: `elements` reads the screen as structured text in tens of milliseconds, `screenshot --window` captures one window even when it is covered by other windows, and element-targeted actions work without moving the user's cursor.
 
 ## When to Use
 
 - You need to observe and interact with macOS UI from Terminal.
-- You need reliable clicks, scrolls, drags, cursor moves, text entry, key chords, or ordered multi-step automation.
+- You need to read what is on screen without a screenshot (`elements --text`), watch for UI changes in real time (`observe`), or capture and target a single window (`windows`, `screenshot --window <id>`).
+- You need reliable clicks, scrolls, drags, cursor moves, text entry, key chords, or ordered multi-step automation, including element-targeted actions that never touch the pointer (`click --element ... --no-cursor`).
 - You want immediate visual verification before/after each action.
 
 ## Prerequisites

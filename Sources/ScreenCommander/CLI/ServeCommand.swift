@@ -19,6 +19,10 @@ struct ServeCommand: ParsableCommand {
             throw ValidationError("serve currently requires --mcp.")
         }
 
+        // The screenshot tool can capture windows, which needs the window-server
+        // connection established while the main thread is still free.
+        WindowServerConnection.ensureInitialized()
+
         // Server-owned engine with a short SCShareableContent TTL: a burst of tool
         // calls (windows → screenshot → click) pays the ~100–300 ms window/display
         // enumeration once instead of per call. The CLI keeps TTL 0 (always fresh).
