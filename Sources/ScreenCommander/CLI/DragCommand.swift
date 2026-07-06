@@ -41,6 +41,9 @@ struct DragCommand: ParsableCommand {
     )
     var postshot: Bool = true
 
+    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    var noDiff: Bool = false
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -71,11 +74,17 @@ struct DragCommand: ParsableCommand {
                 )
             )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
                     command: "drag",
-                    result: ActionResultEnvelope(action: result, preshot: preshotResult, postshot: postshotResult),
+                    result: ActionResultEnvelope(
+                        action: result,
+                        preshot: preshotResult?.result,
+                        postshot: postshotResult?.result,
+                        diff: diff
+                    ),
                     compact: compact
                 )
                 return
@@ -86,13 +95,14 @@ struct DragCommand: ParsableCommand {
             print("Duration: \(result.durationMilliseconds) ms")
             print("Metadata: \(result.metadataPath)")
             if let preshotResult {
-                print("Preshot image: \(preshotResult.imagePath)")
-                print("Preshot metadata: \(preshotResult.metadataPath)")
+                print("Preshot image: \(preshotResult.result.imagePath)")
+                print("Preshot metadata: \(preshotResult.result.metadataPath)")
             }
             if let postshotResult {
-                print("Postshot image: \(postshotResult.imagePath)")
-                print("Postshot metadata: \(postshotResult.metadataPath)")
+                print("Postshot image: \(postshotResult.result.imagePath)")
+                print("Postshot metadata: \(postshotResult.result.metadataPath)")
             }
+            CommandRuntime.printFrameDiff(diff)
         } catch {
             throw CommandRuntime.mapError(error)
         }

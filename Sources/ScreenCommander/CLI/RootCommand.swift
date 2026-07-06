@@ -1,5 +1,7 @@
 import ArgumentParser
+import CoreGraphics
 import Foundation
+import ImageIO
 
 /// Output format for scriptability; when .json, stdout is exactly one JSON object (success or error).
 enum OutputFormat: String, ExpressibleByArgument {
@@ -149,7 +151,7 @@ enum CommandRuntime {
         return ExitCode.failure
     }
 
-    static func captureActionScreenshot(prefix: String) -> ActionScreenshotResult? {
+    static func captureActionScreenshot(prefix: String) -> ActionScreenshotCapture? {
         let timestamp = shotDateFormatter.string(from: Date())
         let filename = "\(prefix)-\(timestamp).png"
 
@@ -173,10 +175,16 @@ enum CommandRuntime {
                     try await engine.screenshot(request)
                 }
 
-                return ActionScreenshotResult(
+                let screenshotResult = ActionScreenshotResult(
                     imagePath: result.imagePath,
                     metadataPath: result.metadataPath
                 )
+                guard let image = loadImage(from: result.imagePath) else {
+                    writeError("warning: \(prefix.lowercased()) diff image load failed: \(result.imagePath)")
+                    return ActionScreenshotCapture(result: screenshotResult, image: nil)
+                }
+
+                return ActionScreenshotCapture(result: screenshotResult, image: image)
             } catch {
                 lastFailure = error
                 if shouldFallbackToTemp(
@@ -198,6 +206,43 @@ enum CommandRuntime {
         }
 
         return nil
+    }
+
+    static func frameDiff(pre: ActionScreenshotCapture?, post: ActionScreenshotCapture?, skip: Bool) -> FrameDiffResult? {
+        guard !skip,
+              let preImage = pre?.image,
+              let postImage = post?.image else {
+            return nil
+        }
+
+        return FrameDiff.compare(preImage, postImage)
+    }
+
+    static func printFrameDiff(_ diff: FrameDiffResult?) {
+        guard let diff, diff.changedFraction > 0 else {
+            return
+        }
+
+        if let region = diff.changedRegion {
+            print(String(
+                format: "diff: %.1f%% changed in (%.0f,%.0f %.0fx%.0f)",
+                diff.changedFraction * 100,
+                region.x,
+                region.y,
+                region.w,
+                region.h
+            ))
+        } else {
+            print(String(format: "diff: %.1f%% changed", diff.changedFraction * 100))
+        }
+    }
+
+    private static func loadImage(from path: String) -> CGImage? {
+        let url = URL(fileURLWithPath: path) as CFURL
+        guard let source = CGImageSourceCreateWithURL(url, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
     private static func shouldFallbackToTemp(after error: Error, attemptIndex: Int, totalAttempts: Int) -> Bool {
@@ -242,10 +287,16 @@ struct ActionScreenshotResult: Codable, Sendable {
     var metadataPath: String
 }
 
+struct ActionScreenshotCapture {
+    var result: ActionScreenshotResult
+    var image: CGImage?
+}
+
 struct ActionResultEnvelope<ActionResult: Encodable>: Encodable {
     var action: ActionResult
     var preshot: ActionScreenshotResult?
     var postshot: ActionScreenshotResult?
+    var diff: FrameDiffResult?
 }
 
 enum AsyncBridge {
