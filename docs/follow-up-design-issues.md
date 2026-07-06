@@ -16,11 +16,13 @@ Downside: shared server state must be hardened, request cancellation has to unde
 
 ## Stale Metadata Validation
 
-Intent: stop clicks from trusting old screenshot geometry after windows or displays move.
+Intent: make callers aware when screenshot metadata may no longer describe the live desktop, especially when a human is using the computer at the same time.
 
-What to do: validate live display/window geometry before coordinate actions and fail with `stale_metadata` when the saved capture no longer describes the desktop.
+Decision: treat freshness as information by default, not a mandatory hard failure. This matters less for background accessibility actions, and even for coordinate actions some workflows may accept that the desktop changed between observe and act.
 
-Downside: harmless geometry drift can create false positives, and every coordinate action pays for extra live-state checks.
+What to do: validate live display/window geometry when practical and return freshness information in action results, such as `metadataFresh: true|false` plus a reason. Add a strict mode for chains that require deterministic coordinate safety, where stale metadata becomes a `stale_metadata` error.
+
+Downside: advisory metadata can be ignored by sloppy callers, while strict mode can still false-positive on harmless geometry drift. Every live freshness check also adds some runtime cost.
 
 ## Frame Diff Policy
 
