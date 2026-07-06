@@ -6,9 +6,13 @@ This document tracks the remaining design issues from the hostile review that we
 
 Intent: prevent one long `observe_wait` from blocking every other MCP request.
 
-What to do: move `serve --mcp` to a per-request task dispatcher with serialized stdout writes and request-id cancellation.
+Decision: support both parallel and serial request execution. If a second request arrives without an explicit serial dependency, treat it as parallel by default.
 
-Downside: shared server state must be hardened, and we need an explicit decision about whether mutating desktop actions can run concurrently or need a serial mutation lane.
+What to do: move `serve --mcp` to a request dispatcher with serialized stdout writes, request-id cancellation, and an explicit way for a client to chain a request behind an upstream request that is still queued or running.
+
+Serial semantics: a serial request represents a follow-on action that depends on upstream activity. It should not start until the request it depends on has completed, even while unrelated requests continue in parallel.
+
+Downside: shared server state must be hardened, request cancellation has to understand dependency chains, and clients need a clear protocol field for expressing "run this after that" without accidentally serializing unrelated work.
 
 ## Stale Metadata Validation
 
