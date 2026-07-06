@@ -164,7 +164,7 @@ final class ScreenCommanderEngine {
         } else {
             app = nil
         }
-        let list = try await targets.listWindows(app: app)
+        let list = try await targets.listWindows(app: app).filter(\.isOnScreen)
         return WindowsResult(windows: list)
     }
 

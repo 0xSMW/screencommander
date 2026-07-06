@@ -96,7 +96,7 @@ final class Targets: TargetResolving {
     func listWindows(app: ResolvedApp?) async throws -> [WindowInfo] {
         let content: SCShareableContent
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }

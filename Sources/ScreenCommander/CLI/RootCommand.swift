@@ -61,7 +61,8 @@ struct RootCommand: ParsableCommand {
             CleanupCommand.self,
             SequenceCommand.self,
             WindowsCommand.self,
-            FocusCommand.self
+            FocusCommand.self,
+            ServeCommand.self
         ],
         defaultSubcommand: ScreenshotCommand.self
     )

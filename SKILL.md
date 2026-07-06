@@ -264,3 +264,15 @@ screencommander focus --app 1234
 | 72 | Element not actionable — disabled or the forced tier can't express the action |
 | 80 | Window not found — check `windows` output for valid IDs |
 | 81 | App not found — verify app name/PID with `windows` or `ps aux` |
+
+## MCP Server Mode (`serve --mcp`)
+
+For agent sessions doing many actions, prefer the MCP server over one-shot CLI calls — it holds one warm engine (no per-action process startup) and returns screenshots as in-band images instead of file paths:
+
+```bash
+claude mcp add screencommander -- screencommander serve --mcp
+```
+
+- Tools mirror the CLI 1:1 (`screenshot`, `click`, `type`, `key`, `keys`, `scroll`, `drag`, `move`, `elements`, `windows`, `focus`, `observe_wait`, `doctor`, `cleanup`); tool results are the same JSON envelopes documented in `docs/json-output-schema.md`, returned as `structuredContent`.
+- `observe_wait` replaces the streaming `observe` command: pass `app`, `timeoutMs`, and optionally `until`; it returns the events seen and the outcome in one call.
+- Keep using the CLI for shell scripts and one-off captures.

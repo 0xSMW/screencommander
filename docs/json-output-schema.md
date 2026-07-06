@@ -18,6 +18,13 @@ When you use `--json`, `--output json`, or `SCREENCOMMANDER_OUTPUT=json`, the CL
 - **result** (object): command-specific payload (see below)
 - **exitCode** (number, optional): process exit code (0)
 
+The MCP server (`serve --mcp`) returns these same envelopes for every tool call — as
+the `structuredContent` of the MCP result and as its text content block — so this
+document is the contract for both the CLI and MCP surfaces. MCP-only additions:
+`screenshot` also returns an image content block, and `observe_wait` returns
+`{ outcome, matched?, events, droppedEvents? }` (an unmet `until` is an
+`observe_timeout` error envelope).
+
 ## Error envelope
 
 On failure in JSON mode, the same stdout contains:

@@ -14,7 +14,7 @@ struct ScrollCommand: ParsableCommand {
     var y: String?
 
     @Option(name: .long, help: "Vertical scroll delta.")
-    var dy: Int32
+    var dy: Int32 = 0
 
     @Option(name: .long, help: "Horizontal scroll delta.")
     var dx: Int32 = 0

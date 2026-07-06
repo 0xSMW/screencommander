@@ -386,6 +386,35 @@ Behavior:
 - Prints `Focused <AppName> (was: <PriorAppName>)`.
 - Exits non-zero with code `81` if the app is not found.
 
+### Serve (MCP server)
+
+Run screencommander as a persistent MCP server over stdio:
+
+```bash
+screencommander serve --mcp
+```
+
+Register it with Claude Code:
+
+```bash
+claude mcp add screencommander -- screencommander serve --mcp
+```
+
+Behavior:
+
+- Speaks the Model Context Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout
+  (`initialize`, `tools/list`, `tools/call`); diagnostics go to stderr.
+- Exposes every command as a tool: `screenshot`, `click`, `type`, `key`, `keys`,
+  `scroll`, `drag`, `move`, `elements`, `windows`, `focus`, `observe_wait`, `doctor`,
+  `cleanup`.
+- One warm engine instance serves all calls — no per-action process startup — and
+  tool results are the same JSON envelopes the CLI prints (as `structuredContent`
+  plus a text block), so `docs/json-output-schema.md` covers both surfaces.
+- `screenshot` additionally returns the capture as an in-band MCP image content
+  block (base64 PNG), so clients get pixels without a follow-up file read.
+- `observe_wait` wraps `observe --until` + timeout as a single call; an unmet
+  predicate is an `observe_timeout` error (`exitCode` 73 in the envelope).
+
 ## Scripting (JSON output)
 
 For automation and scripts, the CLI can emit **exactly one** JSON object to stdout (success or error). Use this to parse results without scraping human output.

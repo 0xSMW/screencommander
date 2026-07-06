@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import ArgumentParser
 import ScreenCaptureKit
 import XCTest
 @testable import ScreenCommander
@@ -924,6 +925,24 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(step.dy, -3)
     }
 
+    func testSequenceDecodesHorizontalOnlyScrollStep() throws {
+        let data = Data(#"{"steps":[{"scroll":{"x":100,"y":200,"dx":10}}]}"#.utf8)
+        let file = try JSONDecoder().decode(SequenceFile.self, from: data)
+
+        guard case .scroll(let step) = try XCTUnwrap(file.steps.first) else {
+            return XCTFail("Expected scroll step.")
+        }
+        XCTAssertEqual(step.dx, 10)
+        XCTAssertEqual(step.dy, nil)
+    }
+
+    func testScrollCommandAllowsHorizontalOnlyDelta() throws {
+        let command = try ScrollCommand.parse(["100", "200", "--dx", "10"])
+
+        XCTAssertEqual(command.dx, 10)
+        XCTAssertEqual(command.dy, 0)
+    }
+
     func testSequenceDecodesDragStep() throws {
         let data = Data(#"{"steps":[{"drag":{"x1":10,"y1":20,"x2":30,"y2":40,"button":"middle","steps":5,"durationMS":90}}]}"#.utf8)
         let file = try JSONDecoder().decode(SequenceFile.self, from: data)
@@ -1182,7 +1201,8 @@ final class ScreenCommanderEngineTests: XCTestCase {
         let resolver = FakeTargetResolver()
         resolver.windowList = [
             WindowInfo(windowID: 1, title: "Main Window", appName: "Safari", pid: 100, boundsPoints: RectD(x: 0, y: 0, w: 1280, h: 800), isOnScreen: true, layer: 0),
-            WindowInfo(windowID: 2, title: "Preferences", appName: "Safari", pid: 100, boundsPoints: RectD(x: 100, y: 100, w: 600, h: 400), isOnScreen: true, layer: 0)
+            WindowInfo(windowID: 2, title: "Preferences", appName: "Safari", pid: 100, boundsPoints: RectD(x: 100, y: 100, w: 600, h: 400), isOnScreen: true, layer: 0),
+            WindowInfo(windowID: 3, title: "Hidden", appName: "Safari", pid: 100, boundsPoints: RectD(x: -10000, y: -10000, w: 600, h: 400), isOnScreen: false, layer: 0)
         ]
 
         let engine = ScreenCommanderEngine(
@@ -1203,6 +1223,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.windows.count, 2)
         XCTAssertEqual(result.windows[0].windowID, 1)
         XCTAssertEqual(result.windows[1].windowID, 2)
+        XCTAssertFalse(result.windows.contains { !$0.isOnScreen })
     }
 
     func testWindowsFiltersByApp() async throws {

@@ -116,7 +116,7 @@ struct SequenceCommand: ParsableCommand {
                 coordinateSpace: scroll.space ?? .pixels,
                 metadataPath: scroll.meta,
                 dx: scroll.dx ?? 0,
-                dy: scroll.dy,
+                dy: scroll.dy ?? 0,
                 unit: scroll.unit ?? .lines,
                 element: scroll.element,
                 elementID: scroll.elementId,
@@ -336,7 +336,7 @@ struct SequenceScrollStep: Decodable {
     var x: Double?
     var y: Double?
     var dx: Int32?
-    var dy: Int32
+    var dy: Int32?
     var unit: ScrollUnit?
     var space: CoordinateSpace?
     var meta: String?
