@@ -17,7 +17,7 @@ struct ObserveCommand: ParsableCommand {
     @Option(name: .customLong("timeout-ms"), help: "Stop after this many milliseconds. Without --until, exits 0; with --until unmet, exits 73.")
     var timeoutMs: Int?
 
-    @Option(name: .long, help: "Stop when an event's element matches this predicate, e.g. 'role=AXButton title~=Save' (= exact, ~= case-insensitive contains; keys: role,title,value,id).")
+    @Option(name: .long, help: "Stop when an event's element matches this predicate, e.g. 'role=AXButton title~=Save' (= exact, ~= case-insensitive contains; keys: role,title,value,id). role/title/value match live events; id matches only the initial tree scan.")
     var until: String?
 
     @Flag(name: .long, help: "Accepted for consistency; observe always emits NDJSON (one JSON object per line, ignoring pretty/compact).")

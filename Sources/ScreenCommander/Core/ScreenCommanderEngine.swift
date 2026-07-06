@@ -856,7 +856,7 @@ final class ScreenCommanderEngine {
     /// matched. `emit` is called once per event (the command prints NDJSON); the return
     /// value tells the command how to exit.
     ///
-    /// Structured around an `AsyncStream<ObservedEvent>` so WP8's MCP server can hold
+    /// Structured around an `AsyncThrowingStream<ObservedEvent, Error>` so WP8's MCP server can hold
     /// observers warm and answer "what changed since last call" without re-registering.
     func observe(
         _ request: ObserveRequest,
@@ -887,9 +887,12 @@ final class ScreenCommanderEngine {
         let predicate = request.predicate
         let stream = observationSource.events(app: app, kinds: kinds)
 
-        return await withTaskGroup(of: ObserveOutcome?.self) { group in
+        return try await withThrowingTaskGroup(of: ObserveOutcome?.self) { group in
             group.addTask {
-                for await event in stream {
+                // A throwing stream lets the observer surface setup failures (e.g.
+                // AXObserverCreate / registration failure ⇒ ax_tree_unavailable) as a
+                // real error instead of a silent, indistinguishable end-of-stream.
+                for try await event in stream {
                     // Defensive re-filter: the production source only registers the
                     // requested kinds, but a fake source may yield anything.
                     guard kinds.contains(event.kind) else { continue }
@@ -903,14 +906,17 @@ final class ScreenCommanderEngine {
 
             if let timeout = request.timeoutMS {
                 group.addTask {
-                    try? await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000)
+                    // `.milliseconds(Int)` cannot overflow the way `UInt64(timeout) *
+                    // 1_000_000` does, so an absurd-but-parseable --timeout-ms no longer
+                    // traps at runtime (it was validated non-negative above).
+                    try? await Task.sleep(for: .milliseconds(timeout))
                     if Task.isCancelled { return nil }
                     return predicate == nil ? .timedOut : .timedOutUnmet
                 }
             }
 
             var outcome: ObserveOutcome = .completed
-            for await result in group {
+            for try await result in group {
                 if let result {
                     outcome = result
                     break

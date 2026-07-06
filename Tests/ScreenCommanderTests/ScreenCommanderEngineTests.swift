@@ -364,20 +364,26 @@ private final class FakeObservationSource: ObservationSource, @unchecked Sendabl
     /// When true, the stream never finishes on its own — it stays open until the
     /// consuming task is cancelled (drives timeout tests deterministically).
     var keepOpen = false
+    /// When set, the stream finishes throwing this error after yielding scripted
+    /// events — models an observer-setup failure (AXObserverCreate / registration).
+    var setupError: Error?
 
     private(set) var requestedApp: ResolvedApp?
     private(set) var requestedKinds: Set<ObservedEventKind>?
 
-    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncStream<ObservedEvent> {
+    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncThrowingStream<ObservedEvent, Error> {
         requestedApp = app
         requestedKinds = kinds
         let events = scriptedEvents
         let keepOpen = keepOpen
-        return AsyncStream { continuation in
+        let setupError = setupError
+        return AsyncThrowingStream { continuation in
             for event in events {
                 continuation.yield(event)
             }
-            if !keepOpen {
+            if let setupError {
+                continuation.finish(throwing: setupError)
+            } else if !keepOpen {
                 continuation.finish()
             }
         }
@@ -2513,5 +2519,25 @@ final class ScreenCommanderEngineTests: XCTestCase {
         }
         XCTAssertTrue(targets.resolveCalls.isEmpty)
         XCTAssertNil(source.requestedApp)
+    }
+
+    func testObserveSurfacesObserverSetupFailure() async {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let source = FakeObservationSource()
+        // No `--until`, so the source (not the initial scan) is consulted; it fails
+        // setup instead of finishing cleanly.
+        source.setupError = ScreenCommanderError.axTreeUnavailable("no observer")
+
+        let engine = makeObserveEngine(stateName: "observe-setup-fail", targets: targets, source: source)
+
+        do {
+            _ = try await engine.observe(ObserveRequest(appIdentifier: "TextEdit", kinds: [.value])) { _ in }
+            XCTFail("Expected ax_tree_unavailable")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "ax_tree_unavailable")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 }

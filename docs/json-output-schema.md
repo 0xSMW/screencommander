@@ -194,7 +194,12 @@ Termination:
 The `--events` selector (`value,focus,window,destroy,app`, default all) controls which
 categories stream. The `--until` predicate is a whitespace-joined conjunction of
 `key<op>value` conditions — keys `role`/`title`/`value`/`id`, operators `=` (exact) and
-`~=` (case-insensitive contains), e.g. `role=AXButton title~=Save`.
+`~=` (case-insensitive contains), e.g. `role=AXButton title~=Save`. `role`/`title`/`value`
+are matched against both the one-shot initial tree scan and every live event; `id` is
+matched **only on the initial scan** — live event records carry no stable tree position
+(their `id` is empty), so an `id` condition on an element that appears *after* observation
+starts can never match and will run to `--timeout-ms` (exit `73`). Match late-appearing
+elements on `role`/`title`/`value`.
 
 ### cleanup
 

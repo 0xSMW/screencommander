@@ -236,19 +236,25 @@ struct ObservePredicate: Equatable, Sendable {
 protocol ObservationSource: Sendable {
     /// Streams events for `app` filtered to `kinds`. The stream stays open until the
     /// consuming task is cancelled (which tears the observer down via `onTermination`).
-    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncStream<ObservedEvent>
+    ///
+    /// Throwing so observer *setup* failures (AXObserverCreate failing, or every
+    /// requested notification being rejected) surface as an error — the engine maps a
+    /// clean finish to `ObserveOutcome.completed` (exit 0), which would otherwise make a
+    /// dead/AX-hostile target indistinguishable from a matched/clean run.
+    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncThrowingStream<ObservedEvent, Error>
 }
 
 /// Production `ObservationSource` backed by `AXObserverCreate` +
 /// `AXObserverAddNotification`, plus NSWorkspace lifecycle notifications for `.app`.
 ///
-/// Notifications are registered on the application element (app-wide notifications such
-/// as focus/window changes propagate there); per-focused-element value tracking is a
-/// documented smoke-test-only refinement. The observer's run-loop source is driven on a
-/// dedicated thread so the CLI's synchronous entry point stays unblocked.
+/// App-wide notifications (focus/window changes) are registered on the application
+/// element. `kAXValueChangedNotification` is emitted by the individual focused control,
+/// not the app element, so value observation additionally (re)subscribes on the actually
+/// focused element, following focus changes. The observer's run-loop source is driven on
+/// a dedicated thread so the CLI's synchronous entry point stays unblocked.
 final class AXObserverSource: ObservationSource {
-    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncStream<ObservedEvent> {
-        AsyncStream { continuation in
+    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncThrowingStream<ObservedEvent, Error> {
+        AsyncThrowingStream { continuation in
             let session = AXObserverSession(app: app, kinds: kinds, continuation: continuation)
             continuation.onTermination = { _ in
                 session.stop()
@@ -264,11 +270,22 @@ final class AXObserverSource: ObservationSource {
 private final class AXObserverSession: @unchecked Sendable {
     private let app: ResolvedApp
     private let kinds: Set<ObservedEventKind>
-    private let continuation: AsyncStream<ObservedEvent>.Continuation
+    private let continuation: AsyncThrowingStream<ObservedEvent, Error>.Continuation
 
+    /// Guards all cross-thread state below: `stop()` runs on the terminating task's
+    /// thread while the observer callbacks / run-loop setup run on the dedicated
+    /// observer thread.
+    private let lock = NSLock()
     private var observer: AXObserver?
     private var thread: Thread?
     private var runLoop: CFRunLoop?
+    /// Set by `stop()`; gates entry into `CFRunLoopRun()` so a stop that races the
+    /// run-loop setup can never leave a spinning observer thread behind.
+    private var stopped = false
+    /// The element currently carrying a `kAXValueChangedNotification` subscription.
+    /// Value changes come from the focused control, not the app element, so this follows
+    /// focus.
+    private var valueObservedElement: AXUIElement?
     private var workspaceTokens: [NSObjectProtocol] = []
     private let workspaceQueue: OperationQueue = {
         let queue = OperationQueue()
@@ -281,7 +298,7 @@ private final class AXObserverSession: @unchecked Sendable {
     init(
         app: ResolvedApp,
         kinds: Set<ObservedEventKind>,
-        continuation: AsyncStream<ObservedEvent>.Continuation
+        continuation: AsyncThrowingStream<ObservedEvent, Error>.Continuation
     ) {
         self.app = app
         self.kinds = kinds
@@ -293,7 +310,14 @@ private final class AXObserverSession: @unchecked Sendable {
             registerWorkspaceObservers()
         }
 
-        let axNames = ObservedNotification.axNotificationNames(for: kinds)
+        // Register the app-wide notifications for the requested kinds. When observing
+        // value changes we also need focus-change events (even if the caller didn't ask
+        // for `.focus`) so we can follow focus and (re)subscribe value on the focused
+        // control; those internal focus events are tracked but not emitted.
+        var axNames = ObservedNotification.axNotificationNames(for: kinds)
+        if kinds.contains(.value), !axNames.contains(kAXFocusedUIElementChangedNotification as String) {
+            axNames.append(kAXFocusedUIElementChangedNotification as String)
+        }
         guard !axNames.isEmpty else {
             return
         }
@@ -307,15 +331,30 @@ private final class AXObserverSession: @unchecked Sendable {
     }
 
     func stop() {
-        for token in workspaceTokens {
+        lock.lock()
+        stopped = true
+        let runLoop = self.runLoop
+        let tokens = workspaceTokens
+        workspaceTokens.removeAll()
+        observer = nil
+        valueObservedElement = nil
+        lock.unlock()
+
+        for token in tokens {
             NSWorkspace.shared.notificationCenter.removeObserver(token)
         }
-        workspaceTokens.removeAll()
 
         if let runLoop {
-            CFRunLoopStop(runLoop)
+            // Enqueue the stop *on* the target run loop rather than calling
+            // CFRunLoopStop directly: if the loop has not yet entered CFRunLoopRun,
+            // CFRunLoopStop is a no-op and the loop would then block forever. A queued
+            // block is retained until the loop next runs, then stops it. WakeUp handles
+            // the already-running case.
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(CFRunLoopGetCurrent())
+            }
+            CFRunLoopWakeUp(runLoop)
         }
-        observer = nil
     }
 
     // MARK: - AX run loop
@@ -330,24 +369,62 @@ private final class AXObserverSession: @unchecked Sendable {
 
         guard AXObserverCreate(app.pid, callback, &observerRef) == .success,
               let observerRef else {
-            continuation.finish()
+            continuation.finish(
+                throwing: ScreenCommanderError.axTreeUnavailable(
+                    "Could not create an accessibility observer for '\(app.name)' (pid \(app.pid)). "
+                        + "The app may be exiting or may not implement accessibility."
+                )
+            )
             return
         }
 
-        self.observer = observerRef
         let appElement = AXUIElementCreateApplication(app.pid)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
+        var registered = 0
         for name in notificationNames {
-            _ = AXObserverAddNotification(observerRef, appElement, name as CFString, refcon)
+            // The internal focus tracker for value observation is best-effort; the app
+            // notifications for the requested kinds must register for the stream to be
+            // useful, so those drive the "usable" count.
+            let error = AXObserverAddNotification(observerRef, appElement, name as CFString, refcon)
+            if error == .success || error == .notificationAlreadyRegistered {
+                registered += 1
+            }
+        }
+
+        // Every requested notification was rejected (e.g. .notificationUnsupported /
+        // .cannotComplete): a permanently-empty stream would masquerade as a clean run,
+        // so fail instead.
+        guard registered > 0 else {
+            continuation.finish(
+                throwing: ScreenCommanderError.axTreeUnavailable(
+                    "App '\(app.name)' (pid \(app.pid)) rejected every observe subscription. "
+                        + "It may not support accessibility notifications."
+                )
+            )
+            return
         }
 
         let currentRunLoop = CFRunLoopGetCurrent()
+        let source = AXObserverGetRunLoopSource(observerRef)
+
+        lock.lock()
+        if stopped {
+            // stop() already ran before we got here — don't enter a run loop nobody will
+            // stop.
+            lock.unlock()
+            continuation.finish()
+            return
+        }
+        self.observer = observerRef
         self.runLoop = currentRunLoop
-        CFRunLoopAddSource(
-            currentRunLoop,
-            AXObserverGetRunLoopSource(observerRef),
-            .defaultMode
-        )
+        lock.unlock()
+
+        // Subscribe value-changed on the initially focused control.
+        if kinds.contains(.value) {
+            subscribeFocusedValue()
+        }
+
+        CFRunLoopAddSource(currentRunLoop, source, .defaultMode)
         CFRunLoopRun()
 
         // Run loop stopped (stop() called): finish the stream.
@@ -355,8 +432,17 @@ private final class AXObserverSession: @unchecked Sendable {
     }
 
     private func handleAX(notification: String, element: AXUIElement) {
-        guard let classified = ObservedNotification.classify(axNotification: notification),
-              kinds.contains(classified.kind) else {
+        guard let classified = ObservedNotification.classify(axNotification: notification) else {
+            return
+        }
+
+        // Follow focus for value observation regardless of whether `.focus` was
+        // requested for emission.
+        if classified.event == "focus_changed", kinds.contains(.value) {
+            subscribeFocusedValue()
+        }
+
+        guard kinds.contains(classified.kind) else {
             return
         }
         let record = Self.makeRecord(element: AXElement(raw: element), maxValueLength: maxValueLength)
@@ -371,6 +457,41 @@ private final class AXObserverSession: @unchecked Sendable {
         )
     }
 
+    /// (Re)subscribes `kAXValueChangedNotification` on the app's currently focused
+    /// element, removing the previous subscription. No-op once stopped.
+    private func subscribeFocusedValue() {
+        lock.lock()
+        guard let observer = self.observer, !stopped else {
+            lock.unlock()
+            return
+        }
+        lock.unlock()
+
+        let appElement = AXUIElementCreateApplication(app.pid)
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focusedRef,
+              CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
+            return
+        }
+        let focused = focusedRef as! AXUIElement
+
+        lock.lock()
+        let previous = valueObservedElement
+        if let previous, CFEqual(previous, focused) {
+            lock.unlock()
+            return
+        }
+        valueObservedElement = focused
+        lock.unlock()
+
+        if let previous {
+            AXObserverRemoveNotification(observer, previous, kAXValueChangedNotification as CFString)
+        }
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
+        _ = AXObserverAddNotification(observer, focused, kAXValueChangedNotification as CFString, refcon)
+    }
+
     // MARK: - NSWorkspace lifecycle
 
     private func registerWorkspaceObservers() {
@@ -380,12 +501,16 @@ private final class AXObserverSession: @unchecked Sendable {
             (NSWorkspace.didActivateApplicationNotification, "app_activated"),
             (NSWorkspace.didTerminateApplicationNotification, "app_terminated")
         ]
+        var tokens: [NSObjectProtocol] = []
         for (name, eventName) in events {
             let token = center.addObserver(forName: name, object: nil, queue: workspaceQueue) { [weak self] note in
                 self?.handleWorkspace(eventName: eventName, note: note)
             }
-            workspaceTokens.append(token)
+            tokens.append(token)
         }
+        lock.lock()
+        workspaceTokens.append(contentsOf: tokens)
+        lock.unlock()
     }
 
     private func handleWorkspace(eventName: String, note: Notification) {

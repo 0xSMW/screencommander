@@ -136,7 +136,7 @@ screencommander observe --app TextEdit --events value
 Rules:
 
 1. Prefer `observe --until '<predicate>' --timeout-ms N` over sleep-and-screenshot loops: it returns the instant the condition holds (or exits `73` if the timeout passes unmet).
-2. Predicates are whitespace-joined `key<op>value` conditions — keys `role`/`title`/`value`/`id`, ops `=` (exact) or `~=` (case-insensitive contains). All conditions must hold.
+2. Predicates are whitespace-joined `key<op>value` conditions — keys `role`/`title`/`value`/`id`, ops `=` (exact) or `~=` (case-insensitive contains). All conditions must hold. `role`/`title`/`value` match both the initial tree scan and live events; `id` only matches the initial scan (live events carry no stable tree position), so match late-appearing elements on `role`/`title`/`value`, not `id`.
 3. Narrow the feed with `--events` (`value,focus,window,destroy,app`) so you only pay for the changes you care about.
 4. On a match, the final line is `{ "matched": true, "element": ... }` (exit `0`). A plain `--timeout-ms` without `--until` just exits `0` when it elapses.
 
