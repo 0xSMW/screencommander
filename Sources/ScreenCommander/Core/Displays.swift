@@ -13,10 +13,16 @@ protocol DisplayResolving {
 }
 
 final class Displays: DisplayResolving {
+    private let contentProvider: ShareableContentProvider
+
+    init(contentProvider: ShareableContentProvider = ShareableContentProvider()) {
+        self.contentProvider = contentProvider
+    }
+
     func resolveDisplay(identifier: String) async throws -> ResolvedDisplay {
         let content: SCShareableContent
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            content = try await contentProvider.content(onScreenWindowsOnly: true)
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate displays: \(error.localizedDescription)")
         }

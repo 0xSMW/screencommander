@@ -1,16 +1,32 @@
 import ArgumentParser
 import Foundation
 
-struct KeysCommand: ParsableCommand {
+struct MoveCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "keys",
-        abstract: "Execute held keyboard sequence steps such as down/up/press and sleep."
+        commandName: "move",
+        abstract: "Map screenshot coordinates and move the mouse cursor."
     )
 
-    @Argument(help: "Sequence steps in <action>:<token> format (down/up/press/sleep).")
-    var steps: [String]
+    @Argument(help: "X coordinate in selected coordinate space.")
+    var x: String
 
-    @Flag(name: .long, help: "Capture before/after screenshots around the action (enabled by default).")
+    @Argument(help: "Y coordinate in selected coordinate space.")
+    var y: String
+
+    @Option(name: .long, help: "Dwell after moving, in milliseconds.")
+    var dwellMS: Int = 0
+
+    @Option(name: .long, help: "Coordinate input space.")
+    var space: CoordinateSpace = .pixels
+
+    @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
+    var meta: String?
+
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: "Capture before/after screenshots around the action (enabled by default)."
+    )
     var postshot: Bool = true
 
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
@@ -21,17 +37,30 @@ struct KeysCommand: ParsableCommand {
 
     mutating func run() throws {
         let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "keys")
+        OutputOptions.current = (format, compact, "move")
         defer { OutputOptions.current = nil }
         do {
+            guard let parsedX = Double(x), parsedX.isFinite,
+                  let parsedY = Double(y), parsedY.isFinite else {
+                throw ScreenCommanderError.invalidArguments("x and y must be numeric values.")
+            }
+
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
-            let result = try CommandRuntime.engine.keys(KeysRequest(steps: steps))
+            let result = try CommandRuntime.engine.move(
+                MoveRequest(
+                    x: parsedX,
+                    y: parsedY,
+                    coordinateSpace: space,
+                    metadataPath: meta,
+                    dwellMS: dwellMS
+                )
+            )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
             let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
-                    command: "keys",
+                    command: "move",
                     result: ActionResultEnvelope(
                         action: result,
                         preshot: preshotResult?.result,
@@ -43,11 +72,9 @@ struct KeysCommand: ParsableCommand {
                 return
             }
 
-            print("Executed sequence steps:")
-            for step in result.normalizedSteps {
-                print("- \(step)")
-            }
-
+            print("Moved to global point (\(result.resolved.globalX), \(result.resolved.globalY)).")
+            print("Dwell: \(result.dwellMilliseconds) ms")
+            print("Metadata: \(result.metadataPath)")
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")
                 print("Preshot metadata: \(preshotResult.result.metadataPath)")

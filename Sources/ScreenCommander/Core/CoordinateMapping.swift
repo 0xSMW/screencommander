@@ -26,7 +26,8 @@ struct CoordinateMapper {
             throw ScreenCommanderError.mappingFailed("Metadata pointPixelScale must be greater than zero.")
         }
 
-        let bounds = metadata.displayBoundsPoints
+        // Use window bounds when available (window-relative coordinates); fall back to display bounds.
+        let bounds = metadata.windowBoundsPoints ?? metadata.displayBoundsPoints
         let scale = metadata.pointPixelScale
 
         let dxPoints: Double

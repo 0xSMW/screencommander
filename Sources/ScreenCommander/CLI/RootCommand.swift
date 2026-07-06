@@ -1,4 +1,5 @@
 import ArgumentParser
+import CoreGraphics
 import Foundation
 
 /// Output format for scriptability; when .json, stdout is exactly one JSON object (success or error).
@@ -49,11 +50,19 @@ struct RootCommand: ParsableCommand {
             DoctorCommand.self,
             ScreenshotCommand.self,
             ClickCommand.self,
+            ScrollCommand.self,
+            DragCommand.self,
+            MoveCommand.self,
             TypeCommand.self,
             KeyCommand.self,
             KeysCommand.self,
+            ElementsCommand.self,
+            ObserveCommand.self,
             CleanupCommand.self,
-            SequenceCommand.self
+            SequenceCommand.self,
+            WindowsCommand.self,
+            FocusCommand.self,
+            ServeCommand.self
         ],
         defaultSubcommand: ScreenshotCommand.self
     )
@@ -144,7 +153,7 @@ enum CommandRuntime {
         return ExitCode.failure
     }
 
-    static func captureActionScreenshot(prefix: String) -> ActionScreenshotResult? {
+    static func captureActionScreenshot(prefix: String) -> ActionScreenshotCapture? {
         let timestamp = shotDateFormatter.string(from: Date())
         let filename = "\(prefix)-\(timestamp).png"
 
@@ -168,10 +177,12 @@ enum CommandRuntime {
                     try await engine.screenshot(request)
                 }
 
-                return ActionScreenshotResult(
+                let screenshotResult = ActionScreenshotResult(
                     imagePath: result.imagePath,
                     metadataPath: result.metadataPath
                 )
+                // Diff against the in-memory capture — no PNG re-decode round trip.
+                return ActionScreenshotCapture(result: screenshotResult, image: result.image)
             } catch {
                 lastFailure = error
                 if shouldFallbackToTemp(
@@ -195,6 +206,35 @@ enum CommandRuntime {
         return nil
     }
 
+    static func frameDiff(pre: ActionScreenshotCapture?, post: ActionScreenshotCapture?, skip: Bool) -> FrameDiffResult? {
+        guard !skip,
+              let preImage = pre?.image,
+              let postImage = post?.image else {
+            return nil
+        }
+
+        return FrameDiff.compare(preImage, postImage)
+    }
+
+    static func printFrameDiff(_ diff: FrameDiffResult?) {
+        guard let diff, diff.changedFraction > 0 else {
+            return
+        }
+
+        if let region = diff.changedRegion {
+            print(String(
+                format: "diff: %.1f%% changed in (%.0f,%.0f %.0fx%.0f)",
+                diff.changedFraction * 100,
+                region.x,
+                region.y,
+                region.w,
+                region.h
+            ))
+        } else {
+            print(String(format: "diff: %.1f%% changed", diff.changedFraction * 100))
+        }
+    }
+
     private static func shouldFallbackToTemp(after error: Error, attemptIndex: Int, totalAttempts: Int) -> Bool {
         guard attemptIndex < (totalAttempts - 1) else {
             return false
@@ -205,9 +245,9 @@ enum CommandRuntime {
         }
 
         switch error {
-        case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed:
+        case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed, .axTreeUnavailable:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .observeTimeout, .windowNotFound, .appNotFound:
             return true
         }
     }
@@ -237,10 +277,16 @@ struct ActionScreenshotResult: Codable, Sendable {
     var metadataPath: String
 }
 
+struct ActionScreenshotCapture {
+    var result: ActionScreenshotResult
+    var image: CGImage?
+}
+
 struct ActionResultEnvelope<ActionResult: Encodable>: Encodable {
     var action: ActionResult
     var preshot: ActionScreenshotResult?
     var postshot: ActionScreenshotResult?
+    var diff: FrameDiffResult?
 }
 
 enum AsyncBridge {
