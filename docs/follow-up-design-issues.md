@@ -43,11 +43,3 @@ Decision: `docs/capability-plan.md` is legacy and can be removed. `INIT.md` was 
 What to do: make `README.md` the GitHub-facing project README and current user contract. Make `SKILL.md` the short operator runbook for agents running the CLI. Keep `AGENTS.md` limited to repo-specific instructions for agents working in this repository. Remove legacy planning/tracker docs instead of trying to keep them synchronized.
 
 Downside: none if the cleanup is accurate. Before deleting or rewriting a doc, check whether the apparent conflict is just historical context from when that doc was created; if it is historical and no longer authoritative, remove it or clearly retire it.
-
-## CLI/MCP Parsing Deduplication
-
-Intent: avoid flags drifting between CLI, MCP, and sequence JSON.
-
-What to do: keep surface-specific parsing, but centralize request construction and semantic validation in small helpers.
-
-Downside: if overdone, this becomes a fake parser framework; the fix should stay boring and targeted.
