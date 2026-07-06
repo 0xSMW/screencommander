@@ -51,11 +51,3 @@ Intent: avoid flags drifting between CLI, MCP, and sequence JSON.
 What to do: keep surface-specific parsing, but centralize request construction and semantic validation in small helpers.
 
 Downside: if overdone, this becomes a fake parser framework; the fix should stay boring and targeted.
-
-## AX Priming Churn
-
-Intent: reduce repeated AX attribute toggling for Electron and Chromium apps.
-
-What to do: first measure whether repeated `AXManualAccessibility` / `AXEnhancedUserInterface` priming is costly or destabilizing, then consider per-app memoization in serve mode.
-
-Downside: caching AX priming state can get stale and may leave side effects around longer than the current restore-after-read model.
