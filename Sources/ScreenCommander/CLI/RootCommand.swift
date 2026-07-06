@@ -45,7 +45,9 @@ enum OutputOptions {
 struct RootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "screencommander",
-        abstract: "Capture screenshots and synthesize global mouse and keyboard input.",
+        abstract: "Observe and operate the macOS desktop: screenshots (display or window), "
+            + "accessibility-tree reading (elements), real-time UI events (observe), and mouse/keyboard "
+            + "input that can target elements without moving the cursor. Also runs as an MCP server (serve).",
         subcommands: [
             DoctorCommand.self,
             ScreenshotCommand.self,

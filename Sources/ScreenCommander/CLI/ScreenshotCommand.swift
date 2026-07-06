@@ -33,6 +33,10 @@ struct ScreenshotCommand: ParsableCommand {
         OutputOptions.current = (outputFormat, compact, "screenshot")
         defer { OutputOptions.current = nil }
         do {
+            if window != nil {
+                WindowServerConnection.ensureInitialized()
+            }
+
             let request = ScreenshotRequest(
                 displayIdentifier: display,
                 outputPath: out,
