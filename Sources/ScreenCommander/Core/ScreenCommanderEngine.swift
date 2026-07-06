@@ -98,12 +98,6 @@ final class ScreenCommanderEngine {
     }
 
     func screenshot(_ request: ScreenshotRequest) async throws -> ScreenshotResult {
-        _ = try? retention.pruneCaptures(
-            in: statePaths.capturesDirectoryURL,
-            olderThan: 24 * 60 * 60,
-            now: now()
-        )
-
         try permissions.ensureScreenRecordingAccess(prompt: true)
 
         let imageURL = resolvedImageURL(explicitPath: request.outputPath, format: request.format)
@@ -271,6 +265,7 @@ final class ScreenCommanderEngine {
             role: request.role,
             appIdentifier: request.appIdentifier
         )
+        try ensureElementEnabled(target.record)
 
         let tiers = try deliveryTiers(
             available: [.ax, .pid, .global],
@@ -609,6 +604,7 @@ final class ScreenCommanderEngine {
             role: request.role,
             appIdentifier: request.appIdentifier
         )
+        try ensureElementEnabled(target.record)
 
         let tiers = try deliveryTiers(
             available: [.ax, .global],
@@ -633,11 +629,6 @@ final class ScreenCommanderEngine {
             do {
                 switch tier {
                 case .ax:
-                    guard target.record.enabled else {
-                        throw ScreenCommanderError.elementNotActionable(
-                            "Element '\(target.record.id)' (\(target.record.role)) is disabled."
-                        )
-                    }
                     let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
                     try axActions.setValue(request.text, on: live)
                     return result(deliveryMethod: .ax)
@@ -658,6 +649,14 @@ final class ScreenCommanderEngine {
 
         throw lastFailure
             ?? ScreenCommanderError.elementNotActionable("No delivery tier could type into the element.")
+    }
+
+    private func ensureElementEnabled(_ record: AXElementRecord) throws {
+        guard record.enabled else {
+            throw ScreenCommanderError.elementNotActionable(
+                "Element '\(record.id)' (\(record.role)) is disabled."
+            )
+        }
     }
 
     private func typeViaKeyboard(_ request: TypeRequest) throws {

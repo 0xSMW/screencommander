@@ -99,6 +99,7 @@ Behavior:
 - Default image path: `~/Library/Caches/screencommander/captures/<timestamp>.png`
 - Default metadata path: `<image>.json` (for example `~/Library/Caches/screencommander/captures/<timestamp>.json`)
 - Also updates managed `~/Library/Caches/screencommander/last-screenshot.json` by default.
+- Does not prune older captures; use `cleanup` explicitly when you want retention.
 
 ### Click
 
@@ -140,6 +141,7 @@ Behavior:
 - Supports `--button left|right|middle`, `--double`, `--triple`, and `--modifiers cmd,shift,option,ctrl`.
 - `--element "<title/label substring>"` or `--element-id <id>` clicks an accessibility element instead of coordinates. Resolution happens fresh at click time (ids from `elements` are positional). No match exits `70` (`element_not_found`). Disambiguate substring matches with `--role` and `--app`.
 - Element clicks use a tiered actuator, tried in order `ax` (AXPress/AXShowMenu — coordinate-free, background-safe) → `pid` (CGEvents posted to one app; cursor stays put) → `global` (classic path; moves the cursor). Downgrades are recorded in the result (`deliveryMethod`), not errors.
+- Disabled elements fail with exit `72` before any fallback tier runs.
 - `--via ax|pid|global` forces one tier with no fallback (`--strict` implied). `--no-cursor` removes the `global` tier so the pointer never moves. `--strict` turns any downgrade into exit `72` (`element_not_actionable`).
 - Coordinate clicks keep the historical `global` delivery; `--via pid` with `--app <name|pid>` posts a coordinate click to one app instead.
 - `--verify-target` (coordinate clicks) hit-tests the mapped point via accessibility first and includes the element found there in the result.
@@ -302,7 +304,7 @@ Behavior:
 screencommander cleanup --older-than-hours 24
 ```
 
-Prunes managed capture artifacts (`png`, `jpg`, `jpeg`, `json`) in `~/Library/Caches/screencommander/captures` older than the configured age.
+Explicitly prunes managed capture artifacts (`png`, `jpg`, `jpeg`, `json`) in `~/Library/Caches/screencommander/captures` older than the configured age. Screenshot and action commands never run cleanup implicitly.
 
 ### Sequence
 
@@ -472,7 +474,7 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `60`: invalid arguments or chord parse
 - `70`: element not found (`--element`/`--element-id` matched nothing)
 - `71`: target app exposes no usable accessibility (AX) tree
-- `72`: element not actionable (found but disabled or action unsupported, under `--strict`/`--via`)
+- `72`: element not actionable (found but disabled, or action unsupported under `--strict`/`--via`)
 - `73`: `observe --until` predicate unmet within `--timeout-ms`
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)

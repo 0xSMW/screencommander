@@ -1197,8 +1197,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(writtenURL.pathExtension, "png")
         XCTAssertEqual(metadataStore.saved.count, 1)
         XCTAssertEqual(metadataStore.saved[0].at.path, writtenURL.deletingPathExtension().appendingPathExtension("json").path)
-        XCTAssertEqual(retention.calls.count, 1)
-        XCTAssertEqual(retention.calls[0].olderThan, 24 * 60 * 60)
+        XCTAssertTrue(retention.calls.isEmpty, "screenshot must not delete or prune existing captures")
         XCTAssertTrue(metadataStore.saved[0].updateLastAt == state.lastMetadataURL)
     }
 
@@ -2055,6 +2054,34 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
     }
 
+    func testElementClickDisabledElementDefaultThrows72WithoutFallback() async {
+        let fixture = makeElementClickFixture("wp5-default-disabled", records: [buttonRecord(enabled: false)])
+
+        await assertThrows(
+            try await fixture.engine.click(elementClickRequest())
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+    }
+
+    func testElementClickDisabledElementForcedMouseTierThrows72() async {
+        for tier in [InputDeliveryMethod.pid, .global] {
+            let fixture = makeElementClickFixture("wp5-disabled-\(tier.rawValue)", records: [buttonRecord(enabled: false)])
+
+            await assertThrows(
+                try await fixture.engine.click(elementClickRequest(via: tier))
+            ) { error in
+                XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+                XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+            }
+            XCTAssertTrue(fixture.mouse.calls.isEmpty)
+            XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+        }
+    }
+
     func testElementClickNotFoundThrows70() async {
         let fixture = makeElementClickFixture("wp5-not-found", records: [buttonRecord(title: "Cancel")])
 
@@ -2381,6 +2408,26 @@ final class ScreenCommanderEngineTests: XCTestCase {
             XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
         }
         XCTAssertTrue(fixture.keyboard.pasted.isEmpty, "--via ax must not fall back to the keyboard")
+    }
+
+    func testTypeElementDisabledThrows72WithoutKeyboardFallback() async {
+        let fixture = makeInputEngineFixture("wp5-type-disabled", frontmostApp: { Self.targetApp })
+        fixture.reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [buttonRecord(id: "0.3", role: "AXTextField", title: "Name", actions: [], enabled: false)]
+        )
+
+        await assertThrows(
+            try await fixture.engine.type(
+                TypeRequest(text: "x", delayMilliseconds: nil, inputMode: .paste, element: "Name")
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+        }
+        XCTAssertTrue(fixture.keyboard.pasted.isEmpty)
+        XCTAssertEqual(fixture.axActions.focusCount, 0)
     }
 
     func testElementScrollUsesPidTierThenGlobal() async throws {
