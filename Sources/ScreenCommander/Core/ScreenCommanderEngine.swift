@@ -14,6 +14,7 @@ final class ScreenCommanderEngine {
     private let retention: CaptureRetentionManaging
     private let accessibilityReader: AccessibilityReading
     private let targets: TargetResolving
+    private let observationSource: ObservationSource
     private let frontmostApp: () -> ResolvedApp?
     private let activateApp: (ResolvedApp) throws -> Void
     private let fileManager: FileManager
@@ -32,6 +33,7 @@ final class ScreenCommanderEngine {
         retention: CaptureRetentionManaging,
         accessibilityReader: AccessibilityReading = AXReader(),
         targets: TargetResolving = Targets(),
+        observationSource: ObservationSource = AXObserverSource(),
         frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
         activateApp: @escaping (ResolvedApp) throws -> Void = AppActivator.activate,
         statePaths: StatePaths,
@@ -49,6 +51,7 @@ final class ScreenCommanderEngine {
         self.retention = retention
         self.accessibilityReader = accessibilityReader
         self.targets = targets
+        self.observationSource = observationSource
         self.frontmostApp = frontmostApp
         self.activateApp = activateApp
         self.statePaths = statePaths
@@ -75,6 +78,7 @@ final class ScreenCommanderEngine {
             retention: CaptureRetentionManager(fileManager: fileManager),
             accessibilityReader: AXReader(),
             targets: Targets(),
+            observationSource: AXObserverSource(),
             frontmostApp: FrontmostApp.current,
             activateApp: AppActivator.activate,
             statePaths: statePaths,
@@ -410,6 +414,75 @@ final class ScreenCommanderEngine {
             elements: elements,
             text: request.includeText ? AXTextRenderer.render(elements) : nil
         )
+    }
+
+    /// Streams UI-change events for an app until interrupted, timed out, or `--until`
+    /// matched. `emit` is called once per event (the command prints NDJSON); the return
+    /// value tells the command how to exit.
+    ///
+    /// Structured around an `AsyncStream<ObservedEvent>` so WP8's MCP server can hold
+    /// observers warm and answer "what changed since last call" without re-registering.
+    func observe(
+        _ request: ObserveRequest,
+        emit: @escaping @Sendable (ObservedEvent) -> Void
+    ) async throws -> ObserveOutcome {
+        guard !request.kinds.isEmpty else {
+            throw ScreenCommanderError.invalidArguments("--events selected no event kinds.")
+        }
+        if let timeout = request.timeoutMS, timeout < 0 {
+            throw ScreenCommanderError.invalidArguments("--timeout-ms must be non-negative.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+
+        let app = try await targets.resolveApp(identifier: request.appIdentifier)
+
+        // Initial scan: already-true `--until` conditions return immediately without
+        // waiting for a live event.
+        if let predicate = request.predicate {
+            let options = AXTreeOptions()
+            if let tree = try? accessibilityReader.tree(app: app, options: options),
+               let match = predicate.firstMatch(in: tree.elements) {
+                return .matched(match)
+            }
+        }
+
+        let kinds = request.kinds
+        let predicate = request.predicate
+        let stream = observationSource.events(app: app, kinds: kinds)
+
+        return await withTaskGroup(of: ObserveOutcome?.self) { group in
+            group.addTask {
+                for await event in stream {
+                    // Defensive re-filter: the production source only registers the
+                    // requested kinds, but a fake source may yield anything.
+                    guard kinds.contains(event.kind) else { continue }
+                    emit(event)
+                    if let predicate, let element = event.element, predicate.matches(element) {
+                        return .matched(element)
+                    }
+                }
+                return .completed
+            }
+
+            if let timeout = request.timeoutMS {
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000)
+                    if Task.isCancelled { return nil }
+                    return predicate == nil ? .timedOut : .timedOutUnmet
+                }
+            }
+
+            var outcome: ObserveOutcome = .completed
+            for await result in group {
+                if let result {
+                    outcome = result
+                    break
+                }
+            }
+            group.cancelAll()
+            return outcome
+        }
     }
 
     func cleanup(_ request: CleanupRequest) throws -> CleanupResult {

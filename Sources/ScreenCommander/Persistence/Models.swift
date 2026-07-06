@@ -266,6 +266,45 @@ struct ScreenshotMetadata: Codable, Sendable {
     var windowBoundsPoints: RectD?
 }
 
+struct ObserveRequest {
+    /// `--app` value (pid or app-name match).
+    var appIdentifier: String
+    /// Event categories to stream (`--events`); defaults to all.
+    var kinds: Set<ObservedEventKind>
+    /// Stop after this many milliseconds; nil means run until interrupted/matched.
+    var timeoutMS: Int?
+    /// Optional `--until` predicate; when set, matching ends the stream (exit 0) and a
+    /// timeout without a match exits 73.
+    var predicate: ObservePredicate?
+
+    init(
+        appIdentifier: String,
+        kinds: Set<ObservedEventKind> = Set(ObservedEventKind.allCases),
+        timeoutMS: Int? = nil,
+        predicate: ObservePredicate? = nil
+    ) {
+        self.appIdentifier = appIdentifier
+        self.kinds = kinds
+        self.timeoutMS = timeoutMS
+        self.predicate = predicate
+    }
+}
+
+/// How an `observe` session ended. Drives the command's exit code and final output.
+enum ObserveOutcome: Equatable, Sendable {
+    /// `--until` matched (initial scan or an incoming event). Exit 0; a final
+    /// `{ matched: true, element }` line is printed.
+    case matched(AXElementRecord?)
+    /// Plain observe reached `--timeout-ms`. Exit 0.
+    case timedOut
+    /// `--until` was unmet within `--timeout-ms`. Exit 73.
+    case timedOutUnmet
+    /// SIGINT / task cancellation. Exit 0.
+    case interrupted
+    /// Event source ended on its own (mainly a test-fake path). Exit 0.
+    case completed
+}
+
 struct WindowsRequest {
     var appIdentifier: String?
 }

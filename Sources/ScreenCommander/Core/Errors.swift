@@ -11,6 +11,7 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
     case inputSynthesisFailed(String)
     case invalidArguments(String)
     case axTreeUnavailable(String)
+    case observeTimeout(String)
     case windowNotFound(String)
     case appNotFound(String)
 
@@ -36,6 +37,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return 60
         case .axTreeUnavailable:
             return 71
+        case .observeTimeout:
+            return 73
         case .windowNotFound:
             return 80
         case .appNotFound:
@@ -65,6 +68,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Invalid arguments: \(message)"
         case .axTreeUnavailable(let message):
             return "Accessibility tree unavailable: \(message)"
+        case .observeTimeout(let message):
+            return "Observation timed out: \(message)"
         case .windowNotFound(let message):
             return "Window not found: \(message)"
         case .appNotFound(let message):
@@ -85,6 +90,7 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
         case .inputSynthesisFailed: return "input_synthesis_failed"
         case .invalidArguments: return "invalid_arguments"
         case .axTreeUnavailable: return "ax_tree_unavailable"
+        case .observeTimeout: return "observe_timeout"
         case .windowNotFound: return "window_not_found"
         case .appNotFound: return "app_not_found"
         }

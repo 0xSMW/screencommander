@@ -57,6 +57,7 @@ struct RootCommand: ParsableCommand {
             KeyCommand.self,
             KeysCommand.self,
             ElementsCommand.self,
+            ObserveCommand.self,
             CleanupCommand.self,
             SequenceCommand.self,
             WindowsCommand.self,
@@ -245,7 +246,7 @@ enum CommandRuntime {
         switch error {
         case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed, .axTreeUnavailable:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .windowNotFound, .appNotFound:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .observeTimeout, .windowNotFound, .appNotFound:
             return true
         }
     }

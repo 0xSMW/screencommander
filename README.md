@@ -54,7 +54,7 @@ For user-local installs, ensure `~/.local/bin` is on your `PATH`.
 - System Settings path: Privacy & Security > Screen Recording
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`
 
-2. Accessibility permission for `click`, `scroll`, `drag`, `move`, `type`, `key`, and `elements`
+2. Accessibility permission for `click`, `scroll`, `drag`, `move`, `type`, `key`, `elements`, and `observe`
 - System Settings path: Privacy & Security > Accessibility
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
 
@@ -247,6 +247,25 @@ Behavior:
 - Electron/Chromium apps are primed automatically (`AXManualAccessibility`, falling back to `AXEnhancedUserInterface`, restored afterwards); the result reports `axPrimed`.
 - Apps that expose no usable AX tree fail with exit code `71` (`ax_tree_unavailable`).
 
+### Observe
+
+Stream real-time UI-change events for an app as NDJSON (one JSON object per line) — a push-based feed so agents can block on outcomes instead of screenshot polling:
+
+```bash
+screencommander observe --app TextEdit --events value          # value changes as you type
+screencommander observe --app Finder --until 'role=AXWindow title~=Downloads' --timeout-ms 10000
+screencommander observe --app Safari --events focus,window     # focus and window changes
+```
+
+Behavior:
+
+- Streams **NDJSON**, one event per line: `{ ts, event, app: { pid, name }, element? }`. This command always emits one-line JSON (it ignores pretty/compact).
+- `--events` selects categories (default all): `value` (value changed), `focus` (focused element changed), `window` (created/moved/resized/title changed), `destroy` (element destroyed), `app` (NSWorkspace launch/activate/terminate for the target app).
+- Runs until Ctrl-C (SIGINT, exit `0`), `--timeout-ms` elapses, or `--until` matches.
+- `--until '<predicate>'` stops when an element matches: whitespace-joined `key<op>value` conditions where `key` is `role`/`title`/`value`/`id` and `<op>` is `=` (exact) or `~=` (case-insensitive contains), e.g. `role=AXButton title~=Save`. An initial tree scan makes already-true conditions return immediately. On match, a final `{ "matched": true, "element": ... }` line is printed (exit `0`).
+- With `--until` and `--timeout-ms`, an unmet predicate within the timeout exits `73` (`observe_timeout`); a plain `--timeout-ms` without `--until` exits `0`.
+- Requires Accessibility permission.
+
 ### Cleanup
 
 ```bash
@@ -389,5 +408,6 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `50`: input synthesis failed
 - `60`: invalid arguments or chord parse
 - `71`: target app exposes no usable accessibility (AX) tree
+- `73`: `observe --until` predicate unmet within `--timeout-ms`
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)

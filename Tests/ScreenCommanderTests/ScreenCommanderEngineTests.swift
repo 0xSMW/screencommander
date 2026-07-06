@@ -296,6 +296,32 @@ private final class FakeTargets: TargetResolving {
     }
 }
 
+private final class FakeObservationSource: ObservationSource, @unchecked Sendable {
+    /// Events yielded (in order) when `events(...)` is called.
+    var scriptedEvents: [ObservedEvent] = []
+    /// When true, the stream never finishes on its own — it stays open until the
+    /// consuming task is cancelled (drives timeout tests deterministically).
+    var keepOpen = false
+
+    private(set) var requestedApp: ResolvedApp?
+    private(set) var requestedKinds: Set<ObservedEventKind>?
+
+    func events(app: ResolvedApp, kinds: Set<ObservedEventKind>) -> AsyncStream<ObservedEvent> {
+        requestedApp = app
+        requestedKinds = kinds
+        let events = scriptedEvents
+        let keepOpen = keepOpen
+        return AsyncStream { continuation in
+            for event in events {
+                continuation.yield(event)
+            }
+            if !keepOpen {
+                continuation.finish()
+            }
+        }
+    }
+}
+
 private func make1x1Image() -> CGImage {
     let data = Data([255, 0, 0, 255])
     let provider = CGDataProvider(data: data as CFData)!
@@ -1715,5 +1741,236 @@ final class ScreenCommanderEngineTests: XCTestCase {
             XCTFail("Unexpected error type: \(error)")
         }
         XCTAssertTrue(reader.treeCalls.isEmpty)
+    }
+
+    // MARK: - observe
+
+    private final class EventCollector: @unchecked Sendable {
+        var events: [ObservedEvent] = []
+    }
+
+    private func makeObserveEngine(
+        stateName: String,
+        permissions: FakePermissions = FakePermissions(),
+        targets: FakeTargets,
+        reader: FakeAccessibilityReader = FakeAccessibilityReader(),
+        source: FakeObservationSource
+    ) -> ScreenCommanderEngine {
+        let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath(stateName).path])
+        let metadataStore = FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL)
+        return ScreenCommanderEngine(
+            permissions: permissions,
+            displays: NoopDisplays(),
+            capturer: FakeCapturer(
+                captureResult: CapturedScreenshot(
+                    image: make1x1Image(),
+                    displayID: 1,
+                    displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                    pointPixelScale: 1
+                )
+            ),
+            imageWriter: FakeImageWriter(returnedSize: SizeD(w: 1, h: 1)),
+            metadataStore: metadataStore,
+            coordinateMapper: CoordinateMapper(),
+            mouseController: FakeMouseController(),
+            keyboardController: FakeKeyboardController(),
+            retention: FakeRetentionManager(),
+            accessibilityReader: reader,
+            targets: targets,
+            observationSource: source,
+            frontmostApp: { nil },
+            statePaths: state,
+            fileManager: .default
+        )
+    }
+
+    private func event(_ kind: ObservedEventKind, _ name: String, element: AXElementRecord? = nil) -> ObservedEvent {
+        ObservedEvent(
+            ts: "2026-07-06T12:00:00.000Z",
+            kind: kind,
+            event: name,
+            app: ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil),
+            element: element
+        )
+    }
+
+    func testObserveResolvesAppChecksPermissionAndForwardsKinds() async throws {
+        let permissions = FakePermissions()
+        let targets = FakeTargets()
+        let app = ResolvedApp(pid: 42, name: "TextEdit", bundleID: "com.apple.TextEdit")
+        targets.apps["TextEdit"] = app
+        let source = FakeObservationSource()
+        source.scriptedEvents = []
+
+        let engine = makeObserveEngine(stateName: "observe-resolve", permissions: permissions, targets: targets, source: source)
+        let collector = EventCollector()
+
+        let outcome = try await engine.observe(
+            ObserveRequest(appIdentifier: "TextEdit", kinds: [.value, .focus])
+        ) { event in
+            collector.events.append(event)
+        }
+
+        XCTAssertEqual(outcome, .completed)
+        XCTAssertEqual(permissions.accessibilityChecks, 1)
+        XCTAssertEqual(targets.resolveCalls, ["TextEdit"])
+        XCTAssertEqual(source.requestedApp, app)
+        XCTAssertEqual(source.requestedKinds, [.value, .focus])
+    }
+
+    func testObserveFiltersEmittedEventsByKind() async throws {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let source = FakeObservationSource()
+        source.scriptedEvents = [
+            event(.value, "value_changed"),
+            event(.app, "app_activated"),
+            event(.focus, "focus_changed")
+        ]
+
+        let engine = makeObserveEngine(stateName: "observe-filter", targets: targets, source: source)
+        let collector = EventCollector()
+
+        let outcome = try await engine.observe(
+            ObserveRequest(appIdentifier: "TextEdit", kinds: [.value, .focus])
+        ) { event in
+            collector.events.append(event)
+        }
+
+        XCTAssertEqual(outcome, .completed)
+        XCTAssertEqual(collector.events.map(\.event), ["value_changed", "focus_changed"])
+    }
+
+    func testObserveUntilMatchesIncomingEvent() async throws {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let matching = AXElementRecord(id: "0.1", role: "AXButton", title: "Save File")
+        let source = FakeObservationSource()
+        source.scriptedEvents = [
+            event(.value, "value_changed", element: AXElementRecord(id: "0.0", role: "AXTextField", title: "Body")),
+            event(.value, "value_changed", element: matching),
+            event(.value, "value_changed", element: AXElementRecord(id: "0.2", role: "AXButton", title: "Cancel"))
+        ]
+        // Initial scan finds nothing.
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(axPrimed: false, truncated: false, elements: [])
+
+        let engine = makeObserveEngine(stateName: "observe-until", targets: targets, reader: reader, source: source)
+        let collector = EventCollector()
+
+        let outcome = try await engine.observe(
+            ObserveRequest(
+                appIdentifier: "TextEdit",
+                predicate: try ObservePredicate.parse("role=AXButton title~=Save")
+            )
+        ) { event in
+            collector.events.append(event)
+        }
+
+        XCTAssertEqual(outcome, .matched(matching))
+        // Emission stops at the matching event; the trailing Cancel event is not emitted.
+        XCTAssertEqual(collector.events.count, 2)
+        XCTAssertEqual(collector.events.last?.element, matching)
+    }
+
+    func testObserveInitialScanMatchesImmediately() async throws {
+        let targets = FakeTargets()
+        targets.apps["Finder"] = ResolvedApp(pid: 99, name: "Finder", bundleID: nil)
+        let existing = AXElementRecord(id: "0.3", role: "AXWindow", title: "Downloads")
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [AXElementRecord(id: "0", role: "AXApplication"), existing]
+        )
+        let source = FakeObservationSource()
+        source.scriptedEvents = [event(.window, "window_created")]
+
+        let engine = makeObserveEngine(stateName: "observe-initial", targets: targets, reader: reader, source: source)
+        let collector = EventCollector()
+
+        let outcome = try await engine.observe(
+            ObserveRequest(
+                appIdentifier: "Finder",
+                predicate: try ObservePredicate.parse("role=AXWindow title~=Downloads")
+            )
+        ) { event in
+            collector.events.append(event)
+        }
+
+        XCTAssertEqual(outcome, .matched(existing))
+        // Already-true condition returns before the live source is ever consulted.
+        XCTAssertTrue(collector.events.isEmpty)
+        XCTAssertNil(source.requestedApp)
+    }
+
+    func testObserveTimeoutWithUntilReturns73Outcome() async throws {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let source = FakeObservationSource()
+        source.keepOpen = true // never yields, never finishes → timeout wins
+
+        let engine = makeObserveEngine(stateName: "observe-timeout-until", targets: targets, source: source)
+
+        let outcome = try await engine.observe(
+            ObserveRequest(
+                appIdentifier: "TextEdit",
+                timeoutMS: 50,
+                predicate: try ObservePredicate.parse("role=AXButton")
+            )
+        ) { _ in }
+
+        XCTAssertEqual(outcome, .timedOutUnmet)
+    }
+
+    func testObservePlainTimeoutReturnsTimedOut() async throws {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let source = FakeObservationSource()
+        source.keepOpen = true
+
+        let engine = makeObserveEngine(stateName: "observe-timeout-plain", targets: targets, source: source)
+
+        let outcome = try await engine.observe(
+            ObserveRequest(appIdentifier: "TextEdit", timeoutMS: 50)
+        ) { _ in }
+
+        XCTAssertEqual(outcome, .timedOut)
+    }
+
+    func testObserveRejectsNegativeTimeout() async {
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let engine = makeObserveEngine(stateName: "observe-neg-timeout", targets: targets, source: FakeObservationSource())
+
+        do {
+            _ = try await engine.observe(ObserveRequest(appIdentifier: "TextEdit", timeoutMS: -1)) { _ in }
+            XCTFail("Expected invalid_arguments")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "invalid_arguments")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testObserveDeniedAccessibilityStopsBeforeResolvingApp() async {
+        let permissions = FakePermissions()
+        permissions.allowAccessibility = false
+        let targets = FakeTargets()
+        targets.apps["TextEdit"] = ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil)
+        let source = FakeObservationSource()
+
+        let engine = makeObserveEngine(stateName: "observe-denied", permissions: permissions, targets: targets, source: source)
+
+        do {
+            _ = try await engine.observe(ObserveRequest(appIdentifier: "TextEdit")) { _ in }
+            XCTFail("Expected permission error")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "permission_denied_accessibility")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+        XCTAssertTrue(targets.resolveCalls.isEmpty)
+        XCTAssertNil(source.requestedApp)
     }
 }
