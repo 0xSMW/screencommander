@@ -14,7 +14,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 - `screencommander` installed and available on `PATH`.
 - Permissions granted:
   - Screen Recording (for screenshots and default action pre/post shots).
-  - Accessibility (for `click`, `type`, `key`, `sequence`).
+  - Accessibility (for `click`, `type`, `key`, `sequence`, `elements`).
 
 ## Core Rules
 
@@ -59,6 +59,23 @@ screencommander key "enter"
   ```
 
 All above emit pre/post screenshot paths by default.
+
+## Reading UI Structure Without Pixels (`elements`)
+
+Use `elements` to read an app's accessibility tree as text — cheaper and more precise than screenshot interpretation when the app exposes AX data:
+
+```bash
+screencommander elements --app Safari --text        # indented role "title": value view
+screencommander elements --app Safari --json        # full records for scripting
+screencommander elements --roles AXButton,AXTextField --visible-only
+```
+
+Rules:
+
+1. Prefer `elements --text` for reading screen content; fall back to `screenshot` for AX-opaque apps (exit code `71` means no usable AX tree).
+2. Take a `screenshot` first, then `elements`: elements inside that capture get `boundsPixels`, whose center you can pass straight to `click <x> <y>` (default pixel space).
+3. Element ids (`0.3.2`) are positional child-index paths — they go stale when the UI changes. Re-run `elements` after each action instead of caching ids.
+4. Results are capped (`--max-elements`, default 2000, `truncated: true` when hit); narrow with `--roles`, `--visible-only`, or `--window-id` on busy apps.
 
 ## Ordered Multi-Step Automation
 

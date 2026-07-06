@@ -11,6 +11,9 @@ final class ScreenCommanderEngine {
     private let mouseController: MouseControlling
     private let keyboardController: KeyboardControlling
     private let retention: CaptureRetentionManaging
+    private let accessibilityReader: AccessibilityReading
+    private let targets: TargetResolving
+    private let frontmostApp: () -> ResolvedApp?
     private let fileManager: FileManager
     private let statePaths: StatePaths
     private let now: () -> Date
@@ -25,6 +28,9 @@ final class ScreenCommanderEngine {
         mouseController: MouseControlling,
         keyboardController: KeyboardControlling,
         retention: CaptureRetentionManaging,
+        accessibilityReader: AccessibilityReading = AXReader(),
+        targets: TargetResolving = Targets(),
+        frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
         statePaths: StatePaths,
         fileManager: FileManager = .default,
         now: @escaping () -> Date = Date.init
@@ -38,6 +44,9 @@ final class ScreenCommanderEngine {
         self.mouseController = mouseController
         self.keyboardController = keyboardController
         self.retention = retention
+        self.accessibilityReader = accessibilityReader
+        self.targets = targets
+        self.frontmostApp = frontmostApp
         self.statePaths = statePaths
         self.fileManager = fileManager
         self.now = now
@@ -60,6 +69,9 @@ final class ScreenCommanderEngine {
             mouseController: MouseController(),
             keyboardController: KeyboardController(),
             retention: CaptureRetentionManager(fileManager: fileManager),
+            accessibilityReader: AXReader(),
+            targets: Targets(),
+            frontmostApp: FrontmostApp.current,
             statePaths: statePaths,
             fileManager: fileManager
         )
@@ -169,6 +181,71 @@ final class ScreenCommanderEngine {
         try keyboardController.run(sequence: sequence)
 
         return KeysResult(normalizedSteps: sequence.steps.map { $0.normalized })
+    }
+
+    func elements(_ request: ElementsRequest) async throws -> ElementsResult {
+        guard request.maxDepth >= 1 else {
+            throw ScreenCommanderError.invalidArguments("--max-depth must be at least 1.")
+        }
+        guard request.maxElements >= 1 else {
+            throw ScreenCommanderError.invalidArguments("--max-elements must be at least 1.")
+        }
+        guard request.maxValueLength >= 0 else {
+            throw ScreenCommanderError.invalidArguments("--max-value-length must be non-negative.")
+        }
+        guard request.windowID == nil || !request.allWindows else {
+            throw ScreenCommanderError.invalidArguments("--window-id and --all-windows are mutually exclusive.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+
+        let app: ResolvedApp
+        if let identifier = request.appIdentifier {
+            app = try await targets.resolveApp(identifier: identifier)
+        } else if let frontmost = frontmostApp() {
+            app = frontmost
+        } else {
+            throw ScreenCommanderError.invalidArguments(
+                "Could not determine the frontmost application; pass --app <name|pid>."
+            )
+        }
+
+        let options = AXTreeOptions(
+            windowID: request.windowID,
+            allWindows: request.allWindows,
+            maxDepth: request.maxDepth,
+            maxElements: request.maxElements,
+            roles: request.roles,
+            visibleOnly: request.visibleOnly,
+            maxValueLength: request.maxValueLength
+        )
+        let tree = try accessibilityReader.tree(app: app, options: options)
+
+        // Pixel bounds are derived from the last screenshot's metadata when present;
+        // no metadata (or elements outside its bounds) simply means no boundsPixels.
+        var elements = tree.elements
+        var metadataPath: String?
+        let lastMetadataURL = metadataStore.defaultLastMetadataURL
+        if let metadata = try? metadataStore.load(from: lastMetadataURL) {
+            metadataPath = lastMetadataURL.path
+            elements = elements.map { record in
+                var record = record
+                record.boundsPixels = record.boundsPoints.flatMap {
+                    AXBoundsMapper.boundsPixels(for: $0, metadata: metadata)
+                }
+                return record
+            }
+        }
+
+        return ElementsResult(
+            app: app,
+            windowID: request.windowID,
+            metadataPath: metadataPath,
+            axPrimed: tree.axPrimed,
+            truncated: tree.truncated,
+            elements: elements,
+            text: request.includeText ? AXTextRenderer.render(elements) : nil
+        )
     }
 
     func cleanup(_ request: CleanupRequest) throws -> CleanupResult {

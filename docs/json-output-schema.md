@@ -53,6 +53,7 @@ On failure in JSON mode, the same stdout contains:
 | `mapping_failed` | 41 |
 | `input_synthesis_failed` | 50 |
 | `invalid_arguments` | 60 |
+| `ax_tree_unavailable` | 71 |
 
 ## Command result shapes
 
@@ -88,6 +89,24 @@ On failure in JSON mode, the same stdout contains:
 
 - **result.action**: `normalizedSteps` (array of strings)
 - **result.preshot** / **result.postshot**: same as click
+
+### elements
+
+- **result.app** (object): resolved target app — `pid` (number), `name` (string), `bundleID` (string or absent)
+- **result.windowID** (number, optional): present when `--window-id` was used
+- **result.metadataPath** (string or null): screenshot metadata used to compute `boundsPixels`; null when no `last-screenshot.json` exists
+- **result.axPrimed** (bool): whether Electron/Chromium AX priming was applied to the app
+- **result.truncated** (bool): true when traversal stopped at `--max-elements`
+- **result.text** (string, optional): indented text-only tree; present only with `--text`
+- **result.elements** (array): one record per AX element, in depth-first tree order:
+  - **id** (string): dot-joined child-index path from the app element, e.g. `"0.3.2"`. Positional — re-read the tree instead of caching ids across UI changes.
+  - **role** (string), **subrole** (string, optional)
+  - **title**, **value**, **description** (strings, optional)
+  - **valueTruncated** (bool, optional): present (true) when `value` was cut at `--max-value-length`
+  - **enabled** (bool), **focused** (bool, optional)
+  - **actions** (array of strings): supported AX actions, e.g. `["AXPress"]`
+  - **boundsPoints** (object, optional): `{ x, y, w, h }` in global top-left-origin points
+  - **boundsPixels** (object, optional): `{ x, y, w, h }` in the pixel space of `metadataPath`'s screenshot; present only when the element lies within that screenshot's bounds
 
 ### cleanup
 

@@ -16,6 +16,8 @@ final class JSONOutputSchemaTests: XCTestCase {
         XCTAssertEqual(ScreenCommanderError.mappingFailed("x").stableCode, "mapping_failed")
         XCTAssertEqual(ScreenCommanderError.inputSynthesisFailed("x").stableCode, "input_synthesis_failed")
         XCTAssertEqual(ScreenCommanderError.invalidArguments("x").stableCode, "invalid_arguments")
+        XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").stableCode, "ax_tree_unavailable")
+        XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").exitCode, 71)
     }
 
     // MARK: - Success envelope structure
