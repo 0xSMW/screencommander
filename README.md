@@ -410,6 +410,9 @@ Behavior:
 - One warm engine instance serves all calls — no per-action process startup — and
   tool results are the same JSON envelopes the CLI prints (as `structuredContent`
   plus a text block), so `docs/json-output-schema.md` covers both surfaces.
+- Window/display enumeration (~100–300 ms) is cached for 2 seconds in serve mode, so
+  bursts like `windows` → `screenshot` → `click` pay it once. The CLI always
+  enumerates fresh.
 - `screenshot` additionally returns the capture as an in-band MCP image content
   block (base64 PNG), so clients get pixels without a follow-up file read.
 - `observe_wait` wraps `observe --until` + timeout as a single call; an unmet

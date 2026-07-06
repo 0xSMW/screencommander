@@ -19,7 +19,11 @@ struct ServeCommand: ParsableCommand {
             throw ValidationError("serve currently requires --mcp.")
         }
 
-        let registry = MCPToolRegistry(engine: CommandRuntime.engine, doctor: DoctorService())
+        // Server-owned engine with a short SCShareableContent TTL: a burst of tool
+        // calls (windows → screenshot → click) pays the ~100–300 ms window/display
+        // enumeration once instead of per call. The CLI keeps TTL 0 (always fresh).
+        let engine = ScreenCommanderEngine.live(shareableContentTTL: 2.0)
+        let registry = MCPToolRegistry(engine: engine, doctor: DoctorService())
         let server = MCPServer(registry: registry)
 
         while let line = readLine(strippingNewline: true) {

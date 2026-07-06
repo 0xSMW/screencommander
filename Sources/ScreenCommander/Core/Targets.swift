@@ -51,6 +51,12 @@ enum AppActivator {
 // MARK: - Production implementation
 
 final class Targets: TargetResolving {
+    private let contentProvider: ShareableContentProvider
+
+    init(contentProvider: ShareableContentProvider = ShareableContentProvider()) {
+        self.contentProvider = contentProvider
+    }
+
     func resolveApp(identifier: String) async throws -> ResolvedApp {
         // Numeric: treat as PID
         if let pidValue = Int32(identifier) {
@@ -96,7 +102,7 @@ final class Targets: TargetResolving {
     func listWindows(app: ResolvedApp?) async throws -> [WindowInfo] {
         let content: SCShareableContent
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            content = try await contentProvider.content(onScreenWindowsOnly: true)
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }
@@ -122,7 +128,7 @@ final class Targets: TargetResolving {
     func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
         let content: SCShareableContent
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            content = try await contentProvider.content(onScreenWindowsOnly: false)
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }

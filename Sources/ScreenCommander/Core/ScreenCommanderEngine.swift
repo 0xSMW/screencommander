@@ -62,16 +62,23 @@ final class ScreenCommanderEngine {
         self.now = now
     }
 
-    static func live(fileManager: FileManager = .default) -> ScreenCommanderEngine {
+    /// `shareableContentTTL` caches the ~100–300 ms SCShareableContent enumeration for
+    /// that many seconds. 0 (the CLI default) fetches fresh on every call; serve mode
+    /// passes a short TTL so a warm server doesn't re-enumerate per tool call.
+    static func live(
+        fileManager: FileManager = .default,
+        shareableContentTTL: TimeInterval = 0
+    ) -> ScreenCommanderEngine {
         let statePaths = StatePaths(fileManager: fileManager)
         let metadataStore = SnapshotMetadataStore(
             fileManager: fileManager,
             lastMetadataURL: statePaths.lastMetadataURL
         )
+        let contentProvider = ShareableContentProvider(ttl: shareableContentTTL)
 
         return ScreenCommanderEngine(
             permissions: Permissions(),
-            displays: Displays(),
+            displays: Displays(contentProvider: contentProvider),
             capturer: ScreenCaptureKitCapturer(),
             imageWriter: ImageWriter(fileManager: fileManager),
             metadataStore: metadataStore,
@@ -81,7 +88,7 @@ final class ScreenCommanderEngine {
             retention: CaptureRetentionManager(fileManager: fileManager),
             accessibilityReader: AXReader(),
             axActions: AXActions(),
-            targets: Targets(),
+            targets: Targets(contentProvider: contentProvider),
             observationSource: AXObserverSource(),
             frontmostApp: FrontmostApp.current,
             activateApp: AppActivator.activate,
