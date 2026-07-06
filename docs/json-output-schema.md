@@ -56,6 +56,7 @@ On failure in JSON mode, the same stdout contains:
 | `element_not_found` | 70 |
 | `ax_tree_unavailable` | 71 |
 | `element_not_actionable` | 72 |
+| `observe_timeout` | 73 |
 | `window_not_found` | 80 |
 | `app_not_found` | 81 |
 
@@ -163,6 +164,37 @@ Brings an app to the foreground.
   - **actions** (array of strings): supported AX actions, e.g. `["AXPress"]`
   - **boundsPoints** (object, optional): `{ x, y, w, h }` in global top-left-origin points
   - **boundsPixels** (object, optional): `{ x, y, w, h }` in the pixel space of `metadataPath`'s screenshot; present only when the element lies within that screenshot's bounds
+
+### observe
+
+`observe` is the one command that does **not** use the single-object envelope. It
+streams **NDJSON — one compact JSON object per line** to stdout as UI changes arrive,
+and always emits one-line JSON regardless of `--json`/`--compact`/pretty settings.
+
+Each event line:
+
+- **ts** (string): ISO8601 timestamp with fractional seconds
+- **event** (string): one of `value_changed`, `focus_changed`, `window_created`,
+  `window_moved`, `window_resized`, `title_changed`, `element_destroyed`,
+  `app_launched`, `app_activated`, `app_terminated`
+- **app** (object): `{ pid, name }` of the observed app (`bundleID` also included when
+  known — additive/optional)
+- **element** (object, optional): the AX element the event concerns, as an
+  `AXElementRecord` (same shape as `elements` records, minus a stable `id`/`boundsPixels`
+  — observed elements have no fixed tree position). Absent for `app_*` events.
+
+Termination:
+
+- SIGINT (Ctrl-C) or `--timeout-ms` without `--until` → exit `0`, no extra line.
+- `--until` matched (via an initial tree scan or an incoming event) → a final line
+  `{ "matched": true, "element": <AXElementRecord?> }`, then exit `0`.
+- `--until` unmet within `--timeout-ms` → a standard error envelope
+  (`observe_timeout`, exit `73`).
+
+The `--events` selector (`value,focus,window,destroy,app`, default all) controls which
+categories stream. The `--until` predicate is a whitespace-joined conjunction of
+`key<op>value` conditions — keys `role`/`title`/`value`/`id`, operators `=` (exact) and
+`~=` (case-insensitive contains), e.g. `role=AXButton title~=Save`.
 
 ### cleanup
 

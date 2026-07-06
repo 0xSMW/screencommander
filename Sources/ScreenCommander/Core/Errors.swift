@@ -13,6 +13,7 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
     case elementNotFound(String)
     case axTreeUnavailable(String)
     case elementNotActionable(String)
+    case observeTimeout(String)
     case windowNotFound(String)
     case appNotFound(String)
 
@@ -42,6 +43,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return 71
         case .elementNotActionable:
             return 72
+        case .observeTimeout:
+            return 73
         case .windowNotFound:
             return 80
         case .appNotFound:
@@ -75,6 +78,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Accessibility tree unavailable: \(message)"
         case .elementNotActionable(let message):
             return "Element not actionable: \(message)"
+        case .observeTimeout(let message):
+            return "Observation timed out: \(message)"
         case .windowNotFound(let message):
             return "Window not found: \(message)"
         case .appNotFound(let message):
@@ -97,6 +102,7 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
         case .elementNotFound: return "element_not_found"
         case .axTreeUnavailable: return "ax_tree_unavailable"
         case .elementNotActionable: return "element_not_actionable"
+        case .observeTimeout: return "observe_timeout"
         case .windowNotFound: return "window_not_found"
         case .appNotFound: return "app_not_found"
         }

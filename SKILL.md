@@ -14,7 +14,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 - `screencommander` installed and available on `PATH`.
 - Permissions granted:
   - Screen Recording (for screenshots and default action pre/post shots).
-  - Accessibility (for `click`, `scroll`, `drag`, `move`, `type`, `key`, `sequence`, `elements`).
+  - Accessibility (for `click`, `scroll`, `drag`, `move`, `type`, `key`, `sequence`, `elements`, `observe`).
 
 ## Core Rules
 
@@ -120,6 +120,25 @@ Rules:
 6. Exit `70` = element not found (re-run `elements`, adjust the query); exit `72` = found but disabled/unsupported for the forced tier.
 7. `type --element` sets the value directly (tier `ax`) — ideal for filling fields in background apps; the fallback focuses the element and pastes.
 8. Element clicks that fall through to `pid`/`global` land on the element's center; the result's `resolved` reports that point in global points.
+
+## Waiting on UI Changes (`observe`)
+
+Use `observe` instead of screenshot-and-recheck polling when you need to block until something happens. It streams NDJSON events (one per line) and can stop itself when a condition is met:
+
+```bash
+# Block until a specific window appears, then return; give up after 10s.
+screencommander observe --app Finder --until 'role=AXWindow title~=Downloads' --timeout-ms 10000
+
+# Watch a text field change while typing (Ctrl-C to stop).
+screencommander observe --app TextEdit --events value
+```
+
+Rules:
+
+1. Prefer `observe --until '<predicate>' --timeout-ms N` over sleep-and-screenshot loops: it returns the instant the condition holds (or exits `73` if the timeout passes unmet).
+2. Predicates are whitespace-joined `key<op>value` conditions — keys `role`/`title`/`value`/`id`, ops `=` (exact) or `~=` (case-insensitive contains). All conditions must hold.
+3. Narrow the feed with `--events` (`value,focus,window,destroy,app`) so you only pay for the changes you care about.
+4. On a match, the final line is `{ "matched": true, "element": ... }` (exit `0`). A plain `--timeout-ms` without `--until` just exits `0` when it elapses.
 
 ## Ordered Multi-Step Automation
 
