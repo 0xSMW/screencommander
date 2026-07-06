@@ -34,6 +34,9 @@ struct DragCommand: ParsableCommand {
     @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
     var meta: String?
 
+    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate drags when screenshot metadata is known stale.")
+    var strictMetadata: Bool = false
+
     @Flag(
         name: .long,
         inversion: .prefixedNo,
@@ -44,20 +47,27 @@ struct DragCommand: ParsableCommand {
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
 
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "drag")
         defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "drag")
             guard let parsedX1 = Double(x1), parsedX1.isFinite,
                   let parsedY1 = Double(y1), parsedY1.isFinite,
                   let parsedX2 = Double(x2), parsedX2.isFinite,
                   let parsedY2 = Double(y2), parsedY2.isFinite else {
                 throw ScreenCommanderError.invalidArguments("x1, y1, x2, and y2 must be numeric values.")
             }
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.drag(
@@ -70,11 +80,12 @@ struct DragCommand: ParsableCommand {
                     metadataPath: meta,
                     button: button,
                     steps: steps,
-                    durationMS: durationMS
+                    durationMS: durationMS,
+                    strictMetadata: strictMetadata
                 )
             )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
@@ -93,6 +104,9 @@ struct DragCommand: ParsableCommand {
             print("Dragged \(result.button.rawValue) from (\(result.from.globalX), \(result.from.globalY)) to (\(result.to.globalX), \(result.to.globalY)).")
             print("Steps: \(result.steps)")
             print("Duration: \(result.durationMilliseconds) ms")
+            if let freshness = result.metadataFreshness {
+                print("Metadata freshness: \(freshness.status.rawValue) (\(freshness.reason))")
+            }
             print("Metadata: \(result.metadataPath)")
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")

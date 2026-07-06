@@ -204,7 +204,7 @@ private struct MCPFixture {
     let observation: MCPFakeObservation
 }
 
-private func makeFixture(_ name: String) -> MCPFixture {
+private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) -> MCPFixture {
     let stateDir = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("screencommander-mcp-tests", isDirectory: true)
         .appendingPathComponent(name)
@@ -252,7 +252,8 @@ private func makeFixture(_ name: String) -> MCPFixture {
         observationSource: observation,
         frontmostApp: { nil },
         activateApp: { _ in },
-        statePaths: statePaths
+        statePaths: statePaths,
+        now: now
     )
 
     let registry = MCPToolRegistry(engine: engine, doctor: MCPFakeDoctor())
@@ -269,6 +270,54 @@ private func makeFixture(_ name: String) -> MCPFixture {
 private func decodeResponse(_ line: String?) throws -> JSONValue {
     let unwrapped = try XCTUnwrap(line)
     return try JSONDecoder().decode(JSONValue.self, from: Data(unwrapped.utf8))
+}
+
+private func initializeMCP(_ server: MCPServer) async throws {
+    let response = try decodeResponse(await server.handle(
+        line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#
+    ))
+    XCTAssertNil(response["error"])
+}
+
+private final class MCPOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
+
+    func snapshot() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return lines
+    }
+
+    func waitForResponse(id: Int, timeoutMS: Int = 1_000) async throws -> JSONValue {
+        let deadline = Date().addingTimeInterval(Double(timeoutMS) / 1_000)
+        while Date() < deadline {
+            for line in snapshot() {
+                let value = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+                if value["id"]?.intValue == id {
+                    return value
+                }
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        throw ScreenCommanderError.observeTimeout("No MCP response for id \(id).")
+    }
+
+    func hasResponse(id: Int) throws -> Bool {
+        for line in snapshot() {
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+            if value["id"]?.intValue == id {
+                return true
+            }
+        }
+        return false
+    }
 }
 
 final class MCPServerTests: XCTestCase {
@@ -296,6 +345,149 @@ final class MCPServerTests: XCTestCase {
         let fixture = makeFixture("notification")
         let response = await fixture.server.handle(line: #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         XCTAssertNil(response)
+    }
+
+    func testServeSessionRunsUnrelatedRequestsInParallel() async throws {
+        let fixture = makeFixture("serve-parallel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":5000}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":11,"method":"ping"}"#)
+
+        let ping = try await output.waitForResponse(id: 11, timeoutMS: 500)
+        XCTAssertNotNil(ping["result"])
+        XCTAssertFalse(try output.hasResponse(id: 10), "unrelated ping should return before the long observe_wait")
+
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":10}}"#)
+    }
+
+    func testServeSessionSerialDependencyWaitsForUpstream() async throws {
+        let fixture = makeFixture("serve-serial")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":150}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":21,"method":"ping","params":{"dependsOn":20}}"#)
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(try output.hasResponse(id: 21), "dependent ping must wait for upstream observe_wait")
+
+        let upstream = try await output.waitForResponse(id: 20, timeoutMS: 1_000)
+        XCTAssertNotNil(upstream["result"])
+        let dependent = try await output.waitForResponse(id: 21, timeoutMS: 1_000)
+        XCTAssertNotNil(dependent["result"])
+    }
+
+    func testServeSessionCancellationSuppressesLateResponseAndDependents() async throws {
+        let fixture = makeFixture("serve-cancel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":5000}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":31,"method":"ping","params":{"dependsOn":30}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":30}}"#)
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertFalse(try output.hasResponse(id: 30))
+        XCTAssertFalse(try output.hasResponse(id: 31))
+    }
+
+    func testServeSessionLateCancelDoesNotCancelCompletedDependencyFollower() async throws {
+        let fixture = makeFixture("serve-late-cancel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":40,"method":"ping"}"#)
+        _ = try await output.waitForResponse(id: 40)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"dependsOn":40,"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":50,"until":"title~=never"}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":40}}"#)
+
+        let dependent = try await output.waitForResponse(id: 41, timeoutMS: 1_000)
+        XCTAssertEqual(dependent["result"]?["isError"]?.boolValue, true)
+        XCTAssertEqual(dependent["result"]?["structuredContent"]?["error"]?["code"]?.stringValue, "observe_timeout")
+    }
+
+    func testServeSessionInheritsScreenshotMetadataForDependentCoordinateAction() async throws {
+        let fixture = makeFixture("serve-inherit-metadata")
+        let window = WindowInfo(
+            windowID: 42,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: RectD(x: 0, y: 0, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+        fixture.targets.windows["Safari"] = window
+        fixture.targets.windows["42"] = window
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":50,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","path":"/tmp/inherited.png","updateLastMetadata":false}}}"#)
+        let screenshot = try await output.waitForResponse(id: 50)
+        let metadataPath = try XCTUnwrap(screenshot["result"]?["structuredContent"]?["result"]?["metadataPath"]?.stringValue)
+        XCTAssertEqual(metadataPath, "/tmp/inherited.json")
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":51,"method":"tools/call","params":{"dependsOn":50,"name":"click","arguments":{"x":0,"y":0}}}"#)
+        let click = try await output.waitForResponse(id: 51)
+        let action = try XCTUnwrap(click["result"]?["structuredContent"]?["result"]?["action"])
+        XCTAssertEqual(action["metadataPath"]?.stringValue, metadataPath)
+        XCTAssertEqual(fixture.mouse.clickPoints.count, 1)
+    }
+
+    func testParallelSafeDefaultScreenshotPathsAreUniqueWithinSameSecond() async throws {
+        let fixture = makeFixture(
+            "screenshot-unique-defaults",
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        try await initializeMCP(fixture.server)
+        fixture.targets.windows["Safari"] = WindowInfo(
+            windowID: 42,
+            title: "Apple",
+            appName: "Safari",
+            pid: 100,
+            boundsPoints: RectD(x: 0, y: 0, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+
+        let first = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":52,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","updateLastMetadata":false}}}"#
+        ))
+        let second = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":53,"method":"tools/call","params":{"name":"screenshot","arguments":{"window":"Safari","updateLastMetadata":false}}}"#
+        ))
+
+        let firstPath = try XCTUnwrap(first["result"]?["structuredContent"]?["result"]?["imagePath"]?.stringValue)
+        let secondPath = try XCTUnwrap(second["result"]?["structuredContent"]?["result"]?["imagePath"]?.stringValue)
+        XCTAssertNotEqual(firstPath, secondPath)
+        XCTAssertTrue(URL(fileURLWithPath: firstPath).lastPathComponent.hasPrefix("Screenshot-"))
+        XCTAssertTrue(URL(fileURLWithPath: secondPath).lastPathComponent.hasPrefix("Screenshot-"))
     }
 
     func testBlankLineIsIgnored() async throws {
@@ -326,8 +518,37 @@ final class MCPServerTests: XCTestCase {
         XCTAssertNil(response["error"])
     }
 
+    func testToolsRequireInitialize() async throws {
+        let fixture = makeFixture("preinitialize-tools")
+
+        let listResponse = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":30,"method":"tools/list"}"#
+        ))
+        XCTAssertEqual(listResponse["error"]?["code"]?.intValue, -32600)
+
+        let callResponse = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"doctor"}}"#
+        ))
+        XCTAssertEqual(callResponse["error"]?["code"]?.intValue, -32600)
+    }
+
+    func testInitializedNotificationDoesNotUnlockTools() async throws {
+        let fixture = makeFixture("initialized-notification-only")
+
+        let notificationResponse = await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
+        )
+        XCTAssertNil(notificationResponse)
+
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":32,"method":"tools/list"}"#
+        ))
+        XCTAssertEqual(response["error"]?["code"]?.intValue, -32600)
+    }
+
     func testToolsListExposesAllFourteenTools() async throws {
         let fixture = makeFixture("tools-list")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#
         ))
@@ -343,6 +564,7 @@ final class MCPServerTests: XCTestCase {
 
     func testToolsCallDoctorReturnsOkEnvelope() async throws {
         let fixture = makeFixture("doctor")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"doctor"}}"#
         ))
@@ -369,6 +591,7 @@ final class MCPServerTests: XCTestCase {
 
     func testToolsCallUnknownToolIsInvalidParams() async throws {
         let fixture = makeFixture("unknown-tool")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"self_destruct"}}"#
         ))
@@ -377,6 +600,7 @@ final class MCPServerTests: XCTestCase {
 
     func testToolsCallClickDispatchesToEngine() async throws {
         let fixture = makeFixture("click")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"click","arguments":{"x":10,"y":10}}}"#
         ))
@@ -393,6 +617,7 @@ final class MCPServerTests: XCTestCase {
 
     func testToolsCallClickWithoutTargetIsToolError() async throws {
         let fixture = makeFixture("click-invalid")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"click","arguments":{}}}"#
         ))
@@ -408,6 +633,7 @@ final class MCPServerTests: XCTestCase {
 
     func testToolsCallScreenshotWindowReturnsImageBlock() async throws {
         let fixture = makeFixture("screenshot")
+        try await initializeMCP(fixture.server)
         fixture.targets.windows["Safari"] = WindowInfo(
             windowID: 42,
             title: "Apple",
@@ -440,6 +666,7 @@ final class MCPServerTests: XCTestCase {
 
     func testObserveWaitMatchesScriptedEvent() async throws {
         let fixture = makeFixture("observe-match")
+        try await initializeMCP(fixture.server)
         let app = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
         fixture.targets.apps["TextEdit"] = app
         fixture.observation.scriptedEvents = [
@@ -466,6 +693,7 @@ final class MCPServerTests: XCTestCase {
 
     func testObserveWaitUnmetPredicateIsObserveTimeoutError() async throws {
         let fixture = makeFixture("observe-timeout")
+        try await initializeMCP(fixture.server)
         fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
         fixture.observation.keepOpen = true
 
@@ -484,6 +712,7 @@ final class MCPServerTests: XCTestCase {
 
     func testScrollRejectsOutOfInt32RangeDeltaInsteadOfTrapping() async throws {
         let fixture = makeFixture("scroll-overflow")
+        try await initializeMCP(fixture.server)
         // Int32.max + 1 — previously a trapping Int32() conversion that killed the server.
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"scroll","arguments":{"x":1,"y":1,"dx":2147483648}}}"#
@@ -495,6 +724,7 @@ final class MCPServerTests: XCTestCase {
 
     func testElementsRejectsNegativeWindowIdInsteadOfTrapping() async throws {
         let fixture = makeFixture("elements-negative-window")
+        try await initializeMCP(fixture.server)
         // Previously a trapping UInt32() conversion.
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"elements","arguments":{"windowId":-1}}}"#
@@ -506,6 +736,7 @@ final class MCPServerTests: XCTestCase {
 
     func testKeysRejectsMixedTypeStepsWithoutPartialExecution() async throws {
         let fixture = makeFixture("keys-mixed-array")
+        try await initializeMCP(fixture.server)
         // Previously compactMap dropped the 5 and executed only press:a.
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"keys","arguments":{"steps":["press:a",5]}}}"#
@@ -516,8 +747,23 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(fixture.keyboard.runCount, 0, "malformed step lists must not execute partially")
     }
 
+    func testMalformedBooleanArgumentIsRejectedWithoutPartialExecution() async throws {
+        let fixture = makeFixture("malformed-bool")
+        try await initializeMCP(fixture.server)
+
+        let response = try decodeResponse(await fixture.server.handle(
+            line: #"{"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"click","arguments":{"x":10,"y":10,"strictMetadata":"true"}}}"#
+        ))
+
+        let result = try XCTUnwrap(response["result"])
+        XCTAssertEqual(result["isError"]?.boolValue, true)
+        XCTAssertEqual(result["structuredContent"]?["error"]?["code"]?.stringValue, "invalid_arguments")
+        XCTAssertTrue(fixture.mouse.clickPoints.isEmpty, "malformed booleans must not silently default and execute")
+    }
+
     func testToolsCallScreenshotJPEGReturnsJpegImageBlock() async throws {
         let fixture = makeFixture("screenshot-jpeg")
+        try await initializeMCP(fixture.server)
         fixture.targets.windows["Safari"] = WindowInfo(
             windowID: 43,
             title: "Apple",
@@ -541,6 +787,7 @@ final class MCPServerTests: XCTestCase {
 
     func testObserveWaitRejectsOutOfRangeTimeout() async throws {
         let fixture = makeFixture("observe-bad-timeout")
+        try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
             line: #"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":0}}}"#
         ))

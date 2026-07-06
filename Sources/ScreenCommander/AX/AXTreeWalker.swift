@@ -44,34 +44,34 @@ struct AXTreeWalker {
         var records: [AXElementRecord] = []
         var visitedCount = 0
         var truncated = false
+        var stack: [(node: Node, path: [Int], depth: Int, visibleRect: CGRect?)] = roots
+            .reversed()
+            .map { (node: $0.node, path: $0.path, depth: 1, visibleRect: $0.visibleRect) }
 
-        // Returns false when traversal should stop entirely (element limit reached).
-        func visit(_ node: Node, path: [Int], depth: Int, visibleRect: CGRect?) -> Bool {
+        while let item = stack.popLast() {
             guard records.count < maxElements else {
                 truncated = true
-                return false
+                break
             }
             visitedCount += 1
 
-            let id = path.map(String.init).joined(separator: ".")
-            if let candidate = record(node, id), passesFilters(candidate, visibleRect: visibleRect) {
+            let id = item.path.map(String.init).joined(separator: ".")
+            if let candidate = record(item.node, id), passesFilters(candidate, visibleRect: item.visibleRect) {
                 records.append(candidate)
             }
 
-            guard depth < maxDepth else {
-                return true
+            guard item.depth < maxDepth else {
+                continue
             }
-            for (index, child) in children(node).enumerated() {
-                guard visit(child, path: path + [index], depth: depth + 1, visibleRect: visibleRect) else {
-                    return false
-                }
-            }
-            return true
-        }
-
-        for root in roots {
-            guard visit(root.node, path: root.path, depth: 1, visibleRect: root.visibleRect) else {
-                break
+            for (index, child) in children(item.node).enumerated().reversed() {
+                stack.append(
+                    (
+                        node: child,
+                        path: item.path + [index],
+                        depth: item.depth + 1,
+                        visibleRect: item.visibleRect
+                    )
+                )
             }
         }
 

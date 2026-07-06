@@ -337,7 +337,9 @@ private final class FakeAXActions: AXActionPerforming {
 private final class FakeTargets: TargetResolving {
     var apps: [String: ResolvedApp] = [:]
     var windowList: [WindowInfo] = []
+    var windowByIdentifier: [String: WindowInfo] = [:]
     private(set) var resolveCalls: [String] = []
+    private(set) var resolveWindowCalls: [String] = []
 
     func resolveApp(identifier: String) async throws -> ResolvedApp {
         resolveCalls.append(identifier)
@@ -355,7 +357,11 @@ private final class FakeTargets: TargetResolving {
     }
 
     func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
-        throw ScreenCommanderError.windowNotFound("resolveWindow(identifier:app:) should not be used in this test")
+        resolveWindowCalls.append(identifier)
+        guard let info = windowByIdentifier[identifier] else {
+            throw ScreenCommanderError.windowNotFound("No window for '\(identifier)' in fake.")
+        }
+        return ResolvedWindow(info: info, scWindow: nil)
     }
 }
 
@@ -388,6 +394,20 @@ private final class FakeObservationSource: ObservationSource, @unchecked Sendabl
                 continuation.finish()
             }
         }
+    }
+}
+
+private final class FakeMetadataFreshnessChecker: MetadataFreshnessChecking {
+    var result = MetadataFreshnessResult(
+        status: .fresh,
+        scope: "display",
+        reason: "fresh in fake"
+    )
+    private(set) var checked: [ScreenshotMetadata] = []
+
+    func freshness(for metadata: ScreenshotMetadata) -> MetadataFreshnessResult {
+        checked.append(metadata)
+        return result
     }
 }
 
@@ -429,12 +449,14 @@ private struct InputEngineFixture {
     let reader: FakeAccessibilityReader
     let axActions: FakeAXActions
     let targets: FakeTargets
+    let freshness: FakeMetadataFreshnessChecker
     let state: StatePaths
 }
 
 private func makeInputEngineFixture(
     _ name: String,
-    frontmostApp: ResolvedApp? = nil
+    frontmostApp: @escaping () -> ResolvedApp? = { nil },
+    activateApp: @escaping (ResolvedApp) throws -> Void = { _ in }
 ) -> InputEngineFixture {
     let permissions = FakePermissions()
     let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath(name).path])
@@ -444,6 +466,7 @@ private func makeInputEngineFixture(
     let reader = FakeAccessibilityReader()
     let axActions = FakeAXActions()
     let targets = FakeTargets()
+    let freshness = FakeMetadataFreshnessChecker()
     let metadata = ScreenshotMetadata(
         capturedAtISO8601: "2026-02-21T00:00:00Z",
         displayID: 123,
@@ -474,7 +497,9 @@ private func makeInputEngineFixture(
         accessibilityReader: reader,
         axActions: axActions,
         targets: targets,
-        frontmostApp: { frontmostApp },
+        metadataFreshness: freshness,
+        frontmostApp: frontmostApp,
+        activateApp: activateApp,
         statePaths: state,
         fileManager: .default,
         now: { Date(timeIntervalSince1970: 1_700_000_000) }
@@ -489,6 +514,7 @@ private func makeInputEngineFixture(
         reader: reader,
         axActions: axActions,
         targets: targets,
+        freshness: freshness,
         state: state
     )
 }
@@ -662,7 +688,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(metadataStore.saved[0].at.path, explicitMetadataPath)
         XCTAssertEqual(metadataStore.saved[0].updateLastAt?.path, explicitMetadataPath)
         XCTAssertEqual(imageWriter.writes[0].url.path, explicitImagePath)
-        XCTAssertEqual(retention.calls[0].directory, state.capturesDirectoryURL)
+        XCTAssertTrue(retention.calls.isEmpty, "screenshot must not prune captures for explicit output paths either")
     }
 
     func testClickLoadsDefaultMetadataPathAndMapsPixels() async throws {
@@ -681,6 +707,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         metadataStore.seedLoad(expectedMetadata, at: state.lastMetadataURL)
 
         let mouse = FakeMouseController()
+        let freshness = FakeMetadataFreshnessChecker()
 
         let engine = ScreenCommanderEngine(
             permissions: permissions,
@@ -699,6 +726,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
             mouseController: mouse,
             keyboardController: FakeKeyboardController(),
             retention: FakeRetentionManager(),
+            metadataFreshness: freshness,
             statePaths: state,
             fileManager: .default,
             now: { Date(timeIntervalSince1970: 1_700_000_000) }
@@ -729,8 +757,68 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.resolved?.globalY, 250)
         XCTAssertEqual(result.deliveryMethod, .global)
         XCTAssertNil(result.requestedVia)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
+        XCTAssertEqual(freshness.checked.first?.displayID, expectedMetadata.displayID)
         XCTAssertEqual(metadataStore.loadCalls, [state.lastMetadataURL])
         XCTAssertEqual(permissions.accessibilityChecks, 1)
+    }
+
+    func testClickReportsStaleMetadataWithoutStrictFailure() async throws {
+        let fixture = makeInputEngineFixture("click-stale-metadata")
+        fixture.freshness.result = MetadataFreshnessResult(
+            status: .stale,
+            scope: "display",
+            reason: "display changed"
+        )
+
+        let result = try await fixture.engine.click(
+            ClickRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                button: .left,
+                doubleClick: false,
+                triple: false,
+                primeClick: false,
+                humanLike: true,
+                modifiers: []
+            )
+        )
+
+        XCTAssertEqual(result.metadataFreshness?.status, .stale)
+        XCTAssertEqual(result.metadataFreshness?.reason, "display changed")
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testClickStrictMetadataRejectsKnownStaleMetadata() async {
+        let fixture = makeInputEngineFixture("click-strict-stale-metadata")
+        fixture.freshness.result = MetadataFreshnessResult(
+            status: .stale,
+            scope: "display",
+            reason: "display changed"
+        )
+
+        await assertThrows(
+            try await fixture.engine.click(
+                ClickRequest(
+                    x: 200,
+                    y: 100,
+                    coordinateSpace: .pixels,
+                    metadataPath: nil,
+                    button: .left,
+                    doubleClick: false,
+                    triple: false,
+                    primeClick: false,
+                    humanLike: true,
+                    modifiers: [],
+                    strictMetadata: true
+                )
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "stale_metadata")
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
     }
 
     func testScrollCallsMouseController() async throws {
@@ -761,6 +849,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.dx, 4)
         XCTAssertEqual(result.dy, -3)
         XCTAssertEqual(result.unit, .pixels)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -814,6 +903,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.button, .right)
         XCTAssertEqual(result.steps, 8)
         XCTAssertEqual(result.durationMilliseconds, 120)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -836,6 +926,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.dwellMilliseconds, 0)
         XCTAssertEqual(result.resolved.globalX, 200)
         XCTAssertEqual(result.resolved.globalY, 250)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -1189,12 +1280,11 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(writtenURL.pathExtension, "png")
         XCTAssertEqual(metadataStore.saved.count, 1)
         XCTAssertEqual(metadataStore.saved[0].at.path, writtenURL.deletingPathExtension().appendingPathExtension("json").path)
-        XCTAssertEqual(retention.calls.count, 1)
-        XCTAssertEqual(retention.calls[0].olderThan, 24 * 60 * 60)
+        XCTAssertTrue(retention.calls.isEmpty, "screenshot must not delete or prune existing captures")
         XCTAssertTrue(metadataStore.saved[0].updateLastAt == state.lastMetadataURL)
     }
 
-    // MARK: - WP2 tests
+    // MARK: - Window and app targeting tests
 
     func testWindowsListsAllWindows() async throws {
         let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath("wp2-windows-all").path])
@@ -1766,6 +1856,32 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertNotNil(result.elements[0].boundsPoints)
     }
 
+    func testElementsSurfacesCorruptLastScreenshotMetadata() async {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [AXElementRecord(id: "0", role: "AXWindow", boundsPoints: RectD(x: 0, y: 0, w: 10, h: 10))]
+        )
+
+        let (engine, _, state) = makeElementsEngine(
+            stateName: "elements-corrupt-metadata",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+        try? FileManager.default.createDirectory(
+            at: state.lastMetadataURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? Data("not json".utf8).write(to: state.lastMetadataURL)
+
+        await assertThrows(
+            try await engine.elements(ElementsRequest())
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "metadata_failure")
+        }
+    }
+
     func testElementsTextModePopulatesRenderedText() async throws {
         let reader = FakeAccessibilityReader()
         reader.treeResult = AXTreeResult(
@@ -1799,7 +1915,9 @@ final class ScreenCommanderEngineTests: XCTestCase {
 
         for request in [
             ElementsRequest(maxDepth: 0),
+            ElementsRequest(maxDepth: ScreenCommanderEngine.maximumElementTraversalDepth + 1),
             ElementsRequest(maxElements: 0),
+            ElementsRequest(maxElements: ScreenCommanderEngine.maximumElementRecords + 1),
             ElementsRequest(maxValueLength: -1),
             ElementsRequest(windowID: 1, allWindows: true)
         ] {
@@ -1877,7 +1995,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(reader.treeCalls.isEmpty)
     }
 
-    // MARK: - WP5: pointer-free input (element clicks, --via, tier fallback)
+    // MARK: - Pointer-free input (element clicks, --via, tier fallback)
 
     private static let targetApp = ResolvedApp(pid: 77, name: "TargetApp", bundleID: "com.example.target")
 
@@ -1893,7 +2011,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
     }
 
     private func makeElementClickFixture(_ name: String, records: [AXElementRecord]) -> InputEngineFixture {
-        let fixture = makeInputEngineFixture(name, frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture(name, frontmostApp: { Self.targetApp })
         fixture.reader.treeResult = AXTreeResult(axPrimed: false, truncated: false, elements: records)
         return fixture
     }
@@ -2021,6 +2139,34 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
     }
 
+    func testElementClickDisabledElementDefaultThrows72WithoutFallback() async {
+        let fixture = makeElementClickFixture("wp5-default-disabled", records: [buttonRecord(enabled: false)])
+
+        await assertThrows(
+            try await fixture.engine.click(elementClickRequest())
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+    }
+
+    func testElementClickDisabledElementForcedMouseTierThrows72() async {
+        for tier in [InputDeliveryMethod.pid, .global] {
+            let fixture = makeElementClickFixture("wp5-disabled-\(tier.rawValue)", records: [buttonRecord(enabled: false)])
+
+            await assertThrows(
+                try await fixture.engine.click(elementClickRequest(via: tier))
+            ) { error in
+                XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+                XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+            }
+            XCTAssertTrue(fixture.mouse.calls.isEmpty)
+            XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+        }
+    }
+
     func testElementClickNotFoundThrows70() async {
         let fixture = makeElementClickFixture("wp5-not-found", records: [buttonRecord(title: "Cancel")])
 
@@ -2033,8 +2179,43 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(fixture.mouse.calls.isEmpty)
     }
 
+    func testElementClickAmbiguousSubstringThrows82() async {
+        let fixture = makeElementClickFixture(
+            "wp5-ambiguous-element",
+            records: [
+                buttonRecord(id: "0.1", title: "Save Draft"),
+                buttonRecord(id: "0.2", title: "Save As")
+            ]
+        )
+
+        await assertThrows(
+            try await fixture.engine.click(elementClickRequest(element: "Save"))
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_ambiguous")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 82)
+            XCTAssertTrue(String(describing: error).contains("0.1"))
+            XCTAssertTrue(String(describing: error).contains("0.2"))
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+    }
+
+    func testElementClickExactTitleOutranksSubstring() async throws {
+        let fixture = makeElementClickFixture(
+            "wp5-exact-title",
+            records: [
+                buttonRecord(id: "0.1", title: "Save As"),
+                buttonRecord(id: "0.2", title: "Save")
+            ]
+        )
+
+        let result = try await fixture.engine.click(elementClickRequest(element: "Save"))
+
+        XCTAssertEqual(result.element?.id, "0.2")
+    }
+
     func testElementClickResolvesFreshOnEveryInvocation() async throws {
-        let fixture = makeInputEngineFixture("wp5-fresh-resolution", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-fresh-resolution", frontmostApp: { Self.targetApp })
         fixture.reader.treeResults = [
             AXTreeResult(axPrimed: false, truncated: false, elements: [buttonRecord(id: "0.1")]),
             AXTreeResult(axPrimed: false, truncated: false, elements: [buttonRecord(id: "0.4")])
@@ -2158,8 +2339,100 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.requestedVia, .pid)
     }
 
+    func testCoordinateClickWithAppActivatesBeforeGlobalClick() async throws {
+        let target = ResolvedApp(pid: 77, name: "TargetApp", bundleID: "com.example.target")
+        let other = ResolvedApp(pid: 12, name: "Finder", bundleID: "com.apple.finder")
+        var activated: [ResolvedApp] = []
+        let fixture = makeInputEngineFixture(
+            "coordinate-click-app-activation",
+            frontmostApp: { other },
+            activateApp: { activated.append($0) }
+        )
+        fixture.targets.apps["TargetApp"] = target
+
+        let result = try await fixture.engine.click(
+            ClickRequest(
+                x: 200, y: 100, coordinateSpace: .pixels, metadataPath: nil,
+                button: .left, doubleClick: false, triple: false,
+                primeClick: false, humanLike: true, modifiers: [],
+                appIdentifier: "TargetApp"
+            )
+        )
+
+        XCTAssertEqual(activated, [target])
+        XCTAssertEqual(fixture.targets.resolveCalls, ["TargetApp"])
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+        XCTAssertEqual(fixture.mouse.calls.first?.destination, .global)
+        XCTAssertEqual(result.deliveryMethod, .global)
+    }
+
+    func testCoordinateClickWithAppSkipsActivationWhenAlreadyFrontmost() async throws {
+        let target = ResolvedApp(pid: 77, name: "TargetApp", bundleID: "com.example.target")
+        var activated: [ResolvedApp] = []
+        let fixture = makeInputEngineFixture(
+            "coordinate-click-app-already-frontmost",
+            frontmostApp: { target },
+            activateApp: { activated.append($0) }
+        )
+        fixture.targets.apps["TargetApp"] = target
+
+        _ = try await fixture.engine.click(
+            ClickRequest(
+                x: 200, y: 100, coordinateSpace: .pixels, metadataPath: nil,
+                button: .left, doubleClick: false, triple: false,
+                primeClick: false, humanLike: true, modifiers: [],
+                appIdentifier: "TargetApp"
+            )
+        )
+
+        XCTAssertTrue(activated.isEmpty)
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testCoordinateClickWithWindowMetadataActivatesOwningApp() async throws {
+        let windowApp = ResolvedApp(pid: 88, name: "Safari", bundleID: nil)
+        let metadata = ScreenshotMetadata(
+            capturedAtISO8601: "2026-02-21T00:00:00Z",
+            displayID: 123,
+            displayBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+            imageSizePixels: SizeD(w: 800, h: 600),
+            pointPixelScale: 2,
+            imagePath: "/tmp/window.png",
+            windowID: 42,
+            windowBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300)
+        )
+        var activated: [ResolvedApp] = []
+        let fixture = makeInputEngineFixture(
+            "coordinate-click-window-activation",
+            frontmostApp: { ResolvedApp(pid: 12, name: "Finder", bundleID: nil) },
+            activateApp: { activated.append($0) }
+        )
+        fixture.metadataStore.seedLoad(metadata, at: fixture.state.lastMetadataURL)
+        fixture.targets.windowByIdentifier["42"] = WindowInfo(
+            windowID: 42,
+            title: "Main",
+            appName: "Safari",
+            pid: windowApp.pid,
+            boundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+            isOnScreen: true,
+            layer: 0
+        )
+
+        _ = try await fixture.engine.click(
+            ClickRequest(
+                x: 200, y: 100, coordinateSpace: .pixels, metadataPath: nil,
+                button: .left, doubleClick: false, triple: false,
+                primeClick: false, humanLike: true, modifiers: []
+            )
+        )
+
+        XCTAssertEqual(activated, [windowApp])
+        XCTAssertEqual(fixture.targets.resolveWindowCalls, ["42"])
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
     func testTypeElementSetsValueViaAX() async throws {
-        let fixture = makeInputEngineFixture("wp5-type-ax", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-type-ax", frontmostApp: { Self.targetApp })
         fixture.reader.treeResult = AXTreeResult(
             axPrimed: false,
             truncated: false,
@@ -2179,7 +2452,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
     }
 
     func testTypeElementFallsBackToFocusPlusKeyboard() async throws {
-        let fixture = makeInputEngineFixture("wp5-type-fallback", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-type-fallback", frontmostApp: { Self.targetApp })
         fixture.reader.treeResult = AXTreeResult(
             axPrimed: false,
             truncated: false,
@@ -2196,8 +2469,29 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.deliveryMethod, .global)
     }
 
+    func testTypeElementDoesNotKeyboardFallbackWhenFocusFails() async {
+        let fixture = makeInputEngineFixture("wp5-type-focus-fails", frontmostApp: { Self.targetApp })
+        fixture.reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [buttonRecord(id: "0.3", role: "AXTextField", title: "Name", actions: [])]
+        )
+        fixture.axActions.setValueError = ScreenCommanderError.elementNotActionable("AXValue is read-only here")
+        fixture.axActions.focusError = ScreenCommanderError.elementNotActionable("AXFocused rejected")
+
+        await assertThrows(
+            try await fixture.engine.type(
+                TypeRequest(text: "hello", delayMilliseconds: nil, inputMode: .paste, element: "Name")
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+        }
+        XCTAssertTrue(fixture.keyboard.pasted.isEmpty)
+        XCTAssertTrue(fixture.keyboard.typed.isEmpty)
+    }
+
     func testTypeRejectsPidTierAndBareViaAX() async {
-        let fixture = makeInputEngineFixture("wp5-type-invalid-via", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-type-invalid-via", frontmostApp: { Self.targetApp })
 
         await assertThrows(
             try await fixture.engine.type(
@@ -2217,7 +2511,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
     }
 
     func testTypeElementForcedViaAXFailureThrows72() async {
-        let fixture = makeInputEngineFixture("wp5-type-via-ax-strict", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-type-via-ax-strict", frontmostApp: { Self.targetApp })
         fixture.reader.treeResult = AXTreeResult(
             axPrimed: false,
             truncated: false,
@@ -2236,8 +2530,28 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(fixture.keyboard.pasted.isEmpty, "--via ax must not fall back to the keyboard")
     }
 
+    func testTypeElementDisabledThrows72WithoutKeyboardFallback() async {
+        let fixture = makeInputEngineFixture("wp5-type-disabled", frontmostApp: { Self.targetApp })
+        fixture.reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [buttonRecord(id: "0.3", role: "AXTextField", title: "Name", actions: [], enabled: false)]
+        )
+
+        await assertThrows(
+            try await fixture.engine.type(
+                TypeRequest(text: "x", delayMilliseconds: nil, inputMode: .paste, element: "Name")
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 72)
+        }
+        XCTAssertTrue(fixture.keyboard.pasted.isEmpty)
+        XCTAssertEqual(fixture.axActions.focusCount, 0)
+    }
+
     func testElementScrollUsesPidTierThenGlobal() async throws {
-        let fixture = makeInputEngineFixture("wp5-scroll-element", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-scroll-element", frontmostApp: { Self.targetApp })
         fixture.reader.treeResult = AXTreeResult(
             axPrimed: false,
             truncated: false,
@@ -2255,7 +2569,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.element?.id, "0.5")
 
         // pid posting failure downgrades to global (recorded, not an error).
-        let fallbackFixture = makeInputEngineFixture("wp5-scroll-element-fallback", frontmostApp: Self.targetApp)
+        let fallbackFixture = makeInputEngineFixture("wp5-scroll-element-fallback", frontmostApp: { Self.targetApp })
         fallbackFixture.reader.treeResult = fixture.reader.treeResult
         fallbackFixture.mouse.pidScrollError = ScreenCommanderError.inputSynthesisFailed("pid tap rejected")
 
@@ -2267,7 +2581,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
     }
 
     func testElementScrollRejectsAXTier() async {
-        let fixture = makeInputEngineFixture("wp5-scroll-via-ax", frontmostApp: Self.targetApp)
+        let fixture = makeInputEngineFixture("wp5-scroll-via-ax", frontmostApp: { Self.targetApp })
 
         await assertThrows(
             try await fixture.engine.scroll(

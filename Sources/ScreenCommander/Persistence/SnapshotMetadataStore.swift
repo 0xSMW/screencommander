@@ -8,18 +8,10 @@ protocol SnapshotMetadataStoring {
 
 final class SnapshotMetadataStore: SnapshotMetadataStoring {
     private let fileManager: FileManager
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
     private let lastMetadataURL: URL
 
     init(fileManager: FileManager = .default, lastMetadataURL: URL? = nil) {
         self.fileManager = fileManager
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        self.encoder = encoder
-
-        self.decoder = JSONDecoder()
         self.lastMetadataURL = lastMetadataURL
             ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
                 .appendingPathComponent("last-screenshot.json", isDirectory: false)
@@ -32,6 +24,8 @@ final class SnapshotMetadataStore: SnapshotMetadataStoring {
     func save(metadata: ScreenshotMetadata, at metadataURL: URL, updateLastAt lastURL: URL?) throws {
         let data: Data
         do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             data = try encoder.encode(metadata)
         } catch {
             throw ScreenCommanderError.metadataFailure("Unable to encode metadata JSON: \(error.localizedDescription)")
@@ -59,7 +53,7 @@ final class SnapshotMetadataStore: SnapshotMetadataStoring {
         }
 
         do {
-            return try decoder.decode(ScreenshotMetadata.self, from: data)
+            return try JSONDecoder().decode(ScreenshotMetadata.self, from: data)
         } catch {
             throw ScreenCommanderError.metadataFailure("Unable to decode metadata JSON at \(metadataURL.path): \(error.localizedDescription)")
         }

@@ -20,18 +20,25 @@ struct KeyCommand: ParsableCommand {
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
 
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "key")
         defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "key")
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.key(KeyRequest(chord: chord))
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(

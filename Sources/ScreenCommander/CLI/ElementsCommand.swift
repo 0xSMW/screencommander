@@ -19,10 +19,10 @@ struct ElementsCommand: ParsableCommand {
     @Flag(name: .long, help: "Emit an indented text-only view of the UI (role \"title\": value lines).")
     var text: Bool = false
 
-    @Option(name: .customLong("max-depth"), help: "Maximum tree depth to traverse.")
+    @Option(name: .customLong("max-depth"), help: "Maximum tree depth to traverse (1...200).")
     var maxDepth: Int = 40
 
-    @Option(name: .customLong("max-elements"), help: "Maximum number of elements to emit; result is marked truncated when hit.")
+    @Option(name: .customLong("max-elements"), help: "Maximum number of elements to emit (1...10000); result is marked truncated when hit.")
     var maxElements: Int = 2000
 
     @Option(name: .long, help: "Comma-separated role filter, e.g. 'AXButton,AXTextField' (case-insensitive; 'button' also matches).")
@@ -38,10 +38,10 @@ struct ElementsCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "elements")
         defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "elements")
             let parsedRoles = roles.map {
                 $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             }

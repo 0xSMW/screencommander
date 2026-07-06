@@ -3,6 +3,9 @@ import CoreGraphics
 import Foundation
 
 final class ScreenCommanderEngine {
+    static let maximumElementTraversalDepth = 200
+    static let maximumElementRecords = 10_000
+
     private let permissions: PermissionChecking
     private let displays: DisplayResolving
     private let capturer: ScreenCapturing
@@ -16,6 +19,7 @@ final class ScreenCommanderEngine {
     private let axActions: AXActionPerforming
     private let targets: TargetResolving
     private let observationSource: ObservationSource
+    private let metadataFreshness: MetadataFreshnessChecking
     private let frontmostApp: () -> ResolvedApp?
     private let activateApp: (ResolvedApp) throws -> Void
     private let fileManager: FileManager
@@ -36,6 +40,7 @@ final class ScreenCommanderEngine {
         axActions: AXActionPerforming = AXActions(),
         targets: TargetResolving = Targets(),
         observationSource: ObservationSource = AXObserverSource(),
+        metadataFreshness: MetadataFreshnessChecking = MetadataFreshnessChecker(),
         frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
         activateApp: @escaping (ResolvedApp) throws -> Void = AppActivator.activate,
         statePaths: StatePaths,
@@ -55,6 +60,7 @@ final class ScreenCommanderEngine {
         self.axActions = axActions
         self.targets = targets
         self.observationSource = observationSource
+        self.metadataFreshness = metadataFreshness
         self.frontmostApp = frontmostApp
         self.activateApp = activateApp
         self.statePaths = statePaths
@@ -90,6 +96,7 @@ final class ScreenCommanderEngine {
             axActions: AXActions(),
             targets: Targets(contentProvider: contentProvider),
             observationSource: AXObserverSource(),
+            metadataFreshness: MetadataFreshnessChecker(),
             frontmostApp: FrontmostApp.current,
             activateApp: AppActivator.activate,
             statePaths: statePaths,
@@ -98,12 +105,6 @@ final class ScreenCommanderEngine {
     }
 
     func screenshot(_ request: ScreenshotRequest) async throws -> ScreenshotResult {
-        _ = try? retention.pruneCaptures(
-            in: statePaths.capturesDirectoryURL,
-            olderThan: 24 * 60 * 60,
-            now: now()
-        )
-
         try permissions.ensureScreenRecordingAccess(prompt: true)
 
         let imageURL = resolvedImageURL(explicitPath: request.outputPath, format: request.format)
@@ -209,6 +210,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
 
         let resolved = try coordinateMapper.map(
             x: x,
@@ -217,6 +219,12 @@ final class ScreenCommanderEngine {
             metadata: metadata
         )
         let point = CGPoint(x: resolved.globalX, y: resolved.globalY)
+
+        try await activateCoordinateTargetIfKnown(
+            request: request,
+            metadata: metadata,
+            destination: destination
+        )
 
         // Pre-click validation: what does the AX hit test say lives at this point?
         var verifiedTarget: AXElementRecord?
@@ -246,7 +254,8 @@ final class ScreenCommanderEngine {
             modifiers: modifiers,
             requestedVia: request.via,
             deliveryMethod: deliveryMethod(for: destination),
-            verifiedTarget: verifiedTarget
+            verifiedTarget: verifiedTarget,
+            metadataFreshness: freshness
         )
     }
 
@@ -265,6 +274,7 @@ final class ScreenCommanderEngine {
             role: request.role,
             appIdentifier: request.appIdentifier
         )
+        try ensureElementEnabled(target.record)
 
         let tiers = try deliveryTiers(
             available: [.ax, .pid, .global],
@@ -318,6 +328,57 @@ final class ScreenCommanderEngine {
 
         throw lastFailure
             ?? ScreenCommanderError.elementNotActionable("No delivery tier could act on the element.")
+    }
+
+    /// Focus is handled with app/window activation, not by spending a physical
+    /// priming click. Coordinate clicks know a target only when the caller passes
+    /// `--app` or when window metadata is being reused; display screenshots have no
+    /// safe way to infer the intended app from a point.
+    private func activateCoordinateTargetIfKnown(
+        request: ClickRequest,
+        metadata: ScreenshotMetadata,
+        destination: MouseEventDestination
+    ) async throws {
+        guard request.humanLike, destination == .global else {
+            return
+        }
+
+        if let appIdentifier = request.appIdentifier {
+            let app = try await targets.resolveApp(identifier: appIdentifier)
+            try activateIfNeeded(app)
+            return
+        }
+
+        if let windowID = metadata.windowID {
+            let window = try await targets.resolveWindow(identifier: String(windowID), app: nil)
+            guard window.info.pid > 0 else {
+                throw ScreenCommanderError.appNotFound(
+                    "Window \(windowID) has no owning app PID; cannot activate before click."
+                )
+            }
+            try activateIfNeeded(
+                ResolvedApp(pid: window.info.pid, name: window.info.appName, bundleID: nil)
+            )
+        }
+    }
+
+    private func activateIfNeeded(_ app: ResolvedApp) throws {
+        guard frontmostApp()?.pid != app.pid else {
+            return
+        }
+        try activateApp(app)
+        usleep(120_000)
+    }
+
+    private func checkMetadataFreshness(
+        _ metadata: ScreenshotMetadata,
+        strict: Bool
+    ) throws -> MetadataFreshnessResult {
+        let result = metadataFreshness.freshness(for: metadata)
+        if strict, result.status == .stale {
+            throw ScreenCommanderError.staleMetadata(result.reason)
+        }
+        return result
     }
 
     /// AX-tier click: coordinate-free `AXPress` (left) / `AXShowMenu` (right) on a
@@ -378,6 +439,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let resolved = try coordinateMapper.map(
             x: x,
             y: y,
@@ -400,7 +462,8 @@ final class ScreenCommanderEngine {
             dy: request.dy,
             unit: request.unit,
             requestedVia: request.via,
-            deliveryMethod: deliveryMethod(for: destination)
+            deliveryMethod: deliveryMethod(for: destination),
+            metadataFreshness: freshness
         )
     }
 
@@ -470,6 +533,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let from = try coordinateMapper.map(
             x: request.x1,
             y: request.y1,
@@ -497,7 +561,8 @@ final class ScreenCommanderEngine {
             to: to,
             button: request.button,
             steps: request.steps,
-            durationMilliseconds: request.durationMS
+            durationMilliseconds: request.durationMS,
+            metadataFreshness: freshness
         )
     }
 
@@ -510,6 +575,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let resolved = try coordinateMapper.map(
             x: request.x,
             y: request.y,
@@ -523,7 +589,8 @@ final class ScreenCommanderEngine {
         return MoveResult(
             metadataPath: metadataURL.path,
             resolved: resolved,
-            dwellMilliseconds: request.dwellMS
+            dwellMilliseconds: request.dwellMS,
+            metadataFreshness: freshness
         )
     }
 
@@ -563,6 +630,7 @@ final class ScreenCommanderEngine {
             role: request.role,
             appIdentifier: request.appIdentifier
         )
+        try ensureElementEnabled(target.record)
 
         let tiers = try deliveryTiers(
             available: [.ax, .global],
@@ -587,20 +655,14 @@ final class ScreenCommanderEngine {
             do {
                 switch tier {
                 case .ax:
-                    guard target.record.enabled else {
-                        throw ScreenCommanderError.elementNotActionable(
-                            "Element '\(target.record.id)' (\(target.record.role)) is disabled."
-                        )
-                    }
                     let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
                     try axActions.setValue(request.text, on: live)
                     return result(deliveryMethod: .ax)
                 case .global:
                     // Best-effort focus so keystrokes land in the intended field, then
                     // the existing keyboard path.
-                    if let live = try? accessibilityReader.resolve(id: target.record.id, app: target.app) {
-                        try? axActions.focus(on: live)
-                    }
+                    let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+                    try axActions.focus(on: live)
                     try typeViaKeyboard(request)
                     return result(deliveryMethod: .global)
                 case .pid:
@@ -613,6 +675,14 @@ final class ScreenCommanderEngine {
 
         throw lastFailure
             ?? ScreenCommanderError.elementNotActionable("No delivery tier could type into the element.")
+    }
+
+    private func ensureElementEnabled(_ record: AXElementRecord) throws {
+        guard record.enabled else {
+            throw ScreenCommanderError.elementNotActionable(
+                "Element '\(record.id)' (\(record.role)) is disabled."
+            )
+        }
     }
 
     private func typeViaKeyboard(_ request: TypeRequest) throws {
@@ -646,8 +716,18 @@ final class ScreenCommanderEngine {
         guard request.maxDepth >= 1 else {
             throw ScreenCommanderError.invalidArguments("--max-depth must be at least 1.")
         }
+        guard request.maxDepth <= Self.maximumElementTraversalDepth else {
+            throw ScreenCommanderError.invalidArguments(
+                "--max-depth must be less than or equal to \(Self.maximumElementTraversalDepth)."
+            )
+        }
         guard request.maxElements >= 1 else {
             throw ScreenCommanderError.invalidArguments("--max-elements must be at least 1.")
+        }
+        guard request.maxElements <= Self.maximumElementRecords else {
+            throw ScreenCommanderError.invalidArguments(
+                "--max-elements must be less than or equal to \(Self.maximumElementRecords)."
+            )
         }
         guard request.maxValueLength >= 0 else {
             throw ScreenCommanderError.invalidArguments("--max-value-length must be non-negative.")
@@ -685,7 +765,7 @@ final class ScreenCommanderEngine {
         var elements = tree.elements
         var metadataPath: String?
         let lastMetadataURL = metadataStore.defaultLastMetadataURL
-        if let metadata = try? metadataStore.load(from: lastMetadataURL) {
+        if let metadata = try loadLastMetadataIfAvailable(from: lastMetadataURL) {
             metadataPath = lastMetadataURL.path
             elements = elements.map { record in
                 var record = record
@@ -707,7 +787,18 @@ final class ScreenCommanderEngine {
         )
     }
 
-    // MARK: - Element targeting (WP5)
+    private func loadLastMetadataIfAvailable(from url: URL) throws -> ScreenshotMetadata? {
+        do {
+            return try metadataStore.load(from: url)
+        } catch {
+            if fileManager.fileExists(atPath: url.path) {
+                throw error
+            }
+            return nil
+        }
+    }
+
+    // MARK: - Element targeting
 
     private struct ResolvedElementTarget {
         var app: ResolvedApp
@@ -749,15 +840,50 @@ final class ScreenCommanderEngine {
             return ResolvedElementTarget(app: app, record: record)
         }
 
-        guard let query = element,
-              let record = AXElementMatcher.match(records: tree.elements, query: query, role: role) else {
+        guard let query = element else {
             let roleHint = role.map { " with role '\($0)'" } ?? ""
             throw ScreenCommanderError.elementNotFound(
-                "No element matching '\(element ?? "")'\(roleHint) in '\(app.name)'. "
+                "No element matching ''\(roleHint) in '\(app.name)'. "
                     + "Inspect candidates with 'elements --app \(app.name)'."
             )
         }
-        return ResolvedElementTarget(app: app, record: record)
+
+        switch AXElementMatcher.resolve(records: tree.elements, query: query, role: role) {
+        case .found(let record):
+            return ResolvedElementTarget(app: app, record: record)
+        case .ambiguous(let candidates):
+            let roleHint = role.map { " with role '\($0)'" } ?? ""
+            throw ScreenCommanderError.elementAmbiguous(
+                "Element query '\(query)'\(roleHint) matched multiple candidates in '\(app.name)': "
+                    + describeElementCandidates(candidates)
+                    + ". Use --element-id or a narrower --role/--app target."
+            )
+        case nil:
+            let roleHint = role.map { " with role '\($0)'" } ?? ""
+            throw ScreenCommanderError.elementNotFound(
+                "No element matching '\(query)'\(roleHint) in '\(app.name)'. "
+                    + "Inspect candidates with 'elements --app \(app.name)'."
+            )
+        }
+    }
+
+    private func describeElementCandidates(_ records: [AXElementRecord]) -> String {
+        records
+            .prefix(8)
+            .map { record in
+                var parts = ["id \(record.id)", record.role]
+                if let title = record.title, !title.isEmpty {
+                    parts.append("title '\(title)'")
+                }
+                if let description = record.description, !description.isEmpty {
+                    parts.append("description '\(description)'")
+                }
+                if let value = record.value, !value.isEmpty {
+                    parts.append("value '\(value)'")
+                }
+                return "(\(parts.joined(separator: ", ")))"
+            }
+            .joined(separator: ", ")
     }
 
     /// Tier ladder policy: `--via` forces exactly one tier (strict implied);
@@ -863,8 +989,8 @@ final class ScreenCommanderEngine {
     /// matched. `emit` is called once per event (the command prints NDJSON); the return
     /// value tells the command how to exit.
     ///
-    /// Structured around an `AsyncThrowingStream<ObservedEvent, Error>` so WP8's MCP server can hold
-    /// observers warm and answer "what changed since last call" without re-registering.
+    /// Structured around an `AsyncThrowingStream<ObservedEvent, Error>` so long-lived
+    /// callers can hold observers warm without re-registering.
     func observe(
         _ request: ObserveRequest,
         emit: @escaping @Sendable (ObservedEvent) -> Void
@@ -953,7 +1079,8 @@ final class ScreenCommanderEngine {
         }
 
         let timestamp = Self.filenameTimestampFormatter.string(from: now())
-        let filename = "Screenshot-\(timestamp).\(format.fileExtension)"
+        let uniqueSuffix = UUID().uuidString.lowercased().prefix(8)
+        let filename = "Screenshot-\(timestamp)-\(uniqueSuffix).\(format.fileExtension)"
         return statePaths.capturesDirectoryURL.appendingPathComponent(filename)
     }
 

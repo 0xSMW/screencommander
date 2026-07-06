@@ -86,6 +86,44 @@ final class FrameDiffTests: XCTestCase {
         XCTAssertEqual(CommandRuntime.frameDiff(pre: pre, post: post, skip: false)?.changedFraction, 1.0)
     }
 
+    func testFrameDiffConfigDefaultsMatchExistingBehavior() throws {
+        let config = try FrameDiffConfig.validated(grid: nil, threshold: nil)
+
+        XCTAssertEqual(config.grid, 64)
+        XCTAssertEqual(config.threshold, 0.04)
+    }
+
+    func testFrameDiffConfigRejectsInvalidValues() {
+        XCTAssertThrowsError(try FrameDiffConfig.validated(grid: 0, threshold: nil))
+        XCTAssertThrowsError(try FrameDiffConfig.validated(grid: FrameDiffConfig.maximumGrid + 1, threshold: nil))
+        XCTAssertThrowsError(try FrameDiffConfig.validated(grid: nil, threshold: -0.1))
+        XCTAssertThrowsError(try FrameDiffConfig.validated(grid: nil, threshold: 1.1))
+    }
+
+    func testRuntimeUsesCustomFrameDiffConfig() throws {
+        let preImage = makeImage(width: 8, height: 8, fill: Pixel(r: 0, g: 0, b: 0))
+        let postImage = makeImage(width: 8, height: 8, fill: Pixel(r: 10, g: 10, b: 10))
+        let pre = ActionScreenshotCapture(
+            result: ActionScreenshotResult(imagePath: "/tmp/pre.png", metadataPath: "/tmp/pre.json"),
+            image: preImage
+        )
+        let post = ActionScreenshotCapture(
+            result: ActionScreenshotResult(imagePath: "/tmp/post.png", metadataPath: "/tmp/post.json"),
+            image: postImage
+        )
+
+        let defaultDiff = CommandRuntime.frameDiff(pre: pre, post: post, skip: false)
+        let sensitiveDiff = CommandRuntime.frameDiff(
+            pre: pre,
+            post: post,
+            skip: false,
+            config: try FrameDiffConfig.validated(grid: 8, threshold: 0.01)
+        )
+
+        XCTAssertEqual(defaultDiff?.changedFraction, 0)
+        XCTAssertEqual(sensitiveDiff?.changedFraction, 1)
+    }
+
     func testActionResultEnvelopeEncodesOptionalDiff() throws {
         let envelope = ActionResultEnvelope(
             action: KeyResult(normalizedChord: "enter"),

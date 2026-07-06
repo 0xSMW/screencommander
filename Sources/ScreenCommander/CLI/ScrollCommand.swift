@@ -49,6 +49,9 @@ struct ScrollCommand: ParsableCommand {
     @Flag(name: .long, help: "Treat delivery-tier downgrades as errors (element_not_actionable) instead of recording them.")
     var strict: Bool = false
 
+    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate scrolls when screenshot metadata is known stale.")
+    var strictMetadata: Bool = false
+
     @Flag(
         name: .long,
         inversion: .prefixedNo,
@@ -59,14 +62,20 @@ struct ScrollCommand: ParsableCommand {
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
 
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "scroll")
         defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "scroll")
             let targetsElement = element != nil || elementId != nil
             var parsedX: Double?
             var parsedY: Double?
@@ -83,6 +92,7 @@ struct ScrollCommand: ParsableCommand {
                 parsedX = numericX
                 parsedY = numericY
             }
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             let request = ScrollRequest(
                 x: parsedX,
@@ -98,7 +108,8 @@ struct ScrollCommand: ParsableCommand {
                 appIdentifier: app,
                 via: via,
                 noCursor: noCursor,
-                strict: strict
+                strict: strict,
+                strictMetadata: strictMetadata
             )
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
@@ -106,7 +117,7 @@ struct ScrollCommand: ParsableCommand {
                 try await CommandRuntime.engine.scroll(request)
             }
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
@@ -130,6 +141,9 @@ struct ScrollCommand: ParsableCommand {
             if let record = result.element {
                 let label = record.title ?? record.description ?? record.value ?? ""
                 print("Element: \(record.role)\(label.isEmpty ? "" : " \"\(label)\"") (id \(record.id))")
+            }
+            if let freshness = result.metadataFreshness {
+                print("Metadata freshness: \(freshness.status.rawValue) (\(freshness.reason))")
             }
             print("Delta: dx=\(result.dx), dy=\(result.dy) \(result.unit.rawValue)")
             if let metadataPath = result.metadataPath {

@@ -18,8 +18,12 @@ final class JSONOutputSchemaTests: XCTestCase {
         XCTAssertEqual(ScreenCommanderError.invalidArguments("x").stableCode, "invalid_arguments")
         XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").stableCode, "ax_tree_unavailable")
         XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").exitCode, 71)
+        XCTAssertEqual(ScreenCommanderError.elementNotFound("x").stableCode, "element_not_found")
+        XCTAssertEqual(ScreenCommanderError.elementNotActionable("x").stableCode, "element_not_actionable")
         XCTAssertEqual(ScreenCommanderError.observeTimeout("x").stableCode, "observe_timeout")
         XCTAssertEqual(ScreenCommanderError.observeTimeout("x").exitCode, 73)
+        XCTAssertEqual(ScreenCommanderError.elementAmbiguous("x").stableCode, "element_ambiguous")
+        XCTAssertEqual(ScreenCommanderError.elementAmbiguous("x").exitCode, 82)
     }
 
     // MARK: - Success envelope structure
@@ -59,5 +63,54 @@ final class JSONOutputSchemaTests: XCTestCase {
         XCTAssertNotNil(errorObj)
         XCTAssertEqual(errorObj?["code"] as? String, "invalid_arguments")
         XCTAssertNotNil(errorObj?["message"] as? String)
+    }
+
+    func testExplicitHumanOutputOverridesJSONEnvironment() throws {
+        OutputOptions.preScanned = (output: "human", compact: false)
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
+
+        let resolved = try OutputOptions.effective(jsonFlag: false)
+
+        XCTAssertEqual(resolved.format, .human)
+    }
+
+    func testInvalidOutputModeThrowsInsteadOfFallingBack() {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
+
+        XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: false)) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+    }
+
+    func testInvalidExplicitOutputModeThrowsEvenWhenJsonFlagIsSet() {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        OutputOptions.preScannedOutputIsExplicit = true
+        defer {
+            OutputOptions.preScanned = (nil, false)
+            OutputOptions.preScannedOutputIsExplicit = false
+        }
+
+        XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: true)) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+    }
+
+    func testJsonFlagOverridesInvalidEnvironmentOutput() throws {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        OutputOptions.preScannedOutputIsExplicit = false
+        defer { OutputOptions.preScanned = (nil, false) }
+
+        let resolved = try OutputOptions.effective(jsonFlag: true)
+
+        XCTAssertEqual(resolved.format, .json)
     }
 }

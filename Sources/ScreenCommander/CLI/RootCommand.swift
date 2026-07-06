@@ -11,14 +11,17 @@ enum OutputFormat: String, ExpressibleByArgument {
 /// Global output options: pre-scanned from argv and env so subcommands can resolve effective format.
 enum OutputOptions {
     static var preScanned: (output: String?, compact: Bool) = (nil, false)
+    static var preScannedOutputIsExplicit = false
     static var current: (format: OutputFormat, compact: Bool, commandName: String)?
 
     static func preScan(_ args: [String]) {
         var output: String?
+        var outputIsExplicit = false
         var compact = false
         for i in args.indices {
             if args[i] == "--output", i + 1 < args.count {
                 output = args[i + 1]
+                outputIsExplicit = true
             } else if args[i] == "--compact" {
                 compact = true
             }
@@ -30,15 +33,34 @@ enum OutputOptions {
             compact = true
         }
         preScanned = (output, compact)
+        preScannedOutputIsExplicit = outputIsExplicit
     }
 
     /// Resolve effective format: per-command --json > pre-scanned/root --output > env > human.
-    static func effective(jsonFlag: Bool) -> (format: OutputFormat, compact: Bool) {
-        let format: OutputFormat = jsonFlag
-            ? .json
-            : (preScanned.output?.lowercased() == "json" ? .json : (ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"]?.lowercased() == "json" ? .json : .human))
+    static func effective(jsonFlag: Bool) throws -> (format: OutputFormat, compact: Bool) {
+        let format: OutputFormat
+        if jsonFlag {
+            if preScannedOutputIsExplicit, let output = preScanned.output {
+                _ = try parseOutputFormat(output)
+            }
+            format = .json
+        } else if let output = preScanned.output {
+            format = try parseOutputFormat(output)
+        } else if let env = ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"] {
+            format = try parseOutputFormat(env)
+        } else {
+            format = .human
+        }
         let compact = preScanned.compact || ProcessInfo.processInfo.environment["SCREENCOMMANDER_JSON_COMPACT"] == "1"
         return (format, compact)
+    }
+
+    private static func parseOutputFormat(_ raw: String) throws -> OutputFormat {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let format = OutputFormat(rawValue: value) else {
+            throw ScreenCommanderError.invalidArguments("--output must be 'human' or 'json'.")
+        }
+        return format
     }
 }
 
@@ -208,14 +230,19 @@ enum CommandRuntime {
         return nil
     }
 
-    static func frameDiff(pre: ActionScreenshotCapture?, post: ActionScreenshotCapture?, skip: Bool) -> FrameDiffResult? {
+    static func frameDiff(
+        pre: ActionScreenshotCapture?,
+        post: ActionScreenshotCapture?,
+        skip: Bool,
+        config: FrameDiffConfig = .default
+    ) -> FrameDiffResult? {
         guard !skip,
               let preImage = pre?.image,
               let postImage = post?.image else {
             return nil
         }
 
-        return FrameDiff.compare(preImage, postImage)
+        return FrameDiff.compare(preImage, postImage, config: config)
     }
 
     static func printFrameDiff(_ diff: FrameDiffResult?) {
@@ -249,7 +276,7 @@ enum CommandRuntime {
         switch error {
         case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed, .axTreeUnavailable:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .observeTimeout, .windowNotFound, .appNotFound:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .observeTimeout, .windowNotFound, .appNotFound, .elementAmbiguous, .staleMetadata:
             return true
         }
     }

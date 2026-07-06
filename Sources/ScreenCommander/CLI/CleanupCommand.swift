@@ -14,10 +14,10 @@ struct CleanupCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "cleanup")
         defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "cleanup")
             let result = try CommandRuntime.engine.cleanup(CleanupRequest(olderThanHours: olderThanHours))
 
             if format == .json {

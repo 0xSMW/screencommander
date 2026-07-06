@@ -76,6 +76,8 @@ struct ClickRequest {
     var strict: Bool = false
     /// `--verify-target`: hit-test the mapped point and include the element in the result.
     var verifyTarget: Bool = false
+    /// Fail coordinate clicks when the metadata is known stale.
+    var strictMetadata: Bool = false
 }
 
 struct ClickResult: Codable, Sendable {
@@ -98,6 +100,8 @@ struct ClickResult: Codable, Sendable {
     var element: AXElementRecord? = nil
     /// The element hit-tested at the mapped point (`--verify-target`).
     var verifiedTarget: AXElementRecord? = nil
+    /// Advisory freshness check for coordinate metadata.
+    var metadataFreshness: MetadataFreshnessResult? = nil
 }
 
 struct ScrollRequest {
@@ -117,6 +121,7 @@ struct ScrollRequest {
     var via: InputDeliveryMethod? = nil
     var noCursor: Bool = false
     var strict: Bool = false
+    var strictMetadata: Bool = false
 }
 
 struct ScrollResult: Codable, Sendable {
@@ -130,6 +135,7 @@ struct ScrollResult: Codable, Sendable {
     var requestedVia: InputDeliveryMethod? = nil
     var deliveryMethod: InputDeliveryMethod = .global
     var element: AXElementRecord? = nil
+    var metadataFreshness: MetadataFreshnessResult? = nil
 }
 
 struct DragRequest {
@@ -142,6 +148,7 @@ struct DragRequest {
     var button: MouseButtonChoice
     var steps: Int
     var durationMS: Int
+    var strictMetadata: Bool = false
 }
 
 struct DragResult: Codable, Sendable {
@@ -151,6 +158,7 @@ struct DragResult: Codable, Sendable {
     var button: MouseButtonChoice
     var steps: Int
     var durationMilliseconds: Int
+    var metadataFreshness: MetadataFreshnessResult? = nil
 }
 
 struct MoveRequest {
@@ -159,12 +167,26 @@ struct MoveRequest {
     var coordinateSpace: CoordinateSpace
     var metadataPath: String?
     var dwellMS: Int
+    var strictMetadata: Bool = false
 }
 
 struct MoveResult: Codable, Sendable {
     var metadataPath: String
     var resolved: ResolvedCoordinate
     var dwellMilliseconds: Int
+    var metadataFreshness: MetadataFreshnessResult? = nil
+}
+
+enum MetadataFreshnessStatus: String, Codable, Sendable {
+    case fresh
+    case stale
+    case unknown
+}
+
+struct MetadataFreshnessResult: Codable, Sendable, Equatable {
+    var status: MetadataFreshnessStatus
+    var scope: String
+    var reason: String
 }
 
 struct TypeRequest {

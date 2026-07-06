@@ -26,8 +26,15 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             throw ScreenCommanderError.captureFailed("Could not enumerate displays for window capture: \(error.localizedDescription)")
         }
 
-        guard let display = Self.displayContaining(windowFrame, in: content.displays) else {
+        let intersectingDisplays = content.displays.filter { $0.frame.intersects(windowFrame) }
+        guard let display = Self.displayContaining(windowFrame, in: intersectingDisplays) else {
             throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on a capturable display.")
+        }
+        guard intersectingDisplays.count == 1 else {
+            throw ScreenCommanderError.captureFailed(
+                "Window \(window.info.windowID) spans multiple displays; "
+                    + "window capture metadata requires one display scale."
+            )
         }
 
         // Desktop-independent filter: captures the window's own contents regardless
@@ -46,7 +53,9 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             pointPixelScale = Double(SCContentFilter(display: display, excludingWindows: []).pointPixelScale)
         }
         if !pointPixelScale.isFinite || pointPixelScale < 1 {
-            pointPixelScale = 1
+            throw ScreenCommanderError.captureFailed(
+                "Window \(window.info.windowID) reports an unusable pointPixelScale."
+            )
         }
 
         let widthPixels = (Double(windowFrame.width) * pointPixelScale).rounded()
@@ -103,7 +112,10 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
     func capture(display: ResolvedDisplay, includeCursor: Bool) async throws -> CapturedScreenshot {
         let filter = SCContentFilter(display: display.scDisplay, excludingWindows: [])
         let contentRect = filter.contentRect
-        let pointPixelScale = max(1.0, Double(filter.pointPixelScale))
+        let pointPixelScale = Double(filter.pointPixelScale)
+        guard pointPixelScale.isFinite, pointPixelScale >= 1 else {
+            throw ScreenCommanderError.captureFailed("Display \(display.displayID) reports an unusable pointPixelScale.")
+        }
 
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((Double(contentRect.width) * pointPixelScale).rounded()))

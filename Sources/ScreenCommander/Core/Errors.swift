@@ -16,6 +16,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
     case observeTimeout(String)
     case windowNotFound(String)
     case appNotFound(String)
+    case elementAmbiguous(String)
+    case staleMetadata(String)
 
     var exitCode: Int32 {
         switch self {
@@ -49,6 +51,10 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return 80
         case .appNotFound:
             return 81
+        case .elementAmbiguous:
+            return 82
+        case .staleMetadata:
+            return 83
         }
     }
 
@@ -84,6 +90,10 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Window not found: \(message)"
         case .appNotFound(let message):
             return "App not found: \(message)"
+        case .elementAmbiguous(let message):
+            return "Element ambiguous: \(message)"
+        case .staleMetadata(let message):
+            return "Stale metadata: \(message)"
         }
     }
 
@@ -105,6 +115,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
         case .observeTimeout: return "observe_timeout"
         case .windowNotFound: return "window_not_found"
         case .appNotFound: return "app_not_found"
+        case .elementAmbiguous: return "element_ambiguous"
+        case .staleMetadata: return "stale_metadata"
         }
     }
 }

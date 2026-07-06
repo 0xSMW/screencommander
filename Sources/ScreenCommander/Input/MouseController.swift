@@ -117,7 +117,7 @@ enum MouseModifiers {
 ///
 /// `.global` posts to `.cghidEventTap` (moves the real cursor); `.pid` posts with
 /// `CGEventPostToPid`, delivering the same events to one app while the user's cursor
-/// stays put ("second mouse", WP5 tier `pid`).
+/// stays put.
 enum MouseEventDestination: Equatable, Sendable {
     case global
     case pid(pid_t)
@@ -141,7 +141,8 @@ protocol MouseControlling {
 }
 
 extension MouseControlling {
-    /// Global-delivery convenience overloads (the pre-WP5 surface).
+    /// Global-delivery convenience overloads for callers that do not need
+    /// destination control.
     func click(
         at point: CGPoint,
         button: MouseButtonChoice,
@@ -169,6 +170,19 @@ extension MouseControlling {
 }
 
 final class MouseController: MouseControlling {
+    private let postEvent: (CGEvent, MouseEventDestination) -> Void
+
+    init(postEvent: @escaping (CGEvent, MouseEventDestination) -> Void = { event, destination in
+        switch destination {
+        case .global:
+            event.post(tap: .cghidEventTap)
+        case .pid(let pid):
+            event.postToPid(pid)
+        }
+    }) {
+        self.postEvent = postEvent
+    }
+
     func click(
         at point: CGPoint,
         button: MouseButtonChoice,
@@ -182,14 +196,12 @@ final class MouseController: MouseControlling {
         let source = CGEventSource(stateID: .hidSystemState)
         let flags = try MouseModifiers.flags(for: modifiers)
 
-        if primeClick {
+        if primeClick || humanLike {
+            // `--prime` and human-like mode both mean "settle the pointer before
+            // clicking"; stack them as one move so callers do not get two
+            // indistinguishable pre-click motion events.
             try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
-            usleep(80_000)
-        }
-
-        if humanLike {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
-            usleep(90_000)
+            usleep(humanLike ? 90_000 : 80_000)
         }
 
         if tripleClick {
@@ -285,11 +297,6 @@ final class MouseController: MouseControlling {
     /// `.global` posts to the HID tap (moves the real cursor); `.pid` posts the same
     /// event to one process via `CGEventPostToPid` (cursor untouched).
     private func post(_ event: CGEvent, to destination: MouseEventDestination) {
-        switch destination {
-        case .global:
-            event.post(tap: .cghidEventTap)
-        case .pid(let pid):
-            event.postToPid(pid)
-        }
+        postEvent(event, destination)
     }
 }

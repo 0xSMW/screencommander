@@ -136,8 +136,8 @@ final class MCPToolRegistry {
                 outputPath: Self.stringArg(args, "path"),
                 format: format,
                 metadataPath: nil,
-                includeCursor: Self.boolArg(args, "includeCursor") ?? false,
-                updateLastMetadata: Self.boolArg(args, "updateLastMetadata") ?? true,
+                includeCursor: try Self.boolArg(args, "includeCursor") ?? false,
+                updateLastMetadata: try Self.boolArg(args, "updateLastMetadata") ?? true,
                 windowIdentifier: Self.stringArg(args, "window")
             )
             let result = try await engine.screenshot(request)
@@ -167,7 +167,7 @@ final class MCPToolRegistry {
                 "double": boolProp("Double-click."),
                 "triple": boolProp("Triple-click."),
                 "prime": boolProp("Post a priming mouse-move before clicking."),
-                "raw": boolProp("Disable the human-like focus-compensation click."),
+                "raw": boolProp("Disable human-like cursor priming and target-app activation."),
                 "modifiers": arrayProp("Modifier keys held during the click.", itemType: "string"),
                 "element": stringProp("Element title/label substring (alternative to x/y)."),
                 "elementId": stringProp("Element id from the elements tool."),
@@ -177,6 +177,7 @@ final class MCPToolRegistry {
                 "noCursor": boolProp("Never fall back to global delivery (real cursor stays put)."),
                 "strict": boolProp("Tier downgrades become errors."),
                 "verifyTarget": boolProp("Hit-test the mapped point and include the element found there (coordinate clicks only)."),
+                "strictMetadata": boolProp("Fail coordinate clicks when screenshot metadata is known stale."),
             ])
         ) { [engine] args in
             let request = ClickRequest(
@@ -185,19 +186,20 @@ final class MCPToolRegistry {
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
-                doubleClick: Self.boolArg(args, "double") ?? false,
-                triple: Self.boolArg(args, "triple") ?? false,
-                primeClick: Self.boolArg(args, "prime") ?? false,
-                humanLike: !(Self.boolArg(args, "raw") ?? false),
+                doubleClick: try Self.boolArg(args, "double") ?? false,
+                triple: try Self.boolArg(args, "triple") ?? false,
+                primeClick: try Self.boolArg(args, "prime") ?? false,
+                humanLike: !(try Self.boolArg(args, "raw") ?? false),
                 modifiers: try Self.stringArrayArg(args, "modifiers") ?? [],
                 element: Self.stringArg(args, "element"),
                 elementID: Self.stringArg(args, "elementId"),
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                noCursor: Self.boolArg(args, "noCursor") ?? false,
-                strict: Self.boolArg(args, "strict") ?? false,
-                verifyTarget: Self.boolArg(args, "verifyTarget") ?? false
+                noCursor: try Self.boolArg(args, "noCursor") ?? false,
+                strict: try Self.boolArg(args, "strict") ?? false,
+                verifyTarget: try Self.boolArg(args, "verifyTarget") ?? false,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.click(request)
             return try self.okOutcome(command: "click", result: ActionResultEnvelope(action: result))
@@ -229,7 +231,7 @@ final class MCPToolRegistry {
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                strict: Self.boolArg(args, "strict") ?? false
+                strict: try Self.boolArg(args, "strict") ?? false
             )
             let result = try await engine.type(request)
             return try self.okOutcome(command: "type", result: ActionResultEnvelope(action: result))
@@ -284,6 +286,7 @@ final class MCPToolRegistry {
                 "via": enumProp("Force one delivery tier.", values: ["pid", "global"]),
                 "noCursor": boolProp("Never fall back to global delivery."),
                 "strict": boolProp("Tier downgrades become errors."),
+                "strictMetadata": boolProp("Fail coordinate scrolls when screenshot metadata is known stale."),
             ])
         ) { [engine] args in
             let request = ScrollRequest(
@@ -299,8 +302,9 @@ final class MCPToolRegistry {
                 role: Self.stringArg(args, "role"),
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
-                noCursor: Self.boolArg(args, "noCursor") ?? false,
-                strict: Self.boolArg(args, "strict") ?? false
+                noCursor: try Self.boolArg(args, "noCursor") ?? false,
+                strict: try Self.boolArg(args, "strict") ?? false,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.scroll(request)
             return try self.okOutcome(command: "scroll", result: ActionResultEnvelope(action: result))
@@ -321,6 +325,7 @@ final class MCPToolRegistry {
                 "button": enumProp("Mouse button.", values: ["left", "right", "middle"]),
                 "steps": numberProp("Interpolated move count (default 12)."),
                 "durationMs": numberProp("Total drag duration in ms (default 300)."),
+                "strictMetadata": boolProp("Fail coordinate drags when screenshot metadata is known stale."),
             ], required: ["x1", "y1", "x2", "y2"])
         ) { [engine] args in
             let request = DragRequest(
@@ -332,7 +337,8 @@ final class MCPToolRegistry {
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
                 steps: try Self.intArg(args, "steps") ?? 12,
-                durationMS: try Self.intArg(args, "durationMs") ?? 300
+                durationMS: try Self.intArg(args, "durationMs") ?? 300,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.drag(request)
             return try self.okOutcome(command: "drag", result: ActionResultEnvelope(action: result))
@@ -349,6 +355,7 @@ final class MCPToolRegistry {
                 "space": enumProp("Coordinate space.", values: ["pixels", "points", "normalized"]),
                 "meta": stringProp("Screenshot metadata path; defaults to last-screenshot.json."),
                 "dwellMs": numberProp("Milliseconds to dwell after moving (default 0)."),
+                "strictMetadata": boolProp("Fail coordinate moves when screenshot metadata is known stale."),
             ], required: ["x", "y"])
         ) { [engine] args in
             let request = MoveRequest(
@@ -356,7 +363,8 @@ final class MCPToolRegistry {
                 y: try Self.requireDouble(args, "y"),
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
-                dwellMS: try Self.intArg(args, "dwellMs") ?? 0
+                dwellMS: try Self.intArg(args, "dwellMs") ?? 0,
+                strictMetadata: try Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.move(request)
             return try self.okOutcome(command: "move", result: ActionResultEnvelope(action: result))
@@ -372,8 +380,8 @@ final class MCPToolRegistry {
                 "windowId": numberProp("Restrict to one window id."),
                 "allWindows": boolProp("Traverse all of the app's windows."),
                 "text": boolProp("Include the indented text-only rendering."),
-                "maxDepth": numberProp("Traversal depth limit (default 40)."),
-                "maxElements": numberProp("Element cap (default 2000)."),
+                "maxDepth": numberProp("Traversal depth limit, 1...200 (default 40)."),
+                "maxElements": numberProp("Element cap, 1...10000 (default 2000)."),
                 "roles": arrayProp("Only include these roles.", itemType: "string"),
                 "visibleOnly": boolProp("Skip elements without an on-screen frame."),
                 "maxValueLength": numberProp("Truncate element values to this length (default 200)."),
@@ -382,12 +390,12 @@ final class MCPToolRegistry {
             let request = ElementsRequest(
                 appIdentifier: Self.stringArg(args, "app"),
                 windowID: try Self.uint32Arg(args, "windowId"),
-                allWindows: Self.boolArg(args, "allWindows") ?? false,
-                includeText: Self.boolArg(args, "text") ?? false,
+                allWindows: try Self.boolArg(args, "allWindows") ?? false,
+                includeText: try Self.boolArg(args, "text") ?? false,
                 maxDepth: try Self.intArg(args, "maxDepth") ?? 40,
                 maxElements: try Self.intArg(args, "maxElements") ?? 2000,
                 roles: try Self.stringArrayArg(args, "roles"),
-                visibleOnly: Self.boolArg(args, "visibleOnly") ?? false,
+                visibleOnly: try Self.boolArg(args, "visibleOnly") ?? false,
                 maxValueLength: try Self.intArg(args, "maxValueLength") ?? 200
             )
             let result = try await engine.elements(request)
@@ -513,8 +521,12 @@ final class MCPToolRegistry {
         args[key]?.stringValue
     }
 
-    private static func boolArg(_ args: JSONValue, _ key: String) -> Bool? {
-        args[key]?.boolValue
+    private static func boolArg(_ args: JSONValue, _ key: String) throws -> Bool? {
+        guard let value = args[key], value != .null else { return nil }
+        guard let bool = value.boolValue else {
+            throw ScreenCommanderError.invalidArguments("'\(key)' must be a boolean.")
+        }
+        return bool
     }
 
     private static func doubleArg(_ args: JSONValue, _ key: String) throws -> Double? {
