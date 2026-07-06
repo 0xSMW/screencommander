@@ -3,6 +3,9 @@ import CoreGraphics
 import Foundation
 
 final class ScreenCommanderEngine {
+    static let maximumElementTraversalDepth = 200
+    static let maximumElementRecords = 10_000
+
     private let permissions: PermissionChecking
     private let displays: DisplayResolving
     private let capturer: ScreenCapturing
@@ -690,8 +693,18 @@ final class ScreenCommanderEngine {
         guard request.maxDepth >= 1 else {
             throw ScreenCommanderError.invalidArguments("--max-depth must be at least 1.")
         }
+        guard request.maxDepth <= Self.maximumElementTraversalDepth else {
+            throw ScreenCommanderError.invalidArguments(
+                "--max-depth must be less than or equal to \(Self.maximumElementTraversalDepth)."
+            )
+        }
         guard request.maxElements >= 1 else {
             throw ScreenCommanderError.invalidArguments("--max-elements must be at least 1.")
+        }
+        guard request.maxElements <= Self.maximumElementRecords else {
+            throw ScreenCommanderError.invalidArguments(
+                "--max-elements must be less than or equal to \(Self.maximumElementRecords)."
+            )
         }
         guard request.maxValueLength >= 0 else {
             throw ScreenCommanderError.invalidArguments("--max-value-length must be non-negative.")

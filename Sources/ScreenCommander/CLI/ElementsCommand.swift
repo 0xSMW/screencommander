@@ -19,10 +19,10 @@ struct ElementsCommand: ParsableCommand {
     @Flag(name: .long, help: "Emit an indented text-only view of the UI (role \"title\": value lines).")
     var text: Bool = false
 
-    @Option(name: .customLong("max-depth"), help: "Maximum tree depth to traverse.")
+    @Option(name: .customLong("max-depth"), help: "Maximum tree depth to traverse (1...200).")
     var maxDepth: Int = 40
 
-    @Option(name: .customLong("max-elements"), help: "Maximum number of elements to emit; result is marked truncated when hit.")
+    @Option(name: .customLong("max-elements"), help: "Maximum number of elements to emit (1...10000); result is marked truncated when hit.")
     var maxElements: Int = 2000
 
     @Option(name: .long, help: "Comma-separated role filter, e.g. 'AXButton,AXTextField' (case-insensitive; 'button' also matches).")

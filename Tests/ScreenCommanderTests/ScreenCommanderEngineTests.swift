@@ -1832,7 +1832,9 @@ final class ScreenCommanderEngineTests: XCTestCase {
 
         for request in [
             ElementsRequest(maxDepth: 0),
+            ElementsRequest(maxDepth: ScreenCommanderEngine.maximumElementTraversalDepth + 1),
             ElementsRequest(maxElements: 0),
+            ElementsRequest(maxElements: ScreenCommanderEngine.maximumElementRecords + 1),
             ElementsRequest(maxValueLength: -1),
             ElementsRequest(windowID: 1, allWindows: true)
         ] {

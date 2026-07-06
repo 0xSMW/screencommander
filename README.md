@@ -270,12 +270,12 @@ screencommander elements --app "System Settings" --roles AXButton,AXTextField --
 
 Behavior:
 
-- Defaults to the frontmost application; target explicitly with `--app <name|pid>`.
+- Defaults to the frontmost application; target explicitly with `--app <name|pid>`. Ambiguous app names report candidate PIDs so callers can retry with a PID.
 - Traverses the focused window by default; use `--all-windows` or `--window-id <id>` to widen or narrow.
 - Each element carries a positional id (dot-joined child-index path such as `0.3.2`), role, title/value/description, enabled/focused state, supported AX actions, and bounds in global points.
 - When `~/Library/Caches/screencommander/last-screenshot.json` exists, elements inside that screenshot also get `boundsPixels` in its pixel space, so `elements` output can drive `click <x> <y>` directly.
 - `--text` prints an indented `role "title": value` view (also in `result.text` with `--json`) — a token-cheap way to read a screen without vision.
-- `--max-depth` (40), `--max-elements` (2000, result marked `truncated` when hit), `--max-value-length` (200), `--roles`, and `--visible-only` bound the traversal.
+- `--max-depth` (default 40, max 200), `--max-elements` (default 2000, max 10000, result marked `truncated` when hit), `--max-value-length` (200), `--roles`, and `--visible-only` bound the traversal.
 - Electron/Chromium apps are primed automatically (`AXManualAccessibility`, falling back to `AXEnhancedUserInterface`, restored afterwards); the result reports `axPrimed`.
 - Apps that expose no usable AX tree fail with exit code `71` (`ax_tree_unavailable`).
 

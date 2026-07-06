@@ -11,6 +11,12 @@ struct ResolvedApp: Codable, Sendable, Equatable {
     var bundleID: String?
 }
 
+struct RunningAppSnapshot: Equatable {
+    var pid: pid_t
+    var localizedName: String?
+    var bundleID: String?
+}
+
 struct WindowInfo: Codable, Sendable {
     var windowID: UInt32
     var title: String
@@ -44,7 +50,7 @@ enum AppActivator {
         guard let runningApp = NSRunningApplication(processIdentifier: app.pid) else {
             throw ScreenCommanderError.appNotFound("App with PID \(app.pid) is no longer running.")
         }
-        runningApp.activate(options: [.activateIgnoringOtherApps])
+        runningApp.activate()
     }
 }
 
@@ -52,9 +58,22 @@ enum AppActivator {
 
 final class Targets: TargetResolving {
     private let contentProvider: ShareableContentProvider
+    private let runningApplications: () -> [RunningAppSnapshot]
 
-    init(contentProvider: ShareableContentProvider = ShareableContentProvider()) {
+    init(
+        contentProvider: ShareableContentProvider = ShareableContentProvider(),
+        runningApplications: @escaping () -> [RunningAppSnapshot] = {
+            NSWorkspace.shared.runningApplications.map {
+                RunningAppSnapshot(
+                    pid: $0.processIdentifier,
+                    localizedName: $0.localizedName,
+                    bundleID: $0.bundleIdentifier
+                )
+            }
+        }
+    ) {
         self.contentProvider = contentProvider
+        self.runningApplications = runningApplications
     }
 
     func resolveApp(identifier: String) async throws -> ResolvedApp {
@@ -70,33 +89,53 @@ final class Targets: TargetResolving {
             )
         }
 
-        // Name match: gather all running apps, try exact then prefix
-        let allApps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular || $0.activationPolicy == .accessory
-        }
+        // Name match: gather all running apps, try exact then prefix. Do not
+        // filter by activation policy here; menu-bar and background utilities can
+        // still be legitimate automation targets, and PID remains the fallback
+        // disambiguator when multiple processes share a name.
+        let allApps = runningApplications()
 
         let lower = identifier.lowercased()
         let exactMatches = allApps.filter { $0.localizedName?.lowercased() == lower }
         if exactMatches.count == 1 {
             let a = exactMatches[0]
-            return ResolvedApp(pid: a.processIdentifier, name: a.localizedName ?? "(unknown)", bundleID: a.bundleIdentifier)
+            return resolvedApp(from: a)
         }
         if exactMatches.count > 1 {
-            let names = exactMatches.compactMap { $0.localizedName }.joined(separator: ", ")
-            throw ScreenCommanderError.invalidArguments("Ambiguous app name '\(identifier)'; candidates: \(names).")
+            throw ScreenCommanderError.invalidArguments(
+                "Ambiguous app name '\(identifier)'; candidates: \(describeAppCandidates(exactMatches))."
+            )
         }
 
         let prefixMatches = allApps.filter { $0.localizedName?.lowercased().hasPrefix(lower) == true }
         if prefixMatches.count == 1 {
             let a = prefixMatches[0]
-            return ResolvedApp(pid: a.processIdentifier, name: a.localizedName ?? "(unknown)", bundleID: a.bundleIdentifier)
+            return resolvedApp(from: a)
         }
         if prefixMatches.count > 1 {
-            let names = prefixMatches.compactMap { $0.localizedName }.joined(separator: ", ")
-            throw ScreenCommanderError.invalidArguments("Ambiguous app name prefix '\(identifier)'; candidates: \(names).")
+            throw ScreenCommanderError.invalidArguments(
+                "Ambiguous app name prefix '\(identifier)'; candidates: \(describeAppCandidates(prefixMatches))."
+            )
         }
 
         throw ScreenCommanderError.appNotFound("No running app matching '\(identifier)'.")
+    }
+
+    private func resolvedApp(from app: RunningAppSnapshot) -> ResolvedApp {
+        ResolvedApp(pid: app.pid, name: app.localizedName ?? "(unknown)", bundleID: app.bundleID)
+    }
+
+    private func describeAppCandidates(_ apps: [RunningAppSnapshot]) -> String {
+        apps
+            .map { app in
+                var description = "\(app.localizedName ?? "(unknown)") (pid \(app.pid)"
+                if let bundleID = app.bundleID, !bundleID.isEmpty {
+                    description += ", bundle \(bundleID)"
+                }
+                description += ")"
+                return description
+            }
+            .joined(separator: ", ")
     }
 
     func listWindows(app: ResolvedApp?) async throws -> [WindowInfo] {

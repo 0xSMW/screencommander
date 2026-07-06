@@ -124,6 +124,22 @@ final class AXTreeWalkerTests: XCTestCase {
 
         XCTAssertEqual(result.records.map(\.id), ["1", "3"])
     }
+
+    func testDeepTreeWalksWithoutRecursiveCallStack() {
+        var node = TestNode(role: "AXButton", title: "Leaf")
+        for _ in 0..<350 {
+            node = TestNode(role: "AXGroup", children: [node])
+        }
+
+        let result = walk(
+            AXTreeWalker(maxDepth: 400, maxElements: 500),
+            roots: [(path: [0], node: node, visibleRect: nil)]
+        )
+
+        XCTAssertEqual(result.records.count, 351)
+        XCTAssertFalse(result.truncated)
+        XCTAssertEqual(result.records.last?.title, "Leaf")
+    }
 }
 
 final class AXElementRecordTests: XCTestCase {
