@@ -34,21 +34,15 @@ What to do: expose CLI and MCP override knobs for callers that need a different 
 
 Downside: new knobs add surface area and documentation burden, and callers can tune themselves into noisy or overly insensitive diffs.
 
-## Window Capture Re-Enumeration
-
-Intent: avoid resolving the same window/display information twice during `screenshot --window`.
-
-What to do: carry display metadata from window resolution into capture so ScreenCaptureKit content is not re-enumerated.
-
-Downside: there is a small freshness risk if the window moves between resolve and capture, so the capturer still needs a fallback or revalidation path.
-
 ## Docs Consolidation
 
 Intent: stop `README.md`, `SKILL.md`, `AGENTS.md`, `INIT.md`, and `docs/capability-plan.md` from telling different stories.
 
-What to do: make `README.md` the current user contract, `SKILL.md` the short operator runbook, `AGENTS.md` repo workflow only, `INIT.md` implementation tracker only, and `docs/capability-plan.md` future roadmap only.
+Decision: `docs/capability-plan.md` is legacy and can be removed. `INIT.md` was the original implementation tracker and can also be removed now if it no longer reflects the current project state.
 
-Downside: this is a broad documentation cleanup with many deletions, which can be noisy in review.
+What to do: make `README.md` the GitHub-facing project README and current user contract. Make `SKILL.md` the short operator runbook for agents running the CLI. Keep `AGENTS.md` limited to repo-specific instructions for agents working in this repository. Remove legacy planning/tracker docs instead of trying to keep them synchronized.
+
+Downside: none if the cleanup is accurate. Before deleting or rewriting a doc, check whether the apparent conflict is just historical context from when that doc was created; if it is historical and no longer authoritative, remove it or clearly retire it.
 
 ## CLI/MCP Parsing Deduplication
 
