@@ -6,7 +6,7 @@ import Foundation
 final class MCPServer {
     static let protocolVersion = "2025-06-18"
     static let serverName = "screencommander"
-    static let serverVersion = "1.0.0"
+    static let serverVersion = "0.4.0"
 
     private let registry: MCPToolRegistry
     private var initialized = false
