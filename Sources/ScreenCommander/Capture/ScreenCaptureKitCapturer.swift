@@ -10,13 +10,31 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             )
         }
 
-        let filter = SCContentFilter(desktopIndependentWindow: scWindow)
         let windowFrame = scWindow.frame
+
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        } catch {
+            throw ScreenCommanderError.captureFailed("Could not enumerate displays for window capture: \(error.localizedDescription)")
+        }
+
+        guard let display = Self.displayContaining(windowFrame, in: content.displays) else {
+            throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on a capturable display.")
+        }
+
+        let sourceRect = windowFrame.intersection(display.frame)
+        guard !sourceRect.isNull, sourceRect.width > 0, sourceRect.height > 0 else {
+            throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on-screen.")
+        }
+
+        let filter = SCContentFilter(display: display, excludingWindows: [])
         let pointPixelScale = max(1.0, Double(filter.pointPixelScale))
 
         let configuration = SCStreamConfiguration()
-        configuration.width = max(1, Int((Double(windowFrame.width) * pointPixelScale).rounded()))
-        configuration.height = max(1, Int((Double(windowFrame.height) * pointPixelScale).rounded()))
+        configuration.sourceRect = sourceRect
+        configuration.width = max(1, Int((Double(sourceRect.width) * pointPixelScale).rounded()))
+        configuration.height = max(1, Int((Double(sourceRect.height) * pointPixelScale).rounded()))
         configuration.showsCursor = includeCursor
 
         let image: CGImage
@@ -28,27 +46,33 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
 
         // Report the display actually containing the window so metadata's
         // displayID/displayBoundsPoints keep their documented semantics; the
-        // window frame travels separately as windowBoundsPoints.
-        let (displayID, displayBounds) = Self.displayContaining(windowFrame)
-
+        // captured source rect travels separately as windowBoundsPoints.
         return CapturedScreenshot(
             image: image,
-            displayID: displayID,
-            displayBoundsPoints: displayBounds,
-            pointPixelScale: pointPixelScale
+            displayID: display.displayID,
+            displayBoundsPoints: display.frame,
+            pointPixelScale: pointPixelScale,
+            contentBoundsPoints: sourceRect
         )
     }
 
-    /// Finds the display whose bounds intersect the given global-point rect,
-    /// falling back to the main display when none does (e.g. off-screen windows).
-    private static func displayContaining(_ rect: CGRect) -> (UInt32, CGRect) {
-        var displayID: CGDirectDisplayID = 0
-        var matchCount: UInt32 = 0
-        let error = CGGetDisplaysWithRect(rect, 1, &displayID, &matchCount)
-        if error != .success || matchCount == 0 {
-            displayID = CGMainDisplayID()
+    /// Finds the ScreenCaptureKit display with the largest intersection against
+    /// the window frame. The capture itself uses that display plus a sourceRect;
+    /// this avoids the CLI crash observed with desktop-independent window filters.
+    private static func displayContaining(_ rect: CGRect, in displays: [SCDisplay]) -> SCDisplay? {
+        displays.max { lhs, rhs in
+            intersectionArea(lhs.frame, rect) < intersectionArea(rhs.frame, rect)
+        }.flatMap { display in
+            display.frame.intersects(rect) ? display : nil
         }
-        return (displayID, CGDisplayBounds(displayID))
+    }
+
+    private static func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+        let intersection = lhs.intersection(rhs)
+        guard !intersection.isNull else {
+            return 0
+        }
+        return max(0, intersection.width) * max(0, intersection.height)
     }
 
     func capture(display: ResolvedDisplay, includeCursor: Bool) async throws -> CapturedScreenshot {
@@ -79,7 +103,8 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             image: image,
             displayID: display.displayID,
             displayBoundsPoints: displayBoundsPoints,
-            pointPixelScale: pointPixelScale
+            pointPixelScale: pointPixelScale,
+            contentBoundsPoints: nil
         )
     }
 }

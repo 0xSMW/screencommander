@@ -124,7 +124,7 @@ final class ScreenCommanderEngine {
                 pointPixelScale: captured.pointPixelScale,
                 imagePath: imageURL.path,
                 windowID: window.info.windowID,
-                windowBoundsPoints: window.info.boundsPoints
+                windowBoundsPoints: captured.contentBoundsPoints.map(RectD.init) ?? window.info.boundsPoints
             )
 
             try metadataStore.save(metadata: metadata, at: metadataURL, updateLastAt: lastMetadataURL)
