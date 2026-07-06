@@ -71,7 +71,7 @@ Notes:
      open -a "Slack"
      ```
 - Human click semantics in CLI:
-  - `screencommander click ...` is the human-equivalent single click by default (internally compensated as needed).
+  - `screencommander click ...` is the human-equivalent single click by default; when a target app/window is known, focus is handled by activation before the click.
   - Use `--raw` only when you want strict low-level event behavior without that compensation.
 
 **Project**  

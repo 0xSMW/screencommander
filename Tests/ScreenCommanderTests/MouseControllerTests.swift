@@ -3,7 +3,7 @@ import XCTest
 @testable import ScreenCommander
 
 final class MouseControllerTests: XCTestCase {
-    func testHumanLikeSingleClickEmitsFocusCompensationClick() throws {
+    func testHumanLikeSingleClickEmitsExactlyOneClick() throws {
         var eventTypes: [CGEventType] = []
         let controller = MouseController { event, _ in
             eventTypes.append(event.type)
@@ -20,11 +20,11 @@ final class MouseControllerTests: XCTestCase {
             destination: .global
         )
 
-        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 2)
-        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 2)
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 1)
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 1)
     }
 
-    func testHumanLikeDoubleClickEmitsFocusCompensationPlusDoubleClick() throws {
+    func testHumanLikeDoubleClickEmitsExactlyTwoClicks() throws {
         var eventTypes: [CGEventType] = []
         var clickStates: [Int64] = []
         let controller = MouseController { event, _ in
@@ -45,9 +45,9 @@ final class MouseControllerTests: XCTestCase {
             destination: .global
         )
 
-        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 3)
-        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 3)
-        XCTAssertEqual(clickStates, [1, 1, 2])
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseDown }.count, 2)
+        XCTAssertEqual(eventTypes.filter { $0 == .leftMouseUp }.count, 2)
+        XCTAssertEqual(clickStates, [1, 2])
     }
 
     func testRawSingleClickEmitsExactLowLevelClick() throws {

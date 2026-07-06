@@ -167,7 +167,7 @@ final class MCPToolRegistry {
                 "double": boolProp("Double-click."),
                 "triple": boolProp("Triple-click."),
                 "prime": boolProp("Post a priming mouse-move before clicking."),
-                "raw": boolProp("Disable the human-like focus-compensation click."),
+                "raw": boolProp("Disable human-like cursor priming and target-app activation."),
                 "modifiers": arrayProp("Modifier keys held during the click.", itemType: "string"),
                 "element": stringProp("Element title/label substring (alternative to x/y)."),
                 "elementId": stringProp("Element id from the elements tool."),

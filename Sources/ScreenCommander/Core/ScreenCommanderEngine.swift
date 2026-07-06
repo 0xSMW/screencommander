@@ -218,6 +218,12 @@ final class ScreenCommanderEngine {
         )
         let point = CGPoint(x: resolved.globalX, y: resolved.globalY)
 
+        try await activateCoordinateTargetIfKnown(
+            request: request,
+            metadata: metadata,
+            destination: destination
+        )
+
         // Pre-click validation: what does the AX hit test say lives at this point?
         var verifiedTarget: AXElementRecord?
         if request.verifyTarget {
@@ -318,6 +324,46 @@ final class ScreenCommanderEngine {
 
         throw lastFailure
             ?? ScreenCommanderError.elementNotActionable("No delivery tier could act on the element.")
+    }
+
+    /// Focus is handled with app/window activation, not by spending a physical
+    /// priming click. Coordinate clicks know a target only when the caller passes
+    /// `--app` or when window metadata is being reused; display screenshots have no
+    /// safe way to infer the intended app from a point.
+    private func activateCoordinateTargetIfKnown(
+        request: ClickRequest,
+        metadata: ScreenshotMetadata,
+        destination: MouseEventDestination
+    ) async throws {
+        guard request.humanLike, destination == .global else {
+            return
+        }
+
+        if let appIdentifier = request.appIdentifier {
+            let app = try await targets.resolveApp(identifier: appIdentifier)
+            try activateIfNeeded(app)
+            return
+        }
+
+        if let windowID = metadata.windowID {
+            let window = try await targets.resolveWindow(identifier: String(windowID), app: nil)
+            guard window.info.pid > 0 else {
+                throw ScreenCommanderError.appNotFound(
+                    "Window \(windowID) has no owning app PID; cannot activate before click."
+                )
+            }
+            try activateIfNeeded(
+                ResolvedApp(pid: window.info.pid, name: window.info.appName, bundleID: nil)
+            )
+        }
+    }
+
+    private func activateIfNeeded(_ app: ResolvedApp) throws {
+        guard frontmostApp()?.pid != app.pid else {
+            return
+        }
+        try activateApp(app)
+        usleep(120_000)
     }
 
     /// AX-tier click: coordinate-free `AXPress` (left) / `AXShowMenu` (right) on a

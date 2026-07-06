@@ -24,7 +24,7 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 3. Use Retina-aware screenshot pixel coordinates (image pixel space, top-left origin), not guessed point-space values.
 4. Default action behavior includes before/after screenshots (`preshot` + `postshot`).
 5. Use `--no-postshot` only when you explicitly want less output/faster runs, but it is not recommended.
-6. Default `click` is human-equivalent (compensated); use `--raw` only for strict low-level behavior.
+6. Default `click` activates a known target app/window before posting the click; use `--raw` only for strict low-level behavior.
 7. Default `type` mode is `paste` (`cmd+v`) for reliable full payload input.
 8. Prefer managed defaults (`~/Library/Caches/screencommander/...`); use explicit `--out`/`--meta` only when you need custom paths or a specific historical capture.
 

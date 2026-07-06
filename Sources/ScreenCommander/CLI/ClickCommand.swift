@@ -58,7 +58,7 @@ struct ClickCommand: ParsableCommand {
     @Flag(name: .long, help: "Send an extra priming mouse-move first (useful when first action only positions cursor).")
     var prime: Bool = false
 
-    @Flag(name: .long, help: "Use raw click events without human-like focus compensation.")
+    @Flag(name: .long, help: "Use raw click events without human-like cursor priming or target-app activation.")
     var raw: Bool = false
 
     @Flag(
