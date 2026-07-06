@@ -2,13 +2,13 @@
 
 <img width="900" height="525" alt="image" src="https://github.com/user-attachments/assets/ea6eccab-5db4-4df1-b8e3-741914167e2d" />
 
-`screencommander` is a macOS 14+ CLI that drives a terminal-first observe -> decide -> act automation loop for agents to operate the desktop through computer use:
+`screencommander` is a macOS 14+ CLI and MCP server that gives agents an observe → decide → act loop over the desktop, accessibility-first: read the screen as structured data when possible, capture pixels when needed, and act without taking the user's mouse.
 
-1. Observe with Retina-aware screenshot capture
-2. Decide with deterministic coordinate mapping from metadata
-3. Act with global mouse and keyboard event synthesis
+1. **Observe** — Retina-aware screenshots (full display or a single window), the accessibility tree as structured elements or plain text (`elements`, ~30–80 ms with no capture), a real-time stream of UI-change events (`observe`), and a pre/post frame diff on every action that answers "did that do anything?" without re-reading images.
+2. **Decide** — deterministic coordinate mapping from capture metadata (pixels, points, or normalized → global points, window-relative included), element ids and bounds that are directly clickable, and `--until` predicates for blocking until the UI reaches a state.
+3. **Act** — click, scroll, drag, hover, type, and key chords, delivered through a tier ladder: coordinate-free accessibility actions → process-targeted events posted straight to an app (cursor untouched, works on background windows) → global event synthesis. `--no-cursor` guarantees the pointer never moves.
 
-This is also compatible with non-vision model workflows (for example `codex-5.3-codex-spark`) by relying on coordinate + metadata control rather than in-model screenshot understanding.
+Vision models work from screenshots and pixel coordinates; non-vision models (for example `codex-5.3-codex-spark`) work from the element tree and text alone — same commands, same JSON envelopes. `serve --mcp` exposes the entire surface as MCP tools with screenshots returned in-band.
 
 ## Requirements
 
