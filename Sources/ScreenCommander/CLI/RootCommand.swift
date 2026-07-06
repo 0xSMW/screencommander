@@ -33,12 +33,27 @@ enum OutputOptions {
     }
 
     /// Resolve effective format: per-command --json > pre-scanned/root --output > env > human.
-    static func effective(jsonFlag: Bool) -> (format: OutputFormat, compact: Bool) {
-        let format: OutputFormat = jsonFlag
-            ? .json
-            : (preScanned.output?.lowercased() == "json" ? .json : (ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"]?.lowercased() == "json" ? .json : .human))
+    static func effective(jsonFlag: Bool) throws -> (format: OutputFormat, compact: Bool) {
+        let format: OutputFormat
+        if jsonFlag {
+            format = .json
+        } else if let output = preScanned.output {
+            format = try parseOutputFormat(output)
+        } else if let env = ProcessInfo.processInfo.environment["SCREENCOMMANDER_OUTPUT"] {
+            format = try parseOutputFormat(env)
+        } else {
+            format = .human
+        }
         let compact = preScanned.compact || ProcessInfo.processInfo.environment["SCREENCOMMANDER_JSON_COMPACT"] == "1"
         return (format, compact)
+    }
+
+    private static func parseOutputFormat(_ raw: String) throws -> OutputFormat {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let format = OutputFormat(rawValue: value) else {
+            throw ScreenCommanderError.invalidArguments("--output must be 'human' or 'json'.")
+        }
+        return format
     }
 }
 

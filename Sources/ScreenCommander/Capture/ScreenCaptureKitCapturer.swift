@@ -29,6 +29,12 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
         guard let display = Self.displayContaining(windowFrame, in: content.displays) else {
             throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on a capturable display.")
         }
+        guard display.frame.contains(windowFrame) else {
+            throw ScreenCommanderError.captureFailed(
+                "Window \(window.info.windowID) spans multiple displays or extends outside display \(display.displayID); "
+                    + "window capture metadata requires one display scale."
+            )
+        }
 
         // Desktop-independent filter: captures the window's own contents regardless
         // of occlusion or z-order (a display filter + sourceRect crops the screen
@@ -46,7 +52,9 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             pointPixelScale = Double(SCContentFilter(display: display, excludingWindows: []).pointPixelScale)
         }
         if !pointPixelScale.isFinite || pointPixelScale < 1 {
-            pointPixelScale = 1
+            throw ScreenCommanderError.captureFailed(
+                "Window \(window.info.windowID) reports an unusable pointPixelScale."
+            )
         }
 
         let widthPixels = (Double(windowFrame.width) * pointPixelScale).rounded()
@@ -103,7 +111,10 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
     func capture(display: ResolvedDisplay, includeCursor: Bool) async throws -> CapturedScreenshot {
         let filter = SCContentFilter(display: display.scDisplay, excludingWindows: [])
         let contentRect = filter.contentRect
-        let pointPixelScale = max(1.0, Double(filter.pointPixelScale))
+        let pointPixelScale = Double(filter.pointPixelScale)
+        guard pointPixelScale.isFinite, pointPixelScale >= 1 else {
+            throw ScreenCommanderError.captureFailed("Display \(display.displayID) reports an unusable pointPixelScale.")
+        }
 
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((Double(contentRect.width) * pointPixelScale).rounded()))

@@ -1766,6 +1766,32 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertNotNil(result.elements[0].boundsPoints)
     }
 
+    func testElementsSurfacesCorruptLastScreenshotMetadata() async {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [AXElementRecord(id: "0", role: "AXWindow", boundsPoints: RectD(x: 0, y: 0, w: 10, h: 10))]
+        )
+
+        let (engine, _, state) = makeElementsEngine(
+            stateName: "elements-corrupt-metadata",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+        try? FileManager.default.createDirectory(
+            at: state.lastMetadataURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? Data("not json".utf8).write(to: state.lastMetadataURL)
+
+        await assertThrows(
+            try await engine.elements(ElementsRequest())
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "metadata_failure")
+        }
+    }
+
     func testElementsTextModePopulatesRenderedText() async throws {
         let reader = FakeAccessibilityReader()
         reader.treeResult = AXTreeResult(
@@ -2194,6 +2220,27 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(fixture.axActions.focusCount, 1, "fallback should focus the element first")
         XCTAssertEqual(fixture.keyboard.pasted, ["hello"])
         XCTAssertEqual(result.deliveryMethod, .global)
+    }
+
+    func testTypeElementDoesNotKeyboardFallbackWhenFocusFails() async {
+        let fixture = makeInputEngineFixture("wp5-type-focus-fails", frontmostApp: Self.targetApp)
+        fixture.reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [buttonRecord(id: "0.3", role: "AXTextField", title: "Name", actions: [])]
+        )
+        fixture.axActions.setValueError = ScreenCommanderError.elementNotActionable("AXValue is read-only here")
+        fixture.axActions.focusError = ScreenCommanderError.elementNotActionable("AXFocused rejected")
+
+        await assertThrows(
+            try await fixture.engine.type(
+                TypeRequest(text: "hello", delayMilliseconds: nil, inputMode: .paste, element: "Name")
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+        }
+        XCTAssertTrue(fixture.keyboard.pasted.isEmpty)
+        XCTAssertTrue(fixture.keyboard.typed.isEmpty)
     }
 
     func testTypeRejectsPidTierAndBareViaAX() async {

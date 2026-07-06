@@ -75,10 +75,10 @@ struct ClickCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "click")
-        defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "click")
+            defer { OutputOptions.current = nil }
             let targetsElement = element != nil || elementId != nil
             var parsedX: Double?
             var parsedY: Double?

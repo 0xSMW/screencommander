@@ -14,11 +14,10 @@ struct WindowsCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (outputFormat, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (outputFormat, compact, "windows")
-        defer { OutputOptions.current = nil }
-
         do {
+            let (outputFormat, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (outputFormat, compact, "windows")
+            defer { OutputOptions.current = nil }
             let request = WindowsRequest(appIdentifier: app)
             let result = try AsyncBridge.run {
                 try await CommandRuntime.engine.windows(request)

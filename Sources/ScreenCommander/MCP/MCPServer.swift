@@ -46,9 +46,15 @@ final class MCPServer {
             return .success(id: id, result: .object([:]))
 
         case "tools/list":
+            guard initialized else {
+                return .failure(id: id, code: JSONRPCErrorCode.invalidRequest, message: "Server must be initialized before tools/list.")
+            }
             return .success(id: id, result: registry.listToolsResult())
 
         case "tools/call":
+            guard initialized else {
+                return .failure(id: id, code: JSONRPCErrorCode.invalidRequest, message: "Server must be initialized before tools/call.")
+            }
             guard let name = request.params?["name"]?.stringValue else {
                 return .failure(id: id, code: JSONRPCErrorCode.invalidParams, message: "tools/call requires a 'name' parameter.")
             }

@@ -24,10 +24,10 @@ struct KeyCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "key")
-        defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "key")
+            defer { OutputOptions.current = nil }
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.key(KeyRequest(chord: chord))
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil

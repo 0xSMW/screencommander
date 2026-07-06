@@ -32,14 +32,22 @@ final class KeyboardController: KeyboardControlling {
 
     func typeByPasting(text: String) throws {
         let pasteboard = NSPasteboard.general
+        let priorContents = PasteboardSnapshot.capture(from: pasteboard)
         pasteboard.clearContents()
 
-        guard pasteboard.setString(text, forType: .string) else {
-            throw ScreenCommanderError.inputSynthesisFailed("Could not set clipboard text for paste input.")
+        do {
+            guard pasteboard.setString(text, forType: .string) else {
+                throw ScreenCommanderError.inputSynthesisFailed("Could not set clipboard text for paste input.")
+            }
+
+            let pasteChord = try KeyCodes.parseChord("cmd+v")
+            try press(chord: pasteChord)
+        } catch {
+            try? priorContents.restore(to: pasteboard)
+            throw error
         }
 
-        let pasteChord = try KeyCodes.parseChord("cmd+v")
-        try press(chord: pasteChord)
+        try priorContents.restore(to: pasteboard)
     }
 
     func press(chord: ParsedKeyChord) throws {
@@ -240,6 +248,43 @@ final class KeyboardController: KeyboardControlling {
             throw ScreenCommanderError.inputSynthesisFailed("Could not create keyboard event source.")
         }
         return source
+    }
+}
+
+private struct PasteboardSnapshot {
+    private struct Item {
+        var values: [(type: NSPasteboard.PasteboardType, data: Data)]
+    }
+
+    private var items: [Item]
+
+    static func capture(from pasteboard: NSPasteboard) -> PasteboardSnapshot {
+        let items = (pasteboard.pasteboardItems ?? []).map { item in
+            Item(values: item.types.compactMap { type in
+                item.data(forType: type).map { (type: type, data: $0) }
+            })
+        }
+        return PasteboardSnapshot(items: items)
+    }
+
+    func restore(to pasteboard: NSPasteboard) throws {
+        pasteboard.clearContents()
+
+        guard !items.isEmpty else {
+            return
+        }
+
+        let pasteboardItems = items.map { item in
+            let restored = NSPasteboardItem()
+            for value in item.values {
+                restored.setData(value.data, forType: value.type)
+            }
+            return restored
+        }
+
+        guard pasteboard.writeObjects(pasteboardItems) else {
+            throw ScreenCommanderError.inputSynthesisFailed("Could not restore previous clipboard contents after paste input.")
+        }
     }
 }
 

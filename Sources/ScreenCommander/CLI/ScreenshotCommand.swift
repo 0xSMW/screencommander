@@ -29,10 +29,10 @@ struct ScreenshotCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (outputFormat, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (outputFormat, compact, "screenshot")
-        defer { OutputOptions.current = nil }
         do {
+            let (outputFormat, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (outputFormat, compact, "screenshot")
+            defer { OutputOptions.current = nil }
             if window != nil {
                 WindowServerConnection.ensureInitialized()
             }

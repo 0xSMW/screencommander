@@ -598,9 +598,8 @@ final class ScreenCommanderEngine {
                 case .global:
                     // Best-effort focus so keystrokes land in the intended field, then
                     // the existing keyboard path.
-                    if let live = try? accessibilityReader.resolve(id: target.record.id, app: target.app) {
-                        try? axActions.focus(on: live)
-                    }
+                    let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+                    try axActions.focus(on: live)
                     try typeViaKeyboard(request)
                     return result(deliveryMethod: .global)
                 case .pid:
@@ -685,7 +684,7 @@ final class ScreenCommanderEngine {
         var elements = tree.elements
         var metadataPath: String?
         let lastMetadataURL = metadataStore.defaultLastMetadataURL
-        if let metadata = try? metadataStore.load(from: lastMetadataURL) {
+        if let metadata = try loadLastMetadataIfAvailable(from: lastMetadataURL) {
             metadataPath = lastMetadataURL.path
             elements = elements.map { record in
                 var record = record
@@ -705,6 +704,17 @@ final class ScreenCommanderEngine {
             elements: elements,
             text: request.includeText ? AXTextRenderer.render(elements) : nil
         )
+    }
+
+    private func loadLastMetadataIfAvailable(from url: URL) throws -> ScreenshotMetadata? {
+        do {
+            return try metadataStore.load(from: url)
+        } catch {
+            if fileManager.fileExists(atPath: url.path) {
+                throw error
+            }
+            return nil
+        }
     }
 
     // MARK: - Element targeting (WP5)

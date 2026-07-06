@@ -36,10 +36,10 @@ struct MoveCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "move")
-        defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "move")
+            defer { OutputOptions.current = nil }
             guard let parsedX = Double(x), parsedX.isFinite,
                   let parsedY = Double(y), parsedY.isFinite else {
                 throw ScreenCommanderError.invalidArguments("x and y must be numeric values.")

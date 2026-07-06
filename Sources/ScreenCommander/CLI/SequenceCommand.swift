@@ -24,10 +24,10 @@ struct SequenceCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "sequence")
-        defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "sequence")
+            defer { OutputOptions.current = nil }
             let fileURL = resolvedURL(for: file)
             let data = try Data(contentsOf: fileURL)
             let sequence = try JSONDecoder().decode(SequenceFile.self, from: data)

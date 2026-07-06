@@ -48,10 +48,10 @@ struct DragCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let (format, compact) = OutputOptions.effective(jsonFlag: json)
-        OutputOptions.current = (format, compact, "drag")
-        defer { OutputOptions.current = nil }
         do {
+            let (format, compact) = try OutputOptions.effective(jsonFlag: json)
+            OutputOptions.current = (format, compact, "drag")
+            defer { OutputOptions.current = nil }
             guard let parsedX1 = Double(x1), parsedX1.isFinite,
                   let parsedY1 = Double(y1), parsedY1.isFinite,
                   let parsedX2 = Double(x2), parsedX2.isFinite,

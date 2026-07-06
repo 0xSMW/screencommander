@@ -60,4 +60,22 @@ final class JSONOutputSchemaTests: XCTestCase {
         XCTAssertEqual(errorObj?["code"] as? String, "invalid_arguments")
         XCTAssertNotNil(errorObj?["message"] as? String)
     }
+
+    func testExplicitHumanOutputOverridesJSONEnvironment() throws {
+        OutputOptions.preScanned = (output: "human", compact: false)
+        defer { OutputOptions.preScanned = (nil, false) }
+
+        let resolved = try OutputOptions.effective(jsonFlag: false)
+
+        XCTAssertEqual(resolved.format, .human)
+    }
+
+    func testInvalidOutputModeThrowsInsteadOfFallingBack() {
+        OutputOptions.preScanned = (output: "jsno", compact: false)
+        defer { OutputOptions.preScanned = (nil, false) }
+
+        XCTAssertThrowsError(try OutputOptions.effective(jsonFlag: false)) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "invalid_arguments")
+        }
+    }
 }

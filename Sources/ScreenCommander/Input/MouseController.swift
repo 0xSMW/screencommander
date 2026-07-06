@@ -169,6 +169,19 @@ extension MouseControlling {
 }
 
 final class MouseController: MouseControlling {
+    private let postEvent: (CGEvent, MouseEventDestination) -> Void
+
+    init(postEvent: @escaping (CGEvent, MouseEventDestination) -> Void = { event, destination in
+        switch destination {
+        case .global:
+            event.post(tap: .cghidEventTap)
+        case .pid(let pid):
+            event.postToPid(pid)
+        }
+    }) {
+        self.postEvent = postEvent
+    }
+
     func click(
         at point: CGPoint,
         button: MouseButtonChoice,
@@ -188,7 +201,7 @@ final class MouseController: MouseControlling {
         }
 
         if humanLike {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
+            try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
             usleep(90_000)
         }
 
@@ -285,11 +298,6 @@ final class MouseController: MouseControlling {
     /// `.global` posts to the HID tap (moves the real cursor); `.pid` posts the same
     /// event to one process via `CGEventPostToPid` (cursor untouched).
     private func post(_ event: CGEvent, to destination: MouseEventDestination) {
-        switch destination {
-        case .global:
-            event.post(tap: .cghidEventTap)
-        case .pid(let pid):
-            event.postToPid(pid)
-        }
+        postEvent(event, destination)
     }
 }
