@@ -2,8 +2,7 @@
 
 Detailed implementation spec for the next capability wave. Scoped 2026-07-06, refined
 2026-07-06 against the codebase at `ef4beb3`. Structured as independent **work packages
-(WP1–WP8)** with explicit dependencies, file-conflict notes, and agent assignments so it
-can be executed as a dynamic multi-agent workflow.
+(WP1–WP8)** with explicit dependencies, file-conflict notes, and acceptance criteria.
 
 ---
 
@@ -84,12 +83,11 @@ must be backward compatible (new optional fields only).
 
 **Live-verification caveat:** unit tests run against fakes and pass headless. Real
 CGEvent/AX/ScreenCaptureKit behavior requires the built binary to hold Accessibility
-and Screen Recording TCC grants — implementation agents must NOT assume they can grant
-these. Each wave ends with a **manual smoke checklist** run by Stephen (listed per WP).
+and Screen Recording TCC grants — implementation must not assume these can be granted headlessly. Each wave ends with a **manual smoke checklist** run by Stephen (listed per WP).
 
 ---
 
-## Reserved identifiers (allocated now so parallel agents don't collide)
+## Reserved identifiers (allocated up front to avoid collisions)
 
 New stable error codes / exit codes (extend `ScreenCommanderError`):
 
@@ -117,8 +115,6 @@ paths from the app element, e.g. `"0.3.2"` (WP4).
 
 **Goal:** agents can read below the fold, drag, hover, and modifier-click.
 **Depends on:** nothing. **Parallel-safe:** yes (worktree).
-**Agent profile:** clear-spec mechanical implementation → **gpt-5.5 via codex wrapper**
-(sonnet-4.6 low-effort wrapper running `codex exec`); review by opus-4.8.
 
 Spec:
 
@@ -162,8 +158,6 @@ hover a dock item, cmd-click a Safari link.
 
 **Goal:** per-window capture and app-scoped operations instead of whole-display.
 **Depends on:** nothing. **Parallel-safe:** yes (worktree).
-**Agent profile:** mostly mechanical, small schema-design surface → **gpt-5.5 via
-codex wrapper**; review by opus-4.8 (metadata/mapping changes are correctness-critical).
 
 Spec:
 
@@ -206,7 +200,6 @@ from that window capture and confirm it lands.
 **Goal:** agents branch on "did the action change anything" without vision tokens.
 **Depends on:** nothing. **Parallel-safe:** yes (worktree); touches
 `CLI/RootCommand.swift` so expect a small integration merge with WP1/WP2.
-**Agent profile:** self-contained algorithm → **gpt-5.5 via codex wrapper**.
 
 Spec:
 
@@ -242,8 +235,6 @@ foundation WP5 and WP7 build on — its internal API quality matters most.
 **Depends on:** WP2 (`TargetResolving.resolveApp`). If run in parallel with WP2, code
 against the `ResolvedApp` shape specified above and let the integrator reconcile.
 **Parallel-safe:** yes (worktree; new files almost exclusively).
-**Agent profile:** hardest package — CF memory management, API design consumed by
-agents (taste-critical) → **fable-5**; independent review by opus-4.8 + codex pass.
 
 Spec:
 
@@ -305,8 +296,6 @@ Settings tree.
 **Depends on:** WP4 (AX module), WP1 (MouseController surface).
 **Parallel-safe with WP7:** yes — WP5 owns `AX/AXActions.swift`, WP7 owns
 `AX/AXObserverStream.swift`; both extend the engine (integration merge expected).
-**Agent profile:** subtle platform behavior (CGEventPostToPid quirks, tier fallback
-semantics) → **fable-5**; review opus-4.8.
 
 Spec — a tiered actuator, tried in order, with the outcome reported:
 
@@ -366,8 +355,6 @@ cursor never moved.
 capture-and-look polling. (Numbered 7 to keep prior item numbering; runs in wave 2.)
 **Depends on:** WP4 (AX module, `AXElementRecord`), WP2 (app resolution).
 **Parallel-safe with WP5:** yes (see WP5 note).
-**Agent profile:** run-loop/lifetime management + streaming protocol design →
-**opus-4.8**; fable-5 review.
 
 Spec:
 
@@ -413,9 +400,6 @@ typing; `observe --app Finder --until 'role=AXWindow title~=Downloads'
 content instead of file paths.
 **Depends on:** WP1–WP5, WP7 (exposes the full tool set in one pass).
 **Parallel-safe:** runs alone in wave 3.
-**Agent profile:** protocol implementation + agent-facing tool API design →
-**opus-4.8**; fable-5 review; consult current MCP spec docs rather than memory for the
-protocol revision.
 
 Spec:
 
@@ -469,39 +453,6 @@ registration, `captureActionScreenshot` signature from WP3, `ActionResultEnvelop
 fields from WP3/WP5), `Persistence/Models.swift` (DTOs from WP1/WP2/WP4),
 `Core/Errors.swift` (codes are pre-allocated above — merges are additive),
 `docs/json-output-schema.md` and README (every WP appends).
-
-## Multi-agent execution notes
-
-Model choices follow `claude.md` (intelligence > taste > cost; escalate without asking
-if output misses the bar; never Haiku):
-
-| Role | Model | Notes |
-|---|---|---|
-| WP1, WP2, WP3 implementation | gpt-5.5 | via codex wrapper (sonnet-4.6 `effort: low` wrapper → `codex exec`); this spec is deliberately complete enough for clear-spec execution |
-| WP4, WP5 implementation | fable-5 | CF memory management + agent-facing API design (taste ≥ 7 required) |
-| WP7, WP8 implementation | opus-4.8 | run-loop/protocol work; taste 8 for the MCP tool surface |
-| Integrator (per wave) | opus-4.8 | merge worktrees in the stated order, resolve hotspots, run full suite |
-| Review gate (per wave) | fable-5 | plus an independent `codex review` second pass |
-| Docs-consistency pass (wave 3) | opus-4.8 | README / SKILL.md / json-output-schema.md agree with `--help` output |
-
-Workflow-shape guidance (dynamic workflow):
-
-- **Phase per wave.** Wave 1: four `agent()` calls with `isolation: 'worktree'`, each
-  given its WP section verbatim plus the ground-truth and reserved-identifier
-  sections. Require structured output: `{ branchOrWorktree, filesTouched[],
-  testsAdded[], swiftTestPassed: bool, deviations[] }` — a WP agent that must deviate
-  from this spec records the deviation rather than silently improvising.
-- **Integration is its own agent**, not a merge script: it rebases/merges the wave's
-  worktrees in the stated order, reconciles hotspot files, and must end with a clean
-  `swift build && swift test`.
-- **Review gate** after integration: reviewer agents get the wave diff and this spec;
-  findings are adversarially verified before being sent back to a fix-up agent.
-- **Manual smoke is a hard stop.** Each wave's per-WP smoke items need live TCC
-  grants; pause the workflow and hand Stephen the checklist rather than having agents
-  fake it.
-- WP text is written to be self-contained (exact types, files, signatures) so
-  implementation agents should not need broad re-exploration — point them at specific
-  files only.
 
 ---
 
