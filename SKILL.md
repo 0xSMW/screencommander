@@ -118,7 +118,7 @@ Rules:
 3. Use `--no-cursor` when a human is using the machine: delivery is restricted to `ax` -> `pid` and the pointer never moves.
 4. `--via ax|pid|global` forces one tier (no fallback); `--strict` makes downgrades fail with exit `72` instead of being recorded.
 5. Read `deliveryMethod` (and `requestedVia`) in JSON output to see which tier actually ran; a downgrade to `global` means the cursor moved.
-6. Exit `70` = element not found (re-run `elements`, adjust the query); exit `72` = found but disabled, or unsupported for the forced tier.
+6. Exit `70` = element not found (re-run `elements`, adjust the query); exit `82` = ambiguous match (use `--element-id` or narrow with `--role`/`--app`); exit `72` = found but disabled, or unsupported for the forced tier.
 7. `type --element` sets the value directly (tier `ax`) — ideal for filling fields in background apps; the fallback focuses the element and pastes.
 8. Element clicks that fall through to `pid`/`global` land on the element's center; the result's `resolved` reports that point in global points.
 
@@ -265,6 +265,7 @@ screencommander focus --app 1234
 | 72 | Element not actionable — disabled, or the forced tier can't express the action |
 | 80 | Window not found — check `windows` output for valid IDs |
 | 81 | App not found — verify app name/PID with `windows` or `ps aux` |
+| 82 | Element ambiguous — use `--element-id` or narrow with `--role`/`--app` |
 
 ## MCP Server Mode (`serve --mcp`)
 

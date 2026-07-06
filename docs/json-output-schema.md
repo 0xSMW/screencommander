@@ -66,6 +66,7 @@ On failure in JSON mode, the same stdout contains:
 | `observe_timeout` | 73 |
 | `window_not_found` | 80 |
 | `app_not_found` | 81 |
+| `element_ambiguous` | 82 |
 
 ## Command result shapes
 

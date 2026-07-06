@@ -18,8 +18,12 @@ final class JSONOutputSchemaTests: XCTestCase {
         XCTAssertEqual(ScreenCommanderError.invalidArguments("x").stableCode, "invalid_arguments")
         XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").stableCode, "ax_tree_unavailable")
         XCTAssertEqual(ScreenCommanderError.axTreeUnavailable("x").exitCode, 71)
+        XCTAssertEqual(ScreenCommanderError.elementNotFound("x").stableCode, "element_not_found")
+        XCTAssertEqual(ScreenCommanderError.elementNotActionable("x").stableCode, "element_not_actionable")
         XCTAssertEqual(ScreenCommanderError.observeTimeout("x").stableCode, "observe_timeout")
         XCTAssertEqual(ScreenCommanderError.observeTimeout("x").exitCode, 73)
+        XCTAssertEqual(ScreenCommanderError.elementAmbiguous("x").stableCode, "element_ambiguous")
+        XCTAssertEqual(ScreenCommanderError.elementAmbiguous("x").exitCode, 82)
     }
 
     // MARK: - Success envelope structure

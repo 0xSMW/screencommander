@@ -139,7 +139,7 @@ Behavior:
 - Defaults to metadata path `~/Library/Caches/screencommander/last-screenshot.json`.
 - Maps screenshot coordinates into global Quartz coordinates deterministically.
 - Supports `--button left|right|middle`, `--double`, `--triple`, and `--modifiers cmd,shift,option,ctrl`.
-- `--element "<title/label substring>"` or `--element-id <id>` clicks an accessibility element instead of coordinates. Resolution happens fresh at click time (ids from `elements` are positional). No match exits `70` (`element_not_found`). Disambiguate substring matches with `--role` and `--app`.
+- `--element "<title/label substring>"` or `--element-id <id>` clicks an accessibility element instead of coordinates. Resolution happens fresh at click time (ids from `elements` are positional). No match exits `70` (`element_not_found`); ambiguous substring matches exit `82` (`element_ambiguous`). Disambiguate with `--element-id`, `--role`, and `--app`.
 - Element clicks use a tiered actuator, tried in order `ax` (AXPress/AXShowMenu — coordinate-free, background-safe) → `pid` (CGEvents posted to one app; cursor stays put) → `global` (classic path; moves the cursor). Downgrades are recorded in the result (`deliveryMethod`), not errors.
 - Disabled elements fail with exit `72` before any fallback tier runs.
 - `--via ax|pid|global` forces one tier with no fallback (`--strict` implied). `--no-cursor` removes the `global` tier so the pointer never moves. `--strict` turns any downgrade into exit `72` (`element_not_actionable`).
@@ -478,3 +478,4 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `73`: `observe --until` predicate unmet within `--timeout-ms`
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)
+- `82`: element ambiguous (`--element` matched multiple best candidates; use `--element-id` or narrow with `--role`/`--app`)

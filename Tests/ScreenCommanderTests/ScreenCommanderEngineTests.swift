@@ -2096,6 +2096,41 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(fixture.mouse.calls.isEmpty)
     }
 
+    func testElementClickAmbiguousSubstringThrows82() async {
+        let fixture = makeElementClickFixture(
+            "wp5-ambiguous-element",
+            records: [
+                buttonRecord(id: "0.1", title: "Save Draft"),
+                buttonRecord(id: "0.2", title: "Save As")
+            ]
+        )
+
+        await assertThrows(
+            try await fixture.engine.click(elementClickRequest(element: "Save"))
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_ambiguous")
+            XCTAssertEqual((error as? ScreenCommanderError)?.exitCode, 82)
+            XCTAssertTrue(String(describing: error).contains("0.1"))
+            XCTAssertTrue(String(describing: error).contains("0.2"))
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        XCTAssertTrue(fixture.axActions.performedActions.isEmpty)
+    }
+
+    func testElementClickExactTitleOutranksSubstring() async throws {
+        let fixture = makeElementClickFixture(
+            "wp5-exact-title",
+            records: [
+                buttonRecord(id: "0.1", title: "Save As"),
+                buttonRecord(id: "0.2", title: "Save")
+            ]
+        )
+
+        let result = try await fixture.engine.click(elementClickRequest(element: "Save"))
+
+        XCTAssertEqual(result.element?.id, "0.2")
+    }
+
     func testElementClickResolvesFreshOnEveryInvocation() async throws {
         let fixture = makeInputEngineFixture("wp5-fresh-resolution", frontmostApp: { Self.targetApp })
         fixture.reader.treeResults = [

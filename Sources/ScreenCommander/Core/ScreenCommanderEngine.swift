@@ -817,15 +817,50 @@ final class ScreenCommanderEngine {
             return ResolvedElementTarget(app: app, record: record)
         }
 
-        guard let query = element,
-              let record = AXElementMatcher.match(records: tree.elements, query: query, role: role) else {
+        guard let query = element else {
             let roleHint = role.map { " with role '\($0)'" } ?? ""
             throw ScreenCommanderError.elementNotFound(
-                "No element matching '\(element ?? "")'\(roleHint) in '\(app.name)'. "
+                "No element matching ''\(roleHint) in '\(app.name)'. "
                     + "Inspect candidates with 'elements --app \(app.name)'."
             )
         }
-        return ResolvedElementTarget(app: app, record: record)
+
+        switch AXElementMatcher.resolve(records: tree.elements, query: query, role: role) {
+        case .found(let record):
+            return ResolvedElementTarget(app: app, record: record)
+        case .ambiguous(let candidates):
+            let roleHint = role.map { " with role '\($0)'" } ?? ""
+            throw ScreenCommanderError.elementAmbiguous(
+                "Element query '\(query)'\(roleHint) matched multiple candidates in '\(app.name)': "
+                    + describeElementCandidates(candidates)
+                    + ". Use --element-id or a narrower --role/--app target."
+            )
+        case nil:
+            let roleHint = role.map { " with role '\($0)'" } ?? ""
+            throw ScreenCommanderError.elementNotFound(
+                "No element matching '\(query)'\(roleHint) in '\(app.name)'. "
+                    + "Inspect candidates with 'elements --app \(app.name)'."
+            )
+        }
+    }
+
+    private func describeElementCandidates(_ records: [AXElementRecord]) -> String {
+        records
+            .prefix(8)
+            .map { record in
+                var parts = ["id \(record.id)", record.role]
+                if let title = record.title, !title.isEmpty {
+                    parts.append("title '\(title)'")
+                }
+                if let description = record.description, !description.isEmpty {
+                    parts.append("description '\(description)'")
+                }
+                if let value = record.value, !value.isEmpty {
+                    parts.append("value '\(value)'")
+                }
+                return "(\(parts.joined(separator: ", ")))"
+            }
+            .joined(separator: ", ")
     }
 
     /// Tier ladder policy: `--via` forces exactly one tier (strict implied);

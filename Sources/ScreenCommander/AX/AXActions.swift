@@ -77,22 +77,39 @@ final class AXActions: AXActionPerforming {
 }
 
 /// Pure element matching for `--element "<title/label substring>"` (+ optional `--role`).
-/// Matching is case-insensitive over `title`, `description`, and `value`; exact title
-/// matches outrank substring matches; ties resolve in tree (depth-first) order.
+/// Matching is case-insensitive over `title`, `description`, and `value`. The best
+/// match tier must be unique; ambiguous substring matches fail instead of silently
+/// selecting tree order.
+enum AXElementMatchResult {
+    case found(AXElementRecord)
+    case ambiguous([AXElementRecord])
+}
+
 enum AXElementMatcher {
-    static func match(records: [AXElementRecord], query: String, role: String?) -> AXElementRecord? {
+    static func resolve(records: [AXElementRecord], query: String, role: String?) -> AXElementMatchResult? {
         let needle = query.lowercased()
         guard !needle.isEmpty else { return nil }
 
-        let candidates = records.filter { record in
-            guard roleMatches(record.role, filter: role) else { return false }
-            return textFields(of: record).contains { $0.contains(needle) }
-        }
+        let roleFiltered = records.filter { roleMatches($0.role, filter: role) }
+        let tiers: [[AXElementRecord]] = [
+            roleFiltered.filter { $0.title?.lowercased() == needle },
+            roleFiltered.filter { nonTitleText(of: $0).contains(needle) },
+            roleFiltered.filter { $0.title?.lowercased().contains(needle) == true },
+            roleFiltered.filter { nonTitleText(of: $0).contains { $0.contains(needle) } },
+        ]
 
-        if let exact = candidates.first(where: { $0.title?.lowercased() == needle }) {
-            return exact
+        guard let best = tiers.first(where: { !$0.isEmpty }) else { return nil }
+        guard best.count == 1, let match = best.first else { return .ambiguous(best) }
+        return .found(match)
+    }
+
+    static func match(records: [AXElementRecord], query: String, role: String?) -> AXElementRecord? {
+        switch resolve(records: records, query: query, role: role) {
+        case .found(let record):
+            return record
+        case .ambiguous, nil:
+            return nil
         }
-        return candidates.first
     }
 
     /// "button" and "AXButton" both match `AXButton`, mirroring the tree walker's
@@ -104,8 +121,8 @@ enum AXElementMatcher {
         return actual == wanted || actual == "ax" + wanted
     }
 
-    private static func textFields(of record: AXElementRecord) -> [String] {
-        [record.title, record.description, record.value]
+    private static func nonTitleText(of record: AXElementRecord) -> [String] {
+        [record.description, record.value]
             .compactMap { $0?.lowercased() }
             .filter { !$0.isEmpty }
     }
