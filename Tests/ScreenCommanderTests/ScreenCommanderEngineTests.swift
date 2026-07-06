@@ -670,7 +670,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(metadataStore.saved[0].at.path, explicitMetadataPath)
         XCTAssertEqual(metadataStore.saved[0].updateLastAt?.path, explicitMetadataPath)
         XCTAssertEqual(imageWriter.writes[0].url.path, explicitImagePath)
-        XCTAssertEqual(retention.calls[0].directory, state.capturesDirectoryURL)
+        XCTAssertTrue(retention.calls.isEmpty, "screenshot must not prune captures for explicit output paths either")
     }
 
     func testClickLoadsDefaultMetadataPathAndMapsPixels() async throws {
