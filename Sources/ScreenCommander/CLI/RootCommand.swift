@@ -245,7 +245,7 @@ enum CommandRuntime {
         switch error {
         case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed, .axTreeUnavailable:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .windowNotFound, .appNotFound:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .windowNotFound, .appNotFound:
             return true
         }
     }

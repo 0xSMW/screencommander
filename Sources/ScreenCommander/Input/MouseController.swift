@@ -113,6 +113,16 @@ enum MouseModifiers {
     ]
 }
 
+/// Where synthesized mouse events are posted.
+///
+/// `.global` posts to `.cghidEventTap` (moves the real cursor); `.pid` posts with
+/// `CGEventPostToPid`, delivering the same events to one app while the user's cursor
+/// stays put ("second mouse", WP5 tier `pid`).
+enum MouseEventDestination: Equatable, Sendable {
+    case global
+    case pid(pid_t)
+}
+
 protocol MouseControlling {
     func click(
         at point: CGPoint,
@@ -121,12 +131,41 @@ protocol MouseControlling {
         tripleClick: Bool,
         primeClick: Bool,
         humanLike: Bool,
-        modifiers: [String]
+        modifiers: [String],
+        destination: MouseEventDestination
     ) throws
 
-    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit) throws
+    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit, destination: MouseEventDestination) throws
     func drag(from start: CGPoint, to end: CGPoint, button: MouseButtonChoice, steps: Int, durationMS: Int) throws
     func move(to point: CGPoint) throws
+}
+
+extension MouseControlling {
+    /// Global-delivery convenience overloads (the pre-WP5 surface).
+    func click(
+        at point: CGPoint,
+        button: MouseButtonChoice,
+        doubleClick: Bool,
+        tripleClick: Bool,
+        primeClick: Bool,
+        humanLike: Bool,
+        modifiers: [String]
+    ) throws {
+        try click(
+            at: point,
+            button: button,
+            doubleClick: doubleClick,
+            tripleClick: tripleClick,
+            primeClick: primeClick,
+            humanLike: humanLike,
+            modifiers: modifiers,
+            destination: .global
+        )
+    }
+
+    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit) throws {
+        try scroll(at: point, dx: dx, dy: dy, unit: unit, destination: .global)
+    }
 }
 
 final class MouseController: MouseControlling {
@@ -137,39 +176,40 @@ final class MouseController: MouseControlling {
         tripleClick: Bool,
         primeClick: Bool,
         humanLike: Bool,
-        modifiers: [String]
+        modifiers: [String],
+        destination: MouseEventDestination
     ) throws {
         let source = CGEventSource(stateID: .hidSystemState)
         let flags = try MouseModifiers.flags(for: modifiers)
 
         if primeClick {
-            try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source)
+            try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
             usleep(80_000)
         }
 
         if humanLike {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
             usleep(90_000)
         }
 
         if tripleClick {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
             usleep(60_000)
-            try postSingleClick(point: point, button: button, clickState: 2, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 2, flags: flags, source: source, destination: destination)
             usleep(60_000)
-            try postSingleClick(point: point, button: button, clickState: 3, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 3, flags: flags, source: source, destination: destination)
         } else if doubleClick {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
             usleep(60_000)
-            try postSingleClick(point: point, button: button, clickState: 2, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 2, flags: flags, source: source, destination: destination)
         } else {
-            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source)
+            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
         }
     }
 
-    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit) throws {
+    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit, destination: MouseEventDestination) throws {
         let source = CGEventSource(stateID: .hidSystemState)
-        try postMouseEvent(type: .mouseMoved, point: point, button: .left, clickState: 0, flags: [], source: source)
+        try postMouseEvent(type: .mouseMoved, point: point, button: .left, clickState: 0, flags: [], source: source, destination: destination)
 
         guard let event = CGEvent(
             scrollWheelEvent2Source: source,
@@ -183,7 +223,7 @@ final class MouseController: MouseControlling {
         }
 
         event.location = point
-        event.post(tap: .cghidEventTap)
+        post(event, to: destination)
     }
 
     func drag(from start: CGPoint, to end: CGPoint, button: MouseButtonChoice, steps: Int, durationMS: Int) throws {
@@ -216,11 +256,12 @@ final class MouseController: MouseControlling {
         button: MouseButtonChoice,
         clickState: Int,
         flags: CGEventFlags,
-        source: CGEventSource?
+        source: CGEventSource?,
+        destination: MouseEventDestination
     ) throws {
-        try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source)
-        try postMouseEvent(type: button.mouseDownType, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source)
-        try postMouseEvent(type: button.mouseUpType, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source)
+        try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source, destination: destination)
+        try postMouseEvent(type: button.mouseDownType, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source, destination: destination)
+        try postMouseEvent(type: button.mouseUpType, point: point, button: button.cgMouseButton, clickState: clickState, flags: flags, source: source, destination: destination)
     }
 
     private func postMouseEvent(
@@ -229,7 +270,8 @@ final class MouseController: MouseControlling {
         button: CGMouseButton,
         clickState: Int,
         flags: CGEventFlags,
-        source: CGEventSource?
+        source: CGEventSource?,
+        destination: MouseEventDestination = .global
     ) throws {
         guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: button) else {
             throw ScreenCommanderError.inputSynthesisFailed("Could not create mouse event for \(type).")
@@ -237,6 +279,17 @@ final class MouseController: MouseControlling {
 
         event.setIntegerValueField(.mouseEventClickState, value: Int64(clickState))
         event.flags = flags
-        event.post(tap: .cghidEventTap)
+        post(event, to: destination)
+    }
+
+    /// `.global` posts to the HID tap (moves the real cursor); `.pid` posts the same
+    /// event to one process via `CGEventPostToPid` (cursor untouched).
+    private func post(_ event: CGEvent, to destination: MouseEventDestination) {
+        switch destination {
+        case .global:
+            event.post(tap: .cghidEventTap)
+        case .pid(let pid):
+            event.postToPid(pid)
+        }
     }
 }

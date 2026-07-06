@@ -13,6 +13,7 @@ final class ScreenCommanderEngine {
     private let keyboardController: KeyboardControlling
     private let retention: CaptureRetentionManaging
     private let accessibilityReader: AccessibilityReading
+    private let axActions: AXActionPerforming
     private let targets: TargetResolving
     private let frontmostApp: () -> ResolvedApp?
     private let activateApp: (ResolvedApp) throws -> Void
@@ -31,6 +32,7 @@ final class ScreenCommanderEngine {
         keyboardController: KeyboardControlling,
         retention: CaptureRetentionManaging,
         accessibilityReader: AccessibilityReading = AXReader(),
+        axActions: AXActionPerforming = AXActions(),
         targets: TargetResolving = Targets(),
         frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
         activateApp: @escaping (ResolvedApp) throws -> Void = AppActivator.activate,
@@ -48,6 +50,7 @@ final class ScreenCommanderEngine {
         self.keyboardController = keyboardController
         self.retention = retention
         self.accessibilityReader = accessibilityReader
+        self.axActions = axActions
         self.targets = targets
         self.frontmostApp = frontmostApp
         self.activateApp = activateApp
@@ -74,6 +77,7 @@ final class ScreenCommanderEngine {
             keyboardController: KeyboardController(),
             retention: CaptureRetentionManager(fileManager: fileManager),
             accessibilityReader: AXReader(),
+            axActions: AXActions(),
             targets: Targets(),
             frontmostApp: FrontmostApp.current,
             activateApp: AppActivator.activate,
@@ -167,33 +171,57 @@ final class ScreenCommanderEngine {
         return FocusResult(app: app, priorApp: priorApp)
     }
 
-    func click(_ request: ClickRequest) throws -> ClickResult {
+    func click(_ request: ClickRequest) async throws -> ClickResult {
         if request.doubleClick && request.triple {
             throw ScreenCommanderError.invalidArguments("--double and --triple are mutually exclusive.")
         }
 
         let modifiers = try MouseModifiers.normalized(request.modifiers)
 
+        if request.element != nil || request.elementID != nil {
+            return try await elementClick(request, modifiers: modifiers)
+        }
+        return try await coordinateClick(request, modifiers: modifiers)
+    }
+
+    private func coordinateClick(_ request: ClickRequest, modifiers: [String]) async throws -> ClickResult {
+        guard let x = request.x, let y = request.y else {
+            throw ScreenCommanderError.invalidArguments("Provide x and y coordinates, or target an element with --element/--element-id.")
+        }
+
         try permissions.ensureAccessibilityAccess(prompt: true)
+        let destination = try await coordinateDestination(
+            via: request.via,
+            noCursor: request.noCursor,
+            appIdentifier: request.appIdentifier
+        )
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
 
         let resolved = try coordinateMapper.map(
-            x: request.x,
-            y: request.y,
+            x: x,
+            y: y,
             space: request.coordinateSpace,
             metadata: metadata
         )
+        let point = CGPoint(x: resolved.globalX, y: resolved.globalY)
+
+        // Pre-click validation: what does the AX hit test say lives at this point?
+        var verifiedTarget: AXElementRecord?
+        if request.verifyTarget {
+            verifiedTarget = try accessibilityReader.elementAt(globalPoint: point)
+        }
 
         try mouseController.click(
-            at: CGPoint(x: resolved.globalX, y: resolved.globalY),
+            at: point,
             button: request.button,
             doubleClick: request.doubleClick,
             tripleClick: request.triple,
             primeClick: request.primeClick,
             humanLike: request.humanLike,
-            modifiers: modifiers
+            modifiers: modifiers,
+            destination: destination
         )
 
         return ClickResult(
@@ -204,22 +232,144 @@ final class ScreenCommanderEngine {
             triple: request.triple,
             primeClick: request.primeClick,
             humanLike: request.humanLike,
-            modifiers: modifiers
+            modifiers: modifiers,
+            requestedVia: request.via,
+            deliveryMethod: deliveryMethod(for: destination),
+            verifiedTarget: verifiedTarget
         )
     }
 
-    func scroll(_ request: ScrollRequest) throws -> ScrollResult {
+    private func elementClick(_ request: ClickRequest, modifiers: [String]) async throws -> ClickResult {
+        guard request.x == nil, request.y == nil else {
+            throw ScreenCommanderError.invalidArguments("Pass either coordinates or --element/--element-id, not both.")
+        }
+        guard !request.verifyTarget else {
+            throw ScreenCommanderError.invalidArguments("--verify-target applies to coordinate clicks only.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+        let target = try await resolveElementTarget(
+            element: request.element,
+            elementID: request.elementID,
+            role: request.role,
+            appIdentifier: request.appIdentifier
+        )
+
+        let tiers = try deliveryTiers(
+            available: [.ax, .pid, .global],
+            via: request.via,
+            noCursor: request.noCursor,
+            strict: request.strict
+        )
+
+        func result(deliveryMethod: InputDeliveryMethod, resolved: ResolvedCoordinate?) -> ClickResult {
+            ClickResult(
+                metadataPath: nil,
+                resolved: resolved,
+                button: request.button,
+                doubleClick: request.doubleClick,
+                triple: request.triple,
+                primeClick: request.primeClick,
+                humanLike: request.humanLike,
+                modifiers: modifiers,
+                requestedVia: request.via,
+                deliveryMethod: deliveryMethod,
+                element: target.record
+            )
+        }
+
+        var lastFailure: Error?
+        for tier in tiers {
+            do {
+                switch tier {
+                case .ax:
+                    try performAXClick(request, modifiers: modifiers, target: target)
+                    return result(deliveryMethod: .ax, resolved: nil)
+                case .pid, .global:
+                    let center = try elementCenter(of: target.record, tier: tier)
+                    let destination: MouseEventDestination = tier == .pid ? .pid(target.app.pid) : .global
+                    try mouseController.click(
+                        at: center,
+                        button: request.button,
+                        doubleClick: request.doubleClick,
+                        tripleClick: request.triple,
+                        primeClick: request.primeClick,
+                        humanLike: request.humanLike,
+                        modifiers: modifiers,
+                        destination: destination
+                    )
+                    return result(deliveryMethod: tier, resolved: elementCenterCoordinate(center))
+                }
+            } catch {
+                lastFailure = error
+            }
+        }
+
+        throw lastFailure
+            ?? ScreenCommanderError.elementNotActionable("No delivery tier could act on the element.")
+    }
+
+    /// AX-tier click: coordinate-free `AXPress` (left) / `AXShowMenu` (right) on a
+    /// freshly resolved element. Anything the AX action vocabulary cannot express
+    /// throws `elementNotActionable` so the tier ladder can fall through.
+    private func performAXClick(_ request: ClickRequest, modifiers: [String], target: ResolvedElementTarget) throws {
+        guard !request.doubleClick, !request.triple, modifiers.isEmpty else {
+            throw ScreenCommanderError.elementNotActionable(
+                "AX actions cannot express double/triple clicks or modifiers; falls through to pid/global delivery."
+            )
+        }
+
+        let action: String
+        switch request.button {
+        case .left:
+            action = kAXPressAction
+        case .right:
+            action = kAXShowMenuAction
+        case .middle:
+            throw ScreenCommanderError.elementNotActionable("AX actions cannot express middle-clicks.")
+        }
+
+        guard target.record.enabled else {
+            throw ScreenCommanderError.elementNotActionable(
+                "Element '\(target.record.id)' (\(target.record.role)) is disabled."
+            )
+        }
+        guard target.record.actions.contains(action) else {
+            throw ScreenCommanderError.elementNotActionable(
+                "Element '\(target.record.id)' (\(target.record.role)) does not support \(action); "
+                    + "supported actions: \(target.record.actions.isEmpty ? "none" : target.record.actions.joined(separator: ", "))."
+            )
+        }
+
+        let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+        try axActions.perform(action: action, on: live)
+    }
+
+    func scroll(_ request: ScrollRequest) async throws -> ScrollResult {
         if request.dx == 0 && request.dy == 0 {
             throw ScreenCommanderError.invalidArguments("At least one of --dx or --dy must be nonzero.")
         }
 
+        if request.element != nil || request.elementID != nil {
+            return try await elementScroll(request)
+        }
+
+        guard let x = request.x, let y = request.y else {
+            throw ScreenCommanderError.invalidArguments("Provide x and y coordinates, or target an element with --element/--element-id.")
+        }
+
         try permissions.ensureAccessibilityAccess(prompt: true)
+        let destination = try await coordinateDestination(
+            via: request.via,
+            noCursor: request.noCursor,
+            appIdentifier: request.appIdentifier
+        )
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
         let resolved = try coordinateMapper.map(
-            x: request.x,
-            y: request.y,
+            x: x,
+            y: y,
             space: request.coordinateSpace,
             metadata: metadata
         )
@@ -228,7 +378,8 @@ final class ScreenCommanderEngine {
             at: CGPoint(x: resolved.globalX, y: resolved.globalY),
             dx: request.dx,
             dy: request.dy,
-            unit: request.unit
+            unit: request.unit,
+            destination: destination
         )
 
         return ScrollResult(
@@ -236,8 +387,64 @@ final class ScreenCommanderEngine {
             resolved: resolved,
             dx: request.dx,
             dy: request.dy,
-            unit: request.unit
+            unit: request.unit,
+            requestedVia: request.via,
+            deliveryMethod: deliveryMethod(for: destination)
         )
+    }
+
+    private func elementScroll(_ request: ScrollRequest) async throws -> ScrollResult {
+        guard request.x == nil, request.y == nil else {
+            throw ScreenCommanderError.invalidArguments("Pass either coordinates or --element/--element-id, not both.")
+        }
+        if request.via == .ax {
+            throw ScreenCommanderError.invalidArguments("scroll has no ax tier (there is no AX scroll action); use --via pid or global.")
+        }
+
+        try permissions.ensureAccessibilityAccess(prompt: true)
+        let target = try await resolveElementTarget(
+            element: request.element,
+            elementID: request.elementID,
+            role: request.role,
+            appIdentifier: request.appIdentifier
+        )
+
+        let tiers = try deliveryTiers(
+            available: [.pid, .global],
+            via: request.via,
+            noCursor: request.noCursor,
+            strict: request.strict
+        )
+
+        var lastFailure: Error?
+        for tier in tiers {
+            do {
+                let center = try elementCenter(of: target.record, tier: tier)
+                let destination: MouseEventDestination = tier == .pid ? .pid(target.app.pid) : .global
+                try mouseController.scroll(
+                    at: center,
+                    dx: request.dx,
+                    dy: request.dy,
+                    unit: request.unit,
+                    destination: destination
+                )
+                return ScrollResult(
+                    metadataPath: nil,
+                    resolved: elementCenterCoordinate(center),
+                    dx: request.dx,
+                    dy: request.dy,
+                    unit: request.unit,
+                    requestedVia: request.via,
+                    deliveryMethod: tier,
+                    element: target.record
+                )
+            } catch {
+                lastFailure = error
+            }
+        }
+
+        throw lastFailure
+            ?? ScreenCommanderError.elementNotActionable("No delivery tier could scroll the element.")
     }
 
     func drag(_ request: DragRequest) throws -> DragResult {
@@ -309,24 +516,101 @@ final class ScreenCommanderEngine {
         )
     }
 
-    func type(_ request: TypeRequest) throws -> TypeResult {
+    func type(_ request: TypeRequest) async throws -> TypeResult {
         if let delay = request.delayMilliseconds, delay < 0 {
             throw ScreenCommanderError.invalidArguments("--delay-ms must be greater than or equal to zero.")
         }
+        if request.via == .pid {
+            throw ScreenCommanderError.invalidArguments("type has no pid tier; use --via ax (with --element) or --via global.")
+        }
+
+        if request.element != nil || request.elementID != nil {
+            return try await elementType(request)
+        }
+
+        if request.via == .ax {
+            throw ScreenCommanderError.invalidArguments("--via ax requires --element or --element-id.")
+        }
 
         try permissions.ensureAccessibilityAccess(prompt: true)
+        try typeViaKeyboard(request)
+
+        return TypeResult(
+            textLength: request.text.count,
+            delayMilliseconds: request.delayMilliseconds,
+            inputMode: request.inputMode,
+            requestedVia: request.via,
+            deliveryMethod: .global
+        )
+    }
+
+    private func elementType(_ request: TypeRequest) async throws -> TypeResult {
+        try permissions.ensureAccessibilityAccess(prompt: true)
+        let target = try await resolveElementTarget(
+            element: request.element,
+            elementID: request.elementID,
+            role: request.role,
+            appIdentifier: request.appIdentifier
+        )
+
+        let tiers = try deliveryTiers(
+            available: [.ax, .global],
+            via: request.via,
+            noCursor: false,
+            strict: request.strict
+        )
+
+        func result(deliveryMethod: InputDeliveryMethod) -> TypeResult {
+            TypeResult(
+                textLength: request.text.count,
+                delayMilliseconds: request.delayMilliseconds,
+                inputMode: request.inputMode,
+                requestedVia: request.via,
+                deliveryMethod: deliveryMethod,
+                element: target.record
+            )
+        }
+
+        var lastFailure: Error?
+        for tier in tiers {
+            do {
+                switch tier {
+                case .ax:
+                    guard target.record.enabled else {
+                        throw ScreenCommanderError.elementNotActionable(
+                            "Element '\(target.record.id)' (\(target.record.role)) is disabled."
+                        )
+                    }
+                    let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+                    try axActions.setValue(request.text, on: live)
+                    return result(deliveryMethod: .ax)
+                case .global:
+                    // Best-effort focus so keystrokes land in the intended field, then
+                    // the existing keyboard path.
+                    if let live = try? accessibilityReader.resolve(id: target.record.id, app: target.app) {
+                        try? axActions.focus(on: live)
+                    }
+                    try typeViaKeyboard(request)
+                    return result(deliveryMethod: .global)
+                case .pid:
+                    throw ScreenCommanderError.invalidArguments("type has no pid tier.")
+                }
+            } catch {
+                lastFailure = error
+            }
+        }
+
+        throw lastFailure
+            ?? ScreenCommanderError.elementNotActionable("No delivery tier could type into the element.")
+    }
+
+    private func typeViaKeyboard(_ request: TypeRequest) throws {
         switch request.inputMode {
         case .paste:
             try keyboardController.typeByPasting(text: request.text)
         case .unicode:
             try keyboardController.type(text: request.text, delayMilliseconds: request.delayMilliseconds)
         }
-
-        return TypeResult(
-            textLength: request.text.count,
-            delayMilliseconds: request.delayMilliseconds,
-            inputMode: request.inputMode
-        )
     }
 
     func key(_ request: KeyRequest) throws -> KeyResult {
@@ -409,6 +693,158 @@ final class ScreenCommanderEngine {
             truncated: tree.truncated,
             elements: elements,
             text: request.includeText ? AXTextRenderer.render(elements) : nil
+        )
+    }
+
+    // MARK: - Element targeting (WP5)
+
+    private struct ResolvedElementTarget {
+        var app: ResolvedApp
+        var record: AXElementRecord
+    }
+
+    /// Resolves `--element`/`--element-id` freshly against the current AX tree —
+    /// ids are positional and must never be trusted across UI changes.
+    private func resolveElementTarget(
+        element: String?,
+        elementID: String?,
+        role: String?,
+        appIdentifier: String?
+    ) async throws -> ResolvedElementTarget {
+        guard element == nil || elementID == nil else {
+            throw ScreenCommanderError.invalidArguments("--element and --element-id are mutually exclusive.")
+        }
+
+        let app: ResolvedApp
+        if let appIdentifier {
+            app = try await targets.resolveApp(identifier: appIdentifier)
+        } else if let frontmost = frontmostApp() {
+            app = frontmost
+        } else {
+            throw ScreenCommanderError.invalidArguments(
+                "Could not determine the frontmost application; pass --app <name|pid>."
+            )
+        }
+
+        let tree = try accessibilityReader.tree(app: app, options: AXTreeOptions())
+
+        if let elementID {
+            guard let record = tree.elements.first(where: { $0.id == elementID }) else {
+                throw ScreenCommanderError.elementNotFound(
+                    "No element with id '\(elementID)' in '\(app.name)'. Ids are positional and "
+                        + "change with the UI — re-read the tree with 'elements --app \(app.name)'."
+                )
+            }
+            return ResolvedElementTarget(app: app, record: record)
+        }
+
+        guard let query = element,
+              let record = AXElementMatcher.match(records: tree.elements, query: query, role: role) else {
+            let roleHint = role.map { " with role '\($0)'" } ?? ""
+            throw ScreenCommanderError.elementNotFound(
+                "No element matching '\(element ?? "")'\(roleHint) in '\(app.name)'. "
+                    + "Inspect candidates with 'elements --app \(app.name)'."
+            )
+        }
+        return ResolvedElementTarget(app: app, record: record)
+    }
+
+    /// Tier ladder policy: `--via` forces exactly one tier (strict implied);
+    /// `--no-cursor` removes `global`; `--strict` keeps only the preferred tier so a
+    /// downgrade becomes an error instead of a recorded fallback.
+    private func deliveryTiers(
+        available: [InputDeliveryMethod],
+        via: InputDeliveryMethod?,
+        noCursor: Bool,
+        strict: Bool
+    ) throws -> [InputDeliveryMethod] {
+        if let via {
+            guard available.contains(via) else {
+                throw ScreenCommanderError.invalidArguments(
+                    "--via \(via.rawValue) is not supported here; use \(available.map(\.rawValue).joined(separator: " or "))."
+                )
+            }
+            guard !(noCursor && via == .global) else {
+                throw ScreenCommanderError.invalidArguments("--no-cursor cannot be combined with --via global.")
+            }
+            return [via]
+        }
+
+        var tiers = available
+        if noCursor {
+            tiers.removeAll { $0 == .global }
+        }
+        guard !tiers.isEmpty else {
+            throw ScreenCommanderError.invalidArguments("--no-cursor leaves no usable delivery tier for this action.")
+        }
+        if strict {
+            tiers = [tiers[0]]
+        }
+        return tiers
+    }
+
+    /// Delivery destination for coordinate-targeted actions. Coordinate actions keep
+    /// the historical global default; `pid` delivery needs `--app` to know where to post.
+    private func coordinateDestination(
+        via: InputDeliveryMethod?,
+        noCursor: Bool,
+        appIdentifier: String?
+    ) async throws -> MouseEventDestination {
+        func pidDestination() async throws -> MouseEventDestination {
+            guard let appIdentifier else {
+                throw ScreenCommanderError.invalidArguments(
+                    "pid delivery for a coordinate action requires --app <name|pid> so events can be posted to that app."
+                )
+            }
+            let app = try await targets.resolveApp(identifier: appIdentifier)
+            return .pid(app.pid)
+        }
+
+        switch via {
+        case .ax:
+            throw ScreenCommanderError.invalidArguments("--via ax requires --element or --element-id.")
+        case .pid:
+            return try await pidDestination()
+        case .global:
+            guard !noCursor else {
+                throw ScreenCommanderError.invalidArguments("--no-cursor cannot be combined with --via global.")
+            }
+            return .global
+        case nil:
+            if noCursor {
+                return try await pidDestination()
+            }
+            return .global
+        }
+    }
+
+    private func deliveryMethod(for destination: MouseEventDestination) -> InputDeliveryMethod {
+        switch destination {
+        case .global:
+            return .global
+        case .pid:
+            return .pid
+        }
+    }
+
+    /// Center of the element's reported frame, in global top-left-origin points —
+    /// the coordinate space CGEvents expect.
+    private func elementCenter(of record: AXElementRecord, tier: InputDeliveryMethod) throws -> CGPoint {
+        guard let bounds = record.boundsPoints else {
+            throw ScreenCommanderError.elementNotActionable(
+                "Element '\(record.id)' (\(record.role)) reports no frame; cannot deliver via \(tier.rawValue)."
+            )
+        }
+        return CGPoint(x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2)
+    }
+
+    private func elementCenterCoordinate(_ center: CGPoint) -> ResolvedCoordinate {
+        ResolvedCoordinate(
+            inputX: Double(center.x),
+            inputY: Double(center.y),
+            space: .points,
+            globalX: Double(center.x),
+            globalY: Double(center.y)
         )
     }
 

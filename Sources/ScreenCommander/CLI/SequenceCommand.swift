@@ -86,33 +86,49 @@ struct SequenceCommand: ParsableCommand {
     private func runStep(_ step: SequenceStep) throws -> StepActionResult {
         switch step {
         case .click(let click):
-            let result = try CommandRuntime.engine.click(
-                ClickRequest(
-                    x: click.x,
-                    y: click.y,
-                    coordinateSpace: click.space ?? .pixels,
-                    metadataPath: click.meta,
-                    button: click.button ?? .left,
-                    doubleClick: click.double ?? false,
-                    triple: click.triple ?? false,
-                    primeClick: click.prime ?? false,
-                    humanLike: !(click.raw ?? false),
-                    modifiers: try MouseModifiers.parse(click.modifiers)
-                )
+            let request = ClickRequest(
+                x: click.x,
+                y: click.y,
+                coordinateSpace: click.space ?? .pixels,
+                metadataPath: click.meta,
+                button: click.button ?? .left,
+                doubleClick: click.double ?? false,
+                triple: click.triple ?? false,
+                primeClick: click.prime ?? false,
+                humanLike: !(click.raw ?? false),
+                modifiers: try MouseModifiers.parse(click.modifiers),
+                element: click.element,
+                elementID: click.elementId,
+                role: click.role,
+                appIdentifier: click.app,
+                via: click.via,
+                noCursor: click.noCursor ?? false,
+                strict: click.strict ?? false
             )
+            let result = try AsyncBridge.run {
+                try await CommandRuntime.engine.click(request)
+            }
             return StepActionResult(action: "click", click: result)
         case .scroll(let scroll):
-            let result = try CommandRuntime.engine.scroll(
-                ScrollRequest(
-                    x: scroll.x,
-                    y: scroll.y,
-                    coordinateSpace: scroll.space ?? .pixels,
-                    metadataPath: scroll.meta,
-                    dx: scroll.dx ?? 0,
-                    dy: scroll.dy,
-                    unit: scroll.unit ?? .lines
-                )
+            let request = ScrollRequest(
+                x: scroll.x,
+                y: scroll.y,
+                coordinateSpace: scroll.space ?? .pixels,
+                metadataPath: scroll.meta,
+                dx: scroll.dx ?? 0,
+                dy: scroll.dy,
+                unit: scroll.unit ?? .lines,
+                element: scroll.element,
+                elementID: scroll.elementId,
+                role: scroll.role,
+                appIdentifier: scroll.app,
+                via: scroll.via,
+                noCursor: scroll.noCursor ?? false,
+                strict: scroll.strict ?? false
             )
+            let result = try AsyncBridge.run {
+                try await CommandRuntime.engine.scroll(request)
+            }
             return StepActionResult(action: "scroll", scroll: result)
         case .drag(let drag):
             let result = try CommandRuntime.engine.drag(
@@ -141,13 +157,20 @@ struct SequenceCommand: ParsableCommand {
             )
             return StepActionResult(action: "move", move: result)
         case .type(let type):
-            let result = try CommandRuntime.engine.type(
-                TypeRequest(
-                    text: type.text,
-                    delayMilliseconds: type.delayMS,
-                    inputMode: type.mode ?? .paste
-                )
+            let request = TypeRequest(
+                text: type.text,
+                delayMilliseconds: type.delayMS,
+                inputMode: type.mode ?? .paste,
+                element: type.element,
+                elementID: type.elementId,
+                role: type.role,
+                appIdentifier: type.app,
+                via: type.via,
+                strict: type.strict ?? false
             )
+            let result = try AsyncBridge.run {
+                try await CommandRuntime.engine.type(request)
+            }
             return StepActionResult(action: "type", type: result)
         case .key(let key):
             let result = try CommandRuntime.engine.key(KeyRequest(chord: key.chord))
@@ -289,8 +312,8 @@ enum SequenceStep: Decodable {
 }
 
 struct SequenceClickStep: Decodable {
-    var x: Double
-    var y: Double
+    var x: Double?
+    var y: Double?
     var space: CoordinateSpace?
     var meta: String?
     var button: MouseButtonChoice?
@@ -299,17 +322,31 @@ struct SequenceClickStep: Decodable {
     var modifiers: String?
     var prime: Bool?
     var raw: Bool?
+    var element: String?
+    var elementId: String?
+    var role: String?
+    var app: String?
+    var via: InputDeliveryMethod?
+    var noCursor: Bool?
+    var strict: Bool?
     var noDiff: Bool?
 }
 
 struct SequenceScrollStep: Decodable {
-    var x: Double
-    var y: Double
+    var x: Double?
+    var y: Double?
     var dx: Int32?
     var dy: Int32
     var unit: ScrollUnit?
     var space: CoordinateSpace?
     var meta: String?
+    var element: String?
+    var elementId: String?
+    var role: String?
+    var app: String?
+    var via: InputDeliveryMethod?
+    var noCursor: Bool?
+    var strict: Bool?
     var noDiff: Bool?
 }
 
@@ -339,6 +376,12 @@ struct SequenceTypeStep: Decodable {
     var text: String
     var delayMS: Int?
     var mode: TextInputMode?
+    var element: String?
+    var elementId: String?
+    var role: String?
+    var app: String?
+    var via: InputDeliveryMethod?
+    var strict: Bool?
     var noDiff: Bool?
 }
 

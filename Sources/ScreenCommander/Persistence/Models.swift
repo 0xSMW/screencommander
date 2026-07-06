@@ -49,8 +49,9 @@ struct ScreenshotResult: Codable, Sendable {
 }
 
 struct ClickRequest {
-    var x: Double
-    var y: Double
+    /// Coordinate targeting; nil when targeting an element instead.
+    var x: Double?
+    var y: Double?
     var coordinateSpace: CoordinateSpace
     var metadataPath: String?
     var button: MouseButtonChoice
@@ -59,35 +60,76 @@ struct ClickRequest {
     var primeClick: Bool
     var humanLike: Bool
     var modifiers: [String]
+    /// Element targeting (`--element`): title/label substring, resolved fresh at click time.
+    var element: String? = nil
+    /// Element targeting (`--element-id`): dot-joined child-index path from `elements`.
+    var elementID: String? = nil
+    /// Optional role filter to disambiguate `--element` matches ("button" or "AXButton").
+    var role: String? = nil
+    /// `--app`: pid or name of the app owning the element; nil = frontmost app.
+    var appIdentifier: String? = nil
+    /// `--via`: force one delivery tier (no fallback; strict implied).
+    var via: InputDeliveryMethod? = nil
+    /// `--no-cursor`: never fall back to global delivery (the real cursor stays put).
+    var noCursor: Bool = false
+    /// `--strict`: tier downgrades become errors instead of being recorded.
+    var strict: Bool = false
+    /// `--verify-target`: hit-test the mapped point and include the element in the result.
+    var verifyTarget: Bool = false
 }
 
 struct ClickResult: Codable, Sendable {
-    var metadataPath: String
-    var resolved: ResolvedCoordinate
+    /// Present for coordinate clicks only.
+    var metadataPath: String?
+    /// The mapped coordinate. For element clicks this is the element's center in
+    /// global points (space `points`) when delivery needed a point; nil for AX delivery.
+    var resolved: ResolvedCoordinate?
     var button: MouseButtonChoice
     var doubleClick: Bool
     var triple: Bool
     var primeClick: Bool
     var humanLike: Bool
     var modifiers: [String]
+    /// The tier forced with `--via`, when one was.
+    var requestedVia: InputDeliveryMethod? = nil
+    /// The tier that actually delivered the input.
+    var deliveryMethod: InputDeliveryMethod = .global
+    /// The resolved element record, for element clicks.
+    var element: AXElementRecord? = nil
+    /// The element hit-tested at the mapped point (`--verify-target`).
+    var verifiedTarget: AXElementRecord? = nil
 }
 
 struct ScrollRequest {
-    var x: Double
-    var y: Double
+    /// Coordinate targeting; nil when targeting an element instead.
+    var x: Double?
+    var y: Double?
     var coordinateSpace: CoordinateSpace
     var metadataPath: String?
     var dx: Int32
     var dy: Int32
     var unit: ScrollUnit
+    /// Element targeting; see `ClickRequest`. Scroll has no AX tier (`pid`/`global` only).
+    var element: String? = nil
+    var elementID: String? = nil
+    var role: String? = nil
+    var appIdentifier: String? = nil
+    var via: InputDeliveryMethod? = nil
+    var noCursor: Bool = false
+    var strict: Bool = false
 }
 
 struct ScrollResult: Codable, Sendable {
-    var metadataPath: String
-    var resolved: ResolvedCoordinate
+    /// Present for coordinate scrolls only.
+    var metadataPath: String?
+    /// The mapped coordinate (element scrolls report the element's center in points).
+    var resolved: ResolvedCoordinate?
     var dx: Int32
     var dy: Int32
     var unit: ScrollUnit
+    var requestedVia: InputDeliveryMethod? = nil
+    var deliveryMethod: InputDeliveryMethod = .global
+    var element: AXElementRecord? = nil
 }
 
 struct DragRequest {
@@ -129,12 +171,23 @@ struct TypeRequest {
     var text: String
     var delayMilliseconds: Int?
     var inputMode: TextInputMode
+    /// Element targeting; see `ClickRequest`. Tier `ax` writes `AXValue` directly;
+    /// the fallback focuses the element and uses the keyboard path (`global`).
+    var element: String? = nil
+    var elementID: String? = nil
+    var role: String? = nil
+    var appIdentifier: String? = nil
+    var via: InputDeliveryMethod? = nil
+    var strict: Bool = false
 }
 
 struct TypeResult: Codable, Sendable {
     var textLength: Int
     var delayMilliseconds: Int?
     var inputMode: TextInputMode
+    var requestedVia: InputDeliveryMethod? = nil
+    var deliveryMethod: InputDeliveryMethod = .global
+    var element: AXElementRecord? = nil
 }
 
 enum TextInputMode: String, Codable, Sendable {

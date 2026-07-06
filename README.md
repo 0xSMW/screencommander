@@ -124,11 +124,25 @@ screencommander click 640 320 --modifiers cmd,shift
 screencommander click 640 320 --triple
 ```
 
+Pointer-free element clicks (no coordinates, cursor untouched):
+
+```bash
+screencommander click --element "General" --app "System Settings" --no-cursor
+screencommander click --element-id 0.3.2 --app Safari
+screencommander click --element "Save" --role button --via ax
+screencommander click 640 320 --verify-target
+```
+
 Behavior:
 
 - Defaults to metadata path `~/Library/Caches/screencommander/last-screenshot.json`.
 - Maps screenshot coordinates into global Quartz coordinates deterministically.
 - Supports `--button left|right|middle`, `--double`, `--triple`, and `--modifiers cmd,shift,option,ctrl`.
+- `--element "<title/label substring>"` or `--element-id <id>` clicks an accessibility element instead of coordinates. Resolution happens fresh at click time (ids from `elements` are positional). No match exits `70` (`element_not_found`). Disambiguate substring matches with `--role` and `--app`.
+- Element clicks use a tiered actuator, tried in order `ax` (AXPress/AXShowMenu — coordinate-free, background-safe) → `pid` (CGEvents posted to one app; cursor stays put) → `global` (classic path; moves the cursor). Downgrades are recorded in the result (`deliveryMethod`), not errors.
+- `--via ax|pid|global` forces one tier with no fallback (`--strict` implied). `--no-cursor` removes the `global` tier so the pointer never moves. `--strict` turns any downgrade into exit `72` (`element_not_actionable`).
+- Coordinate clicks keep the historical `global` delivery; `--via pid` with `--app <name|pid>` posts a coordinate click to one app instead.
+- `--verify-target` (coordinate clicks) hit-tests the mapped point via accessibility first and includes the element found there in the result.
 - Captures pre-action and post-action screenshots by default and prints both paths.
 - Compares pre-action and post-action screenshots and reports a changed region when pixels differ.
 - Disable before/after capture with `--no-postshot`.
@@ -142,11 +156,19 @@ screencommander scroll 640 800 --dy 300 --unit pixels
 screencommander scroll 640 800 --dx 2 --dy 0
 ```
 
+Element-targeted and pid-delivered scrolling:
+
+```bash
+screencommander scroll --element "Content" --app Safari --dy -5
+screencommander scroll 640 800 --dy -5 --via pid --app Safari
+```
+
 Behavior:
 
 - Maps the target point through screenshot metadata, moves the cursor there, then posts a scroll event.
 - Uses line units by default; pass `--unit pixels` for pixel scrolling.
 - Requires at least one nonzero delta across `--dx` and `--dy`.
+- `--element`/`--element-id` scrolls at an element's center. There is no AX scroll action, so element scrolls try `pid` then `global`; `--no-cursor` restricts to `pid`; `--via pid|global` forces a tier. The result records `deliveryMethod`.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
 
 ### Drag
@@ -188,9 +210,17 @@ With per-character delay and JSON output:
 screencommander type "delayed text" --mode unicode --delay-ms 50 --json
 ```
 
+Typing into an element without keyboard focus games:
+
+```bash
+screencommander type "user@example.com" --element "Email" --app Safari
+screencommander type "hello" --element-id 0.4.1 --via ax
+```
+
 Behavior:
 
 - Defaults to paste mode (`cmd+v`) for reliable full-text input.
+- `--element`/`--element-id` targets an accessibility element: tier `ax` sets `AXValue` directly (works on background apps), falling back to focusing the element and using the keyboard path (`global`). `type` has no `pid` tier. `--via ax|global` forces a tier; `--strict` turns downgrades into exit `72`.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
 - Compares pre-action and post-action screenshots by default (`--no-diff` to disable).
 
@@ -282,6 +312,7 @@ Behavior:
 
 - Executes steps in order.
 - Step keys are exactly one of `click`, `scroll`, `drag`, `move`, `type`, `key`, or `sleep`.
+- `click`, `scroll`, and `type` steps accept the element-targeting fields `element`, `elementId`, `role`, `app`, `via`, `noCursor` (`click`/`scroll`), and `strict`, mirroring the CLI options (for example `{ "click": { "element": "Save", "app": "TextEdit", "via": "ax" } }`).
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
 - Compares each step's pre-action and post-action screenshots by default. Use command-level `--no-diff` or a step-level `noDiff: true` field to disable comparison.
@@ -388,6 +419,8 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `41`: mapping failed
 - `50`: input synthesis failed
 - `60`: invalid arguments or chord parse
+- `70`: element not found (`--element`/`--element-id` matched nothing)
 - `71`: target app exposes no usable accessibility (AX) tree
+- `72`: element not actionable (found but disabled or action unsupported, under `--strict`/`--via`)
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)

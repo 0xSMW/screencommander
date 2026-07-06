@@ -10,7 +10,9 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
     case mappingFailed(String)
     case inputSynthesisFailed(String)
     case invalidArguments(String)
+    case elementNotFound(String)
     case axTreeUnavailable(String)
+    case elementNotActionable(String)
     case windowNotFound(String)
     case appNotFound(String)
 
@@ -34,8 +36,12 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return 50
         case .invalidArguments:
             return 60
+        case .elementNotFound:
+            return 70
         case .axTreeUnavailable:
             return 71
+        case .elementNotActionable:
+            return 72
         case .windowNotFound:
             return 80
         case .appNotFound:
@@ -63,8 +69,12 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Input synthesis failed: \(message)"
         case .invalidArguments(let message):
             return "Invalid arguments: \(message)"
+        case .elementNotFound(let message):
+            return "Element not found: \(message)"
         case .axTreeUnavailable(let message):
             return "Accessibility tree unavailable: \(message)"
+        case .elementNotActionable(let message):
+            return "Element not actionable: \(message)"
         case .windowNotFound(let message):
             return "Window not found: \(message)"
         case .appNotFound(let message):
@@ -84,7 +94,9 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
         case .mappingFailed: return "mapping_failed"
         case .inputSynthesisFailed: return "input_synthesis_failed"
         case .invalidArguments: return "invalid_arguments"
+        case .elementNotFound: return "element_not_found"
         case .axTreeUnavailable: return "ax_tree_unavailable"
+        case .elementNotActionable: return "element_not_actionable"
         case .windowNotFound: return "window_not_found"
         case .appNotFound: return "app_not_found"
         }

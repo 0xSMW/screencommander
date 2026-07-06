@@ -93,6 +93,34 @@ Rules:
 3. Element ids (`0.3.2`) are positional child-index paths — they go stale when the UI changes. Re-run `elements` after each action instead of caching ids.
 4. Results are capped (`--max-elements`, default 2000, `truncated: true` when hit); narrow with `--roles`, `--visible-only`, or `--window-id` on busy apps.
 
+## Pointer-Free Input (Element Clicks, `--via`, `--no-cursor`)
+
+Act on apps without coordinates — and without stealing the user's cursor:
+
+```bash
+screencommander click --element "General" --app "System Settings" --no-cursor
+screencommander click --element-id 0.3.2 --app Safari
+screencommander type "user@example.com" --element "Email" --app Safari
+screencommander scroll --element "Content" --app Safari --dy -5
+```
+
+How it works — a tiered actuator, tried in order, with the outcome reported:
+
+1. `ax`: `AXPress`/`AXShowMenu`/`AXValue` writes — coordinate-free, works on background apps, immune to concurrent user mouse movement.
+2. `pid`: the same CGEvents posted only to that app (`CGEventPostToPid`) — the real cursor never moves. Some apps ignore events while unfocused; check the frame diff or re-read `elements` to confirm effect.
+3. `global`: the classic path — moves the real cursor.
+
+Rules:
+
+1. Prefer `click --element` over coordinate clicks whenever `elements` shows the target: no stale-coordinate risk, no cursor theft.
+2. `--element` matches a case-insensitive title/label substring; disambiguate with `--role button` and `--app <name|pid>`. `--element-id` uses ids from `elements` (positional — always re-read, never cache).
+3. Use `--no-cursor` when a human is using the machine: delivery is restricted to `ax` -> `pid` and the pointer never moves.
+4. `--via ax|pid|global` forces one tier (no fallback); `--strict` makes downgrades fail with exit `72` instead of being recorded.
+5. Read `deliveryMethod` (and `requestedVia`) in JSON output to see which tier actually ran; a downgrade to `global` means the cursor moved.
+6. Exit `70` = element not found (re-run `elements`, adjust the query); exit `72` = found but disabled/unsupported for the forced tier.
+7. `type --element` sets the value directly (tier `ax`) — ideal for filling fields in background apps; the fallback focuses the element and pastes.
+8. Element clicks that fall through to `pid`/`global` land on the element's center; the result's `resolved` reports that point in global points.
+
 ## Ordered Multi-Step Automation
 
 Use `sequence` for one-shot ordered workflows (`click` -> `scroll` -> `move` -> `type` -> `key`).
@@ -114,6 +142,12 @@ Example:
     { "key": { "chord": "enter" } }
   ]
 }
+```
+
+`click`, `scroll`, and `type` steps also accept the pointer-free fields `element`, `elementId`, `role`, `app`, `via`, `noCursor` (click/scroll), and `strict`:
+
+```json
+{ "click": { "element": "Save", "app": "TextEdit", "noCursor": true } }
 ```
 
 ## Troubleshooting
@@ -207,5 +241,7 @@ screencommander focus --app 1234
 
 | Exit code | Meaning |
 |---|---|
+| 70 | Element not found — re-run `elements` and adjust `--element`/`--element-id` |
+| 72 | Element not actionable — disabled or the forced tier can't express the action |
 | 80 | Window not found — check `windows` output for valid IDs |
 | 81 | App not found — verify app name/PID with `windows` or `ps aux` |

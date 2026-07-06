@@ -53,7 +53,9 @@ On failure in JSON mode, the same stdout contains:
 | `mapping_failed` | 41 |
 | `input_synthesis_failed` | 50 |
 | `invalid_arguments` | 60 |
+| `element_not_found` | 70 |
 | `ax_tree_unavailable` | 71 |
+| `element_not_actionable` | 72 |
 | `window_not_found` | 80 |
 | `app_not_found` | 81 |
 
@@ -97,13 +99,18 @@ Brings an app to the foreground.
 
 ### click
 
-- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `button`, `doubleClick`, `triple`, `primeClick`, `humanLike`, `modifiers`
+- **result.action** (object): `metadataPath` (string, coordinate clicks only), `resolved` (inputX, inputY, space, globalX, globalY — absent for AX-delivered element clicks; element clicks delivered via pid/global report the element center in `points` space), `button`, `doubleClick`, `triple`, `primeClick`, `humanLike`, `modifiers`
+  - **requestedVia** (string, optional): the tier forced with `--via` (`"ax"`, `"pid"`, or `"global"`), when one was
+  - **deliveryMethod** (string): the tier that actually delivered the input — `"ax"`, `"pid"`, or `"global"`. Coordinate clicks default to `"global"`. A `deliveryMethod` differing from the preferred tier records a downgrade (not an error unless `--strict`).
+  - **element** (object, optional): the resolved `AXElementRecord` (same shape as `elements` records), present for `--element`/`--element-id` clicks
+  - **verifiedTarget** (object, optional): the `AXElementRecord` hit-tested at the mapped point when `--verify-target` was passed (may be absent when nothing was hit)
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
 
 ### scroll
 
-- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `dx`, `dy`, `unit`
+- **result.action** (object): `metadataPath` (string, coordinate scrolls only), `resolved` (inputX, inputY, space, globalX, globalY — element scrolls report the element center in `points` space), `dx`, `dy`, `unit`
+  - **requestedVia** (string, optional), **deliveryMethod** (string), **element** (object, optional): same semantics as `click`. Scroll has no `ax` tier; element scrolls deliver via `"pid"` or `"global"`.
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
 
@@ -123,6 +130,7 @@ Brings an app to the foreground.
 ### type
 
 - **result.action**: `textLength`, `delayMilliseconds`, `inputMode`
+  - **requestedVia** (string, optional), **deliveryMethod** (string), **element** (object, optional): same semantics as `click`. `deliveryMethod` is `"ax"` when `--element` typing wrote `AXValue` directly, otherwise `"global"` (keyboard path). Type has no `pid` tier.
 - **result.preshot** / **result.postshot**: same as click
 - **result.diff**: same as click
 
