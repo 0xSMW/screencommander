@@ -201,7 +201,12 @@ final class MouseController: MouseControlling {
         }
 
         if humanLike {
-            try postMouseEvent(type: .mouseMoved, point: point, button: button.cgMouseButton, clickState: 0, flags: flags, source: source, destination: destination)
+            // This is intentionally a real click, not just a cursor move. On macOS,
+            // a click into an unfocused window often only activates/focuses the
+            // target; the following click is the one the app treats as interaction.
+            // `--raw` disables this compensation for callers that need exact
+            // low-level click counts.
+            try postSingleClick(point: point, button: button, clickState: 1, flags: flags, source: source, destination: destination)
             usleep(90_000)
         }
 
