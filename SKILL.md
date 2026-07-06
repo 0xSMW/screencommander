@@ -148,3 +148,47 @@ Example:
 2. Confirm exact target visually from preshot.
 3. Execute single intended action (avoid batching until validated).
 4. Confirm result in postshot before proceeding to next destructive step.
+
+## Window Targeting (WP2)
+
+### Enumerate Windows
+
+Use `windows` to list all visible windows and their IDs before targeting:
+
+```bash
+screencommander windows
+screencommander windows --app Safari
+screencommander windows --json
+```
+
+### Per-Window Screenshot
+
+Capture a single window to get a clean, cropped image and correct coordinate mapping:
+
+```bash
+screencommander screenshot --window 12345
+screencommander screenshot --window Safari
+```
+
+- The sidecar metadata stores `windowID` and `windowBoundsPoints`.
+- `click` coordinates from this screenshot map via `windowBoundsPoints` — no manual offset needed.
+- Prefer window capture over full-display capture when only one app matters; reduces noise and improves click accuracy.
+
+### Focus an App
+
+Bring an app to the foreground before interacting with it via global input:
+
+```bash
+screencommander focus --app Safari
+screencommander focus --app 1234
+```
+
+- Use before `click`/`type` when the target app may be in the background.
+- Reports prior and new frontmost app so you can restore state if needed.
+
+### Error codes
+
+| Exit code | Meaning |
+|---|---|
+| 80 | Window not found — check `windows` output for valid IDs |
+| 81 | App not found — verify app name/PID with `windows` or `ps aux` |

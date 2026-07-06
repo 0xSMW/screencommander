@@ -13,6 +13,8 @@ struct ScreenshotRequest {
     var metadataPath: String?
     var includeCursor: Bool
     var updateLastMetadata: Bool
+    /// When non-nil, capture this window instead of the full display.
+    var windowIdentifier: String?
 }
 
 struct ScreenshotResult: Codable, Sendable {
@@ -185,4 +187,25 @@ struct ScreenshotMetadata: Codable, Sendable {
     var imageSizePixels: SizeD
     var pointPixelScale: Double
     var imagePath: String
+    /// Set when the screenshot was taken of a specific window instead of a full display.
+    var windowID: UInt32?
+    /// Bounds of the captured window in global screen points (origin top-left).
+    var windowBoundsPoints: RectD?
+}
+
+struct WindowsRequest {
+    var appIdentifier: String?
+}
+
+struct WindowsResult: Codable, Sendable {
+    var windows: [WindowInfo]
+}
+
+struct FocusRequest {
+    var appIdentifier: String
+}
+
+struct FocusResult: Codable, Sendable {
+    var app: ResolvedApp
+    var priorApp: ResolvedApp?
 }

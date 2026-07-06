@@ -56,7 +56,9 @@ struct RootCommand: ParsableCommand {
             KeyCommand.self,
             KeysCommand.self,
             CleanupCommand.self,
-            SequenceCommand.self
+            SequenceCommand.self,
+            WindowsCommand.self,
+            FocusCommand.self
         ],
         defaultSubcommand: ScreenshotCommand.self
     )
@@ -210,7 +212,7 @@ enum CommandRuntime {
         switch error {
         case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .windowNotFound, .appNotFound:
             return true
         }
     }

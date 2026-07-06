@@ -10,6 +10,9 @@ struct ScreenshotCommand: ParsableCommand {
     @Option(name: .long, help: "Display ID or 'main'.")
     var display: String = "main"
 
+    @Option(name: .long, help: "Window ID or app-name prefix to capture a single window instead of the full display.")
+    var window: String?
+
     @Option(name: .long, help: "Output image path. Defaults to ~/Library/Caches/screencommander/captures/Screenshot-<timestamp>.<ext>.")
     var out: String?
 
@@ -36,7 +39,8 @@ struct ScreenshotCommand: ParsableCommand {
                 format: format,
                 metadataPath: meta,
                 includeCursor: cursor,
-                updateLastMetadata: true
+                updateLastMetadata: true,
+                windowIdentifier: window
             )
 
             let result = try AsyncBridge.run {
@@ -51,7 +55,11 @@ struct ScreenshotCommand: ParsableCommand {
             print("Captured screenshot: \(result.imagePath)")
             print("Metadata: \(result.metadataPath)")
             print("Last metadata: \(result.lastMetadataPath)")
-            print("Display ID: \(result.metadata.displayID)")
+            if let wid = result.metadata.windowID {
+                print("Window ID: \(wid)")
+            } else {
+                print("Display ID: \(result.metadata.displayID)")
+            }
             print("Scale: \(result.metadata.pointPixelScale)")
         } catch {
             throw CommandRuntime.mapError(error)

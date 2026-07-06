@@ -53,6 +53,8 @@ On failure in JSON mode, the same stdout contains:
 | `mapping_failed` | 41 |
 | `input_synthesis_failed` | 50 |
 | `invalid_arguments` | 60 |
+| `window_not_found` | 80 |
+| `app_not_found` | 81 |
 
 ## Command result shapes
 
@@ -66,7 +68,29 @@ On failure in JSON mode, the same stdout contains:
 - **result.imagePath** (string): absolute path to image
 - **result.metadataPath** (string): path to sidecar metadata JSON
 - **result.lastMetadataPath** (string): path to last-screenshot.json
-- **result.metadata** (object): `capturedAtISO8601`, `displayID`, `displayBoundsPoints`, `imageSizePixels`, `pointPixelScale`, `imagePath`
+- **result.metadata** (object): `capturedAtISO8601`, `displayID`, `displayBoundsPoints`, `imageSizePixels`, `pointPixelScale`, `imagePath`, `windowID` (optional, UInt32), `windowBoundsPoints` (optional, `{x,y,w,h}`)
+
+The `windowID` and `windowBoundsPoints` fields are present only when `--window` was used. Old sidecars without these fields still decode (backward compatible).
+
+### windows
+
+Lists visible windows (requires Screen Recording permission).
+
+- **result.windows** (array): each element is a `WindowInfo`:
+  - `windowID` (number, UInt32)
+  - `title` (string)
+  - `appName` (string)
+  - `pid` (number, pid_t)
+  - `boundsPoints` (`{x, y, w, h}` in global screen points)
+  - `isOnScreen` (bool)
+  - `layer` (number, lower = more foreground)
+
+### focus
+
+Brings an app to the foreground.
+
+- **result.app** (object): `{ pid, name, bundleID? }` — the app that was focused
+- **result.priorApp** (object or null): `{ pid, name, bundleID? }` — the previously frontmost app (null if none)
 
 ### click
 

@@ -10,6 +10,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
     case mappingFailed(String)
     case inputSynthesisFailed(String)
     case invalidArguments(String)
+    case windowNotFound(String)
+    case appNotFound(String)
 
     var exitCode: Int32 {
         switch self {
@@ -31,6 +33,10 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return 50
         case .invalidArguments:
             return 60
+        case .windowNotFound:
+            return 80
+        case .appNotFound:
+            return 81
         }
     }
 
@@ -54,6 +60,10 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
             return "Input synthesis failed: \(message)"
         case .invalidArguments(let message):
             return "Invalid arguments: \(message)"
+        case .windowNotFound(let message):
+            return "Window not found: \(message)"
+        case .appNotFound(let message):
+            return "App not found: \(message)"
         }
     }
 
@@ -69,6 +79,8 @@ enum ScreenCommanderError: Error, CustomStringConvertible {
         case .mappingFailed: return "mapping_failed"
         case .inputSynthesisFailed: return "input_synthesis_failed"
         case .invalidArguments: return "invalid_arguments"
+        case .windowNotFound: return "window_not_found"
+        case .appNotFound: return "app_not_found"
         }
     }
 }
