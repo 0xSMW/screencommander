@@ -250,6 +250,54 @@ private final class FakeTargetResolver: TargetResolving {
     }
 }
 
+private final class FakeAccessibilityReader: AccessibilityReading {
+    var treeResult = AXTreeResult(axPrimed: false, truncated: false, elements: [])
+    var treeError: Error?
+    private(set) var treeCalls: [(app: ResolvedApp, options: AXTreeOptions)] = []
+    var elementAtResult: AXElementRecord?
+
+    func tree(app: ResolvedApp, options: AXTreeOptions) throws -> AXTreeResult {
+        treeCalls.append((app, options))
+        if let treeError {
+            throw treeError
+        }
+        return treeResult
+    }
+
+    func elementAt(globalPoint: CGPoint) throws -> AXElementRecord? {
+        elementAtResult
+    }
+
+    func resolve(id: String, app: ResolvedApp) throws -> AXElement {
+        throw ScreenCommanderError.invalidArguments("resolve(id:app:) should not be used in this test")
+    }
+}
+
+private final class FakeTargets: TargetResolving {
+    var apps: [String: ResolvedApp] = [:]
+    var windowList: [WindowInfo] = []
+    private(set) var resolveCalls: [String] = []
+
+    func resolveApp(identifier: String) async throws -> ResolvedApp {
+        resolveCalls.append(identifier)
+        guard let app = apps[identifier] else {
+            throw ScreenCommanderError.invalidArguments("No running app matches '\(identifier)'.")
+        }
+        return app
+    }
+
+    func listWindows(app: ResolvedApp?) async throws -> [WindowInfo] {
+        if let app {
+            return windowList.filter { $0.pid == app.pid }
+        }
+        return windowList
+    }
+
+    func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> (SCWindow, WindowInfo) {
+        throw ScreenCommanderError.windowNotFound("resolveWindow(identifier:app:) should not be used in this test")
+    }
+}
+
 private func make1x1Image() -> CGImage {
     let data = Data([255, 0, 0, 255])
     let provider = CGDataProvider(data: data as CFData)!
@@ -1103,5 +1151,286 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertNil(metadata.windowID)
         XCTAssertNil(metadata.windowBoundsPoints)
         XCTAssertEqual(metadata.displayID, 1)
+    }
+
+    // MARK: - elements (AX read core)
+
+    private func makeElementsEngine(
+        stateName: String,
+        permissions: FakePermissions = FakePermissions(),
+        reader: FakeAccessibilityReader,
+        targets: FakeTargets = FakeTargets(),
+        frontmostApp: @escaping () -> ResolvedApp? = { nil }
+    ) -> (engine: ScreenCommanderEngine, metadataStore: FakeMetadataStore, state: StatePaths) {
+        let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath(stateName).path])
+        let metadataStore = FakeMetadataStore(defaultLastMetadataURL: state.lastMetadataURL)
+
+        let engine = ScreenCommanderEngine(
+            permissions: permissions,
+            displays: NoopDisplays(),
+            capturer: FakeCapturer(
+                captureResult: CapturedScreenshot(
+                    image: make1x1Image(),
+                    displayID: 1,
+                    displayBoundsPoints: CGRect(x: 0, y: 0, width: 1, height: 1),
+                    pointPixelScale: 1
+                )
+            ),
+            imageWriter: FakeImageWriter(returnedSize: SizeD(w: 1, h: 1)),
+            metadataStore: metadataStore,
+            coordinateMapper: CoordinateMapper(),
+            mouseController: FakeMouseController(),
+            keyboardController: FakeKeyboardController(),
+            retention: FakeRetentionManager(),
+            accessibilityReader: reader,
+            targets: targets,
+            frontmostApp: frontmostApp,
+            statePaths: state,
+            fileManager: .default
+        )
+        return (engine, metadataStore, state)
+    }
+
+    func testElementsDefaultsToFrontmostAppAndChecksAccessibility() async throws {
+        let permissions = FakePermissions()
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: true,
+            truncated: true,
+            elements: [AXElementRecord(id: "0", role: "AXWindow", title: "Doc")]
+        )
+        let frontmost = ResolvedApp(pid: 42, name: "TextEdit", bundleID: "com.apple.TextEdit")
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-frontmost",
+            permissions: permissions,
+            reader: reader,
+            frontmostApp: { frontmost }
+        )
+
+        let result = try await engine.elements(ElementsRequest())
+
+        XCTAssertEqual(permissions.accessibilityChecks, 1)
+        XCTAssertEqual(reader.treeCalls.count, 1)
+        XCTAssertEqual(reader.treeCalls[0].app, frontmost)
+        XCTAssertEqual(result.app, frontmost)
+        XCTAssertTrue(result.axPrimed)
+        XCTAssertTrue(result.truncated)
+        XCTAssertNil(result.metadataPath)
+        XCTAssertEqual(result.elements.map(\.id), ["0"])
+        XCTAssertNil(result.text)
+    }
+
+    func testElementsResolvesAppIdentifierThroughTargetsAndForwardsOptions() async throws {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [AXElementRecord(id: "0", role: "AXWindow")]
+        )
+        let targets = FakeTargets()
+        let safari = ResolvedApp(pid: 7, name: "Safari", bundleID: "com.apple.Safari")
+        targets.apps["Safari"] = safari
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-app",
+            reader: reader,
+            targets: targets,
+            frontmostApp: { ResolvedApp(pid: 1, name: "WrongApp", bundleID: nil) }
+        )
+
+        let request = ElementsRequest(
+            appIdentifier: "Safari",
+            windowID: 900,
+            maxDepth: 5,
+            maxElements: 10,
+            roles: ["AXButton"],
+            visibleOnly: true,
+            maxValueLength: 32
+        )
+        let result = try await engine.elements(request)
+
+        XCTAssertEqual(targets.resolveCalls, ["Safari"])
+        XCTAssertEqual(result.app, safari)
+        XCTAssertEqual(result.windowID, 900)
+
+        let options = try XCTUnwrap(reader.treeCalls.first?.options)
+        XCTAssertEqual(options.windowID, 900)
+        XCTAssertEqual(options.maxDepth, 5)
+        XCTAssertEqual(options.maxElements, 10)
+        XCTAssertEqual(options.roles, ["AXButton"])
+        XCTAssertTrue(options.visibleOnly)
+        XCTAssertEqual(options.maxValueLength, 32)
+    }
+
+    func testElementsMapsBoundsPixelsFromLastScreenshotMetadata() async throws {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [
+                AXElementRecord(id: "0", role: "AXWindow", boundsPoints: RectD(x: 150, y: 250, w: 50, h: 40)),
+                AXElementRecord(id: "0.0", role: "AXButton", boundsPoints: RectD(x: 600, y: 600, w: 10, h: 10)),
+                AXElementRecord(id: "0.1", role: "AXGroup")
+            ]
+        )
+
+        let (engine, metadataStore, state) = makeElementsEngine(
+            stateName: "elements-pixels",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+
+        // Secondary-display-style nonzero origin, scale 2.0 — mirrors CoordinateMapperTests.
+        metadataStore.seedLoad(
+            ScreenshotMetadata(
+                capturedAtISO8601: "2026-07-06T00:00:00Z",
+                displayID: 9,
+                displayBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+                imageSizePixels: SizeD(w: 800, h: 600),
+                pointPixelScale: 2,
+                imagePath: "/tmp/test.png"
+            ),
+            at: state.lastMetadataURL
+        )
+
+        let result = try await engine.elements(ElementsRequest())
+
+        XCTAssertEqual(result.metadataPath, state.lastMetadataURL.path)
+        XCTAssertEqual(result.elements[0].boundsPixels, RectD(x: 100, y: 100, w: 100, h: 80))
+        XCTAssertNil(result.elements[1].boundsPixels, "Element outside metadata bounds must have nil pixel bounds")
+        XCTAssertNil(result.elements[2].boundsPixels, "Element without a frame must have nil pixel bounds")
+    }
+
+    func testElementsOmitsPixelBoundsAndMetadataPathWithoutLastScreenshot() async throws {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [AXElementRecord(id: "0", role: "AXWindow", boundsPoints: RectD(x: 0, y: 0, w: 10, h: 10))]
+        )
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-no-metadata",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+
+        let result = try await engine.elements(ElementsRequest())
+
+        XCTAssertNil(result.metadataPath)
+        XCTAssertNil(result.elements[0].boundsPixels)
+        XCTAssertNotNil(result.elements[0].boundsPoints)
+    }
+
+    func testElementsTextModePopulatesRenderedText() async throws {
+        let reader = FakeAccessibilityReader()
+        reader.treeResult = AXTreeResult(
+            axPrimed: false,
+            truncated: false,
+            elements: [
+                AXElementRecord(id: "0", role: "AXWindow", title: "Untitled"),
+                AXElementRecord(id: "0.0", role: "AXGroup"),
+                AXElementRecord(id: "0.0.0", role: "AXTextArea", value: "hello")
+            ]
+        )
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-text",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+
+        let result = try await engine.elements(ElementsRequest(includeText: true))
+
+        XCTAssertEqual(result.text, "AXWindow \"Untitled\"\n    AXTextArea: hello")
+    }
+
+    func testElementsRejectsInvalidLimitsAndConflictingWindowFlags() async {
+        let reader = FakeAccessibilityReader()
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-invalid",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+
+        for request in [
+            ElementsRequest(maxDepth: 0),
+            ElementsRequest(maxElements: 0),
+            ElementsRequest(maxValueLength: -1),
+            ElementsRequest(windowID: 1, allWindows: true)
+        ] {
+            do {
+                _ = try await engine.elements(request)
+                XCTFail("Expected invalid_arguments for request \(request)")
+            } catch let error as ScreenCommanderError {
+                XCTAssertEqual(error.stableCode, "invalid_arguments")
+            } catch {
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+        XCTAssertTrue(reader.treeCalls.isEmpty)
+    }
+
+    func testElementsFailsWithoutFrontmostAppOrIdentifier() async {
+        let reader = FakeAccessibilityReader()
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-no-frontmost",
+            reader: reader,
+            frontmostApp: { nil }
+        )
+
+        do {
+            _ = try await engine.elements(ElementsRequest())
+            XCTFail("Expected invalid_arguments")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "invalid_arguments")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testElementsPropagatesAxTreeUnavailable() async {
+        let reader = FakeAccessibilityReader()
+        reader.treeError = ScreenCommanderError.axTreeUnavailable("no tree")
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-unavailable",
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "Electron", bundleID: nil) }
+        )
+
+        do {
+            _ = try await engine.elements(ElementsRequest())
+            XCTFail("Expected ax_tree_unavailable")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "ax_tree_unavailable")
+            XCTAssertEqual(error.exitCode, 71)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testElementsDeniedAccessibilityStopsBeforeReadingTree() async {
+        let permissions = FakePermissions()
+        permissions.allowAccessibility = false
+        let reader = FakeAccessibilityReader()
+
+        let (engine, _, _) = makeElementsEngine(
+            stateName: "elements-denied",
+            permissions: permissions,
+            reader: reader,
+            frontmostApp: { ResolvedApp(pid: 42, name: "TextEdit", bundleID: nil) }
+        )
+
+        do {
+            _ = try await engine.elements(ElementsRequest())
+            XCTFail("Expected permission error")
+        } catch let error as ScreenCommanderError {
+            XCTAssertEqual(error.stableCode, "permission_denied_accessibility")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+        XCTAssertTrue(reader.treeCalls.isEmpty)
     }
 }

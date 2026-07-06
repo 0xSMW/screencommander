@@ -1,11 +1,10 @@
-import AppKit
 import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
 // MARK: - Data types
 
-struct ResolvedApp: Codable, Sendable {
+struct ResolvedApp: Codable, Sendable, Equatable {
     var pid: pid_t
     var name: String
     var bundleID: String?
@@ -143,6 +142,16 @@ final class Targets: TargetResolving {
             boundsPoints: RectD(w.frame),
             isOnScreen: w.isOnScreen,
             layer: w.windowLayer
+        )
+    }
+}
+
+extension ResolvedApp {
+    init(_ app: NSRunningApplication) {
+        self.init(
+            pid: app.processIdentifier,
+            name: app.localizedName ?? app.bundleIdentifier ?? "pid \(app.processIdentifier)",
+            bundleID: app.bundleIdentifier
         )
     }
 }

@@ -54,7 +54,7 @@ For user-local installs, ensure `~/.local/bin` is on your `PATH`.
 - System Settings path: Privacy & Security > Screen Recording
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`
 
-2. Accessibility permission for `click`, `scroll`, `drag`, `move`, `type`, and `key`
+2. Accessibility permission for `click`, `scroll`, `drag`, `move`, `type`, `key`, and `elements`
 - System Settings path: Privacy & Security > Accessibility
 - Deeplink: `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
 
@@ -225,6 +225,28 @@ screencommander keys "press:next" "sleep:100" "press:prev"
 For repeated modifier-based shortcuts, include modifiers explicitly in each `press` step (for example `press:cmd+tab`). Standalone keys such as `press:next` and `press:prev` do not require modifiers.
 It captures and compares pre-action and post-action screenshots by default; use `--no-postshot` or `--no-diff` to disable those separately.
 
+### Elements
+
+Read an app's accessibility (AX) element tree — ground-truth UI structure and text without pixels:
+
+```bash
+screencommander elements                       # frontmost app, focused window
+screencommander elements --app Safari --text   # text-only view of the UI
+screencommander elements --app 8412 --json     # by pid, machine-readable
+screencommander elements --app "System Settings" --roles AXButton,AXTextField --visible-only
+```
+
+Behavior:
+
+- Defaults to the frontmost application; target explicitly with `--app <name|pid>`.
+- Traverses the focused window by default; use `--all-windows` or `--window-id <id>` to widen or narrow.
+- Each element carries a positional id (dot-joined child-index path such as `0.3.2`), role, title/value/description, enabled/focused state, supported AX actions, and bounds in global points.
+- When `~/Library/Caches/screencommander/last-screenshot.json` exists, elements inside that screenshot also get `boundsPixels` in its pixel space, so `elements` output can drive `click <x> <y>` directly.
+- `--text` prints an indented `role "title": value` view (also in `result.text` with `--json`) — a token-cheap way to read a screen without vision.
+- `--max-depth` (40), `--max-elements` (2000, result marked `truncated` when hit), `--max-value-length` (200), `--roles`, and `--visible-only` bound the traversal.
+- Electron/Chromium apps are primed automatically (`AXManualAccessibility`, falling back to `AXEnhancedUserInterface`, restored afterwards); the result reports `axPrimed`.
+- Apps that expose no usable AX tree fail with exit code `71` (`ax_tree_unavailable`).
+
 ### Cleanup
 
 ```bash
@@ -366,5 +388,6 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `41`: mapping failed
 - `50`: input synthesis failed
 - `60`: invalid arguments or chord parse
+- `71`: target app exposes no usable accessibility (AX) tree
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)
