@@ -19,6 +19,7 @@ final class ScreenCommanderEngine {
     private let axActions: AXActionPerforming
     private let targets: TargetResolving
     private let observationSource: ObservationSource
+    private let metadataFreshness: MetadataFreshnessChecking
     private let frontmostApp: () -> ResolvedApp?
     private let activateApp: (ResolvedApp) throws -> Void
     private let fileManager: FileManager
@@ -39,6 +40,7 @@ final class ScreenCommanderEngine {
         axActions: AXActionPerforming = AXActions(),
         targets: TargetResolving = Targets(),
         observationSource: ObservationSource = AXObserverSource(),
+        metadataFreshness: MetadataFreshnessChecking = MetadataFreshnessChecker(),
         frontmostApp: @escaping () -> ResolvedApp? = FrontmostApp.current,
         activateApp: @escaping (ResolvedApp) throws -> Void = AppActivator.activate,
         statePaths: StatePaths,
@@ -58,6 +60,7 @@ final class ScreenCommanderEngine {
         self.axActions = axActions
         self.targets = targets
         self.observationSource = observationSource
+        self.metadataFreshness = metadataFreshness
         self.frontmostApp = frontmostApp
         self.activateApp = activateApp
         self.statePaths = statePaths
@@ -93,6 +96,7 @@ final class ScreenCommanderEngine {
             axActions: AXActions(),
             targets: Targets(contentProvider: contentProvider),
             observationSource: AXObserverSource(),
+            metadataFreshness: MetadataFreshnessChecker(),
             frontmostApp: FrontmostApp.current,
             activateApp: AppActivator.activate,
             statePaths: statePaths,
@@ -206,6 +210,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
 
         let resolved = try coordinateMapper.map(
             x: x,
@@ -249,7 +254,8 @@ final class ScreenCommanderEngine {
             modifiers: modifiers,
             requestedVia: request.via,
             deliveryMethod: deliveryMethod(for: destination),
-            verifiedTarget: verifiedTarget
+            verifiedTarget: verifiedTarget,
+            metadataFreshness: freshness
         )
     }
 
@@ -364,6 +370,17 @@ final class ScreenCommanderEngine {
         usleep(120_000)
     }
 
+    private func checkMetadataFreshness(
+        _ metadata: ScreenshotMetadata,
+        strict: Bool
+    ) throws -> MetadataFreshnessResult {
+        let result = metadataFreshness.freshness(for: metadata)
+        if strict, result.status == .stale {
+            throw ScreenCommanderError.staleMetadata(result.reason)
+        }
+        return result
+    }
+
     /// AX-tier click: coordinate-free `AXPress` (left) / `AXShowMenu` (right) on a
     /// freshly resolved element. Anything the AX action vocabulary cannot express
     /// throws `elementNotActionable` so the tier ladder can fall through.
@@ -422,6 +439,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let resolved = try coordinateMapper.map(
             x: x,
             y: y,
@@ -444,7 +462,8 @@ final class ScreenCommanderEngine {
             dy: request.dy,
             unit: request.unit,
             requestedVia: request.via,
-            deliveryMethod: deliveryMethod(for: destination)
+            deliveryMethod: deliveryMethod(for: destination),
+            metadataFreshness: freshness
         )
     }
 
@@ -514,6 +533,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let from = try coordinateMapper.map(
             x: request.x1,
             y: request.y1,
@@ -541,7 +561,8 @@ final class ScreenCommanderEngine {
             to: to,
             button: request.button,
             steps: request.steps,
-            durationMilliseconds: request.durationMS
+            durationMilliseconds: request.durationMS,
+            metadataFreshness: freshness
         )
     }
 
@@ -554,6 +575,7 @@ final class ScreenCommanderEngine {
 
         let metadataURL = resolvedURL(for: request.metadataPath ?? metadataStore.defaultLastMetadataURL.path)
         let metadata = try metadataStore.load(from: metadataURL)
+        let freshness = try checkMetadataFreshness(metadata, strict: request.strictMetadata)
         let resolved = try coordinateMapper.map(
             x: request.x,
             y: request.y,
@@ -567,7 +589,8 @@ final class ScreenCommanderEngine {
         return MoveResult(
             metadataPath: metadataURL.path,
             resolved: resolved,
-            dwellMilliseconds: request.dwellMS
+            dwellMilliseconds: request.dwellMS,
+            metadataFreshness: freshness
         )
     }
 
@@ -775,7 +798,7 @@ final class ScreenCommanderEngine {
         }
     }
 
-    // MARK: - Element targeting (WP5)
+    // MARK: - Element targeting
 
     private struct ResolvedElementTarget {
         var app: ResolvedApp
@@ -966,8 +989,8 @@ final class ScreenCommanderEngine {
     /// matched. `emit` is called once per event (the command prints NDJSON); the return
     /// value tells the command how to exit.
     ///
-    /// Structured around an `AsyncThrowingStream<ObservedEvent, Error>` so WP8's MCP server can hold
-    /// observers warm and answer "what changed since last call" without re-registering.
+    /// Structured around an `AsyncThrowingStream<ObservedEvent, Error>` so long-lived
+    /// callers can hold observers warm without re-registering.
     func observe(
         _ request: ObserveRequest,
         emit: @escaping @Sendable (ObservedEvent) -> Void

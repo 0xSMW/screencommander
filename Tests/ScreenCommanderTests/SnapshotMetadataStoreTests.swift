@@ -31,4 +31,38 @@ final class SnapshotMetadataStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: metadataURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: injectedLast.path))
     }
+
+    func testConcurrentSaveLoadUsesIndependentCoders() async throws {
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("screencommander-metadata-concurrent-tests")
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = SnapshotMetadataStore(
+            fileManager: .default,
+            lastMetadataURL: tempDir.appendingPathComponent("last.json")
+        )
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in 0..<25 {
+                group.addTask {
+                    let metadata = ScreenshotMetadata(
+                        capturedAtISO8601: "2026-02-21T00:00:00Z",
+                        displayID: UInt32(index),
+                        displayBoundsPoints: RectD(x: Double(index), y: 0, w: 100, h: 100),
+                        imageSizePixels: SizeD(w: 200, h: 200),
+                        pointPixelScale: 2,
+                        imagePath: "/tmp/test-\(index).png"
+                    )
+                    let url = tempDir.appendingPathComponent("shot-\(index).json")
+                    try store.save(metadata: metadata, at: url, updateLastAt: nil)
+                    let reloaded = try store.load(from: url)
+                    XCTAssertEqual(reloaded.displayID, UInt32(index))
+                }
+            }
+
+            try await group.waitForAll()
+        }
+    }
 }

@@ -9,6 +9,7 @@ final class MCPServer {
     static let serverVersion = "0.4.0"
 
     private let registry: MCPToolRegistry
+    private let stateLock = NSLock()
     private var initialized = false
 
     init(registry: MCPToolRegistry) {
@@ -26,6 +27,12 @@ final class MCPServer {
         guard let request = JSONRPCCodec.decodeRequest(trimmed) else {
             return encodeOrNil(.failure(id: .null, code: JSONRPCErrorCode.parseError, message: "Could not parse JSON-RPC request."))
         }
+        return await handle(request: request)
+    }
+
+    /// Processes one decoded JSON-RPC request. Serve-mode dispatchers use this to
+    /// parse once at the transport boundary, then schedule work without reparsing.
+    func handle(request: JSONRPCRequest) async -> String? {
         if request.isNotification {
             // notifications/initialized, notifications/cancelled, etc. — nothing to say.
             return nil
@@ -39,20 +46,20 @@ final class MCPServer {
     private func respond(to request: JSONRPCRequest, id: JSONValue) async -> JSONRPCResponse {
         switch request.method {
         case "initialize":
-            initialized = true
+            setInitialized(true)
             return .success(id: id, result: initializeResult())
 
         case "ping":
             return .success(id: id, result: .object([:]))
 
         case "tools/list":
-            guard initialized else {
+            guard isInitialized else {
                 return .failure(id: id, code: JSONRPCErrorCode.invalidRequest, message: "Server must be initialized before tools/list.")
             }
             return .success(id: id, result: registry.listToolsResult())
 
         case "tools/call":
-            guard initialized else {
+            guard isInitialized else {
                 return .failure(id: id, code: JSONRPCErrorCode.invalidRequest, message: "Server must be initialized before tools/call.")
             }
             guard let name = request.params?["name"]?.stringValue else {
@@ -67,6 +74,18 @@ final class MCPServer {
         default:
             return .failure(id: id, code: JSONRPCErrorCode.methodNotFound, message: "Method '\(request.method)' is not supported.")
         }
+    }
+
+    private var isInitialized: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return initialized
+    }
+
+    private func setInitialized(_ value: Bool) {
+        stateLock.lock()
+        initialized = value
+        stateLock.unlock()
     }
 
     private func initializeResult() -> JSONValue {

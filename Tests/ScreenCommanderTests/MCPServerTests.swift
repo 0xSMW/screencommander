@@ -278,6 +278,47 @@ private func initializeMCP(_ server: MCPServer) async throws {
     XCTAssertNil(response["error"])
 }
 
+private final class MCPOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
+
+    func snapshot() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return lines
+    }
+
+    func waitForResponse(id: Int, timeoutMS: Int = 1_000) async throws -> JSONValue {
+        let deadline = Date().addingTimeInterval(Double(timeoutMS) / 1_000)
+        while Date() < deadline {
+            for line in snapshot() {
+                let value = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+                if value["id"]?.intValue == id {
+                    return value
+                }
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        throw ScreenCommanderError.observeTimeout("No MCP response for id \(id).")
+    }
+
+    func hasResponse(id: Int) throws -> Bool {
+        for line in snapshot() {
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+            if value["id"]?.intValue == id {
+                return true
+            }
+        }
+        return false
+    }
+}
+
 final class MCPServerTests: XCTestCase {
     private let expectedToolNames: Set<String> = [
         "screenshot", "click", "type", "key", "keys", "scroll", "drag", "move",
@@ -303,6 +344,67 @@ final class MCPServerTests: XCTestCase {
         let fixture = makeFixture("notification")
         let response = await fixture.server.handle(line: #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         XCTAssertNil(response)
+    }
+
+    func testServeSessionRunsUnrelatedRequestsInParallel() async throws {
+        let fixture = makeFixture("serve-parallel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":5000}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":11,"method":"ping"}"#)
+
+        let ping = try await output.waitForResponse(id: 11, timeoutMS: 500)
+        XCTAssertNotNil(ping["result"])
+        XCTAssertFalse(try output.hasResponse(id: 10), "unrelated ping should return before the long observe_wait")
+
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":10}}"#)
+    }
+
+    func testServeSessionSerialDependencyWaitsForUpstream() async throws {
+        let fixture = makeFixture("serve-serial")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":150}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":21,"method":"ping","params":{"dependsOn":20}}"#)
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(try output.hasResponse(id: 21), "dependent ping must wait for upstream observe_wait")
+
+        let upstream = try await output.waitForResponse(id: 20, timeoutMS: 1_000)
+        XCTAssertNotNil(upstream["result"])
+        let dependent = try await output.waitForResponse(id: 21, timeoutMS: 1_000)
+        XCTAssertNotNil(dependent["result"])
+    }
+
+    func testServeSessionCancellationSuppressesLateResponseAndDependents() async throws {
+        let fixture = makeFixture("serve-cancel")
+        fixture.targets.apps["TextEdit"] = ResolvedApp(pid: 200, name: "TextEdit", bundleID: nil)
+        fixture.observation.keepOpen = true
+        let output = MCPOutputCollector()
+        let session = MCPServeSession(server: fixture.server) { output.append($0) }
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+        _ = try await output.waitForResponse(id: 1)
+
+        session.receive(line: #"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"observe_wait","arguments":{"app":"TextEdit","timeoutMs":5000}}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","id":31,"method":"ping","params":{"dependsOn":30}}"#)
+        session.receive(line: #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":30}}"#)
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertFalse(try output.hasResponse(id: 30))
+        XCTAssertFalse(try output.hasResponse(id: 31))
     }
 
     func testBlankLineIsIgnored() async throws {

@@ -117,7 +117,7 @@ enum MouseModifiers {
 ///
 /// `.global` posts to `.cghidEventTap` (moves the real cursor); `.pid` posts with
 /// `CGEventPostToPid`, delivering the same events to one app while the user's cursor
-/// stays put ("second mouse", WP5 tier `pid`).
+/// stays put.
 enum MouseEventDestination: Equatable, Sendable {
     case global
     case pid(pid_t)
@@ -141,7 +141,8 @@ protocol MouseControlling {
 }
 
 extension MouseControlling {
-    /// Global-delivery convenience overloads (the pre-WP5 surface).
+    /// Global-delivery convenience overloads for callers that do not need
+    /// destination control.
     func click(
         at point: CGPoint,
         button: MouseButtonChoice,

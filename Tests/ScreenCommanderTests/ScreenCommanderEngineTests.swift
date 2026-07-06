@@ -397,6 +397,20 @@ private final class FakeObservationSource: ObservationSource, @unchecked Sendabl
     }
 }
 
+private final class FakeMetadataFreshnessChecker: MetadataFreshnessChecking {
+    var result = MetadataFreshnessResult(
+        status: .fresh,
+        scope: "display",
+        reason: "fresh in fake"
+    )
+    private(set) var checked: [ScreenshotMetadata] = []
+
+    func freshness(for metadata: ScreenshotMetadata) -> MetadataFreshnessResult {
+        checked.append(metadata)
+        return result
+    }
+}
+
 private func make1x1Image() -> CGImage {
     let data = Data([255, 0, 0, 255])
     let provider = CGDataProvider(data: data as CFData)!
@@ -435,6 +449,7 @@ private struct InputEngineFixture {
     let reader: FakeAccessibilityReader
     let axActions: FakeAXActions
     let targets: FakeTargets
+    let freshness: FakeMetadataFreshnessChecker
     let state: StatePaths
 }
 
@@ -451,6 +466,7 @@ private func makeInputEngineFixture(
     let reader = FakeAccessibilityReader()
     let axActions = FakeAXActions()
     let targets = FakeTargets()
+    let freshness = FakeMetadataFreshnessChecker()
     let metadata = ScreenshotMetadata(
         capturedAtISO8601: "2026-02-21T00:00:00Z",
         displayID: 123,
@@ -481,6 +497,7 @@ private func makeInputEngineFixture(
         accessibilityReader: reader,
         axActions: axActions,
         targets: targets,
+        metadataFreshness: freshness,
         frontmostApp: frontmostApp,
         activateApp: activateApp,
         statePaths: state,
@@ -497,6 +514,7 @@ private func makeInputEngineFixture(
         reader: reader,
         axActions: axActions,
         targets: targets,
+        freshness: freshness,
         state: state
     )
 }
@@ -689,6 +707,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         metadataStore.seedLoad(expectedMetadata, at: state.lastMetadataURL)
 
         let mouse = FakeMouseController()
+        let freshness = FakeMetadataFreshnessChecker()
 
         let engine = ScreenCommanderEngine(
             permissions: permissions,
@@ -707,6 +726,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
             mouseController: mouse,
             keyboardController: FakeKeyboardController(),
             retention: FakeRetentionManager(),
+            metadataFreshness: freshness,
             statePaths: state,
             fileManager: .default,
             now: { Date(timeIntervalSince1970: 1_700_000_000) }
@@ -737,8 +757,68 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.resolved?.globalY, 250)
         XCTAssertEqual(result.deliveryMethod, .global)
         XCTAssertNil(result.requestedVia)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
+        XCTAssertEqual(freshness.checked.first?.displayID, expectedMetadata.displayID)
         XCTAssertEqual(metadataStore.loadCalls, [state.lastMetadataURL])
         XCTAssertEqual(permissions.accessibilityChecks, 1)
+    }
+
+    func testClickReportsStaleMetadataWithoutStrictFailure() async throws {
+        let fixture = makeInputEngineFixture("click-stale-metadata")
+        fixture.freshness.result = MetadataFreshnessResult(
+            status: .stale,
+            scope: "display",
+            reason: "display changed"
+        )
+
+        let result = try await fixture.engine.click(
+            ClickRequest(
+                x: 200,
+                y: 100,
+                coordinateSpace: .pixels,
+                metadataPath: nil,
+                button: .left,
+                doubleClick: false,
+                triple: false,
+                primeClick: false,
+                humanLike: true,
+                modifiers: []
+            )
+        )
+
+        XCTAssertEqual(result.metadataFreshness?.status, .stale)
+        XCTAssertEqual(result.metadataFreshness?.reason, "display changed")
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testClickStrictMetadataRejectsKnownStaleMetadata() async {
+        let fixture = makeInputEngineFixture("click-strict-stale-metadata")
+        fixture.freshness.result = MetadataFreshnessResult(
+            status: .stale,
+            scope: "display",
+            reason: "display changed"
+        )
+
+        await assertThrows(
+            try await fixture.engine.click(
+                ClickRequest(
+                    x: 200,
+                    y: 100,
+                    coordinateSpace: .pixels,
+                    metadataPath: nil,
+                    button: .left,
+                    doubleClick: false,
+                    triple: false,
+                    primeClick: false,
+                    humanLike: true,
+                    modifiers: [],
+                    strictMetadata: true
+                )
+            )
+        ) { error in
+            XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "stale_metadata")
+        }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
     }
 
     func testScrollCallsMouseController() async throws {
@@ -769,6 +849,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.dx, 4)
         XCTAssertEqual(result.dy, -3)
         XCTAssertEqual(result.unit, .pixels)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -822,6 +903,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.button, .right)
         XCTAssertEqual(result.steps, 8)
         XCTAssertEqual(result.durationMilliseconds, 120)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -844,6 +926,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.dwellMilliseconds, 0)
         XCTAssertEqual(result.resolved.globalX, 200)
         XCTAssertEqual(result.resolved.globalY, 250)
+        XCTAssertEqual(result.metadataFreshness?.status, .fresh)
         XCTAssertEqual(fixture.permissions.accessibilityChecks, 1)
     }
 
@@ -1201,7 +1284,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(metadataStore.saved[0].updateLastAt == state.lastMetadataURL)
     }
 
-    // MARK: - WP2 tests
+    // MARK: - Window and app targeting tests
 
     func testWindowsListsAllWindows() async throws {
         let state = StatePaths(environment: ["SCREENCOMMANDER_STATE_DIR": tempStatePath("wp2-windows-all").path])
@@ -1912,7 +1995,7 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertTrue(reader.treeCalls.isEmpty)
     }
 
-    // MARK: - WP5: pointer-free input (element clicks, --via, tier fallback)
+    // MARK: - Pointer-free input (element clicks, --via, tier fallback)
 
     private static let targetApp = ResolvedApp(pid: 77, name: "TargetApp", bundleID: "com.example.target")
 

@@ -29,14 +29,19 @@ struct ServeCommand: ParsableCommand {
         let engine = ScreenCommanderEngine.live(shareableContentTTL: 2.0)
         let registry = MCPToolRegistry(engine: engine, doctor: DoctorService())
         let server = MCPServer(registry: registry)
+        let outputLock = NSLock()
+        let session = MCPServeSession(server: server) { line in
+            outputLock.lock()
+            defer { outputLock.unlock() }
+            FileHandle.standardOutput.write(Data((line + "\n").utf8))
+        }
 
         while let line = readLine(strippingNewline: true) {
-            let response = try AsyncBridge.run {
-                await server.handle(line: line)
-            }
-            if let response {
-                FileHandle.standardOutput.write(Data((response + "\n").utf8))
-            }
+            session.receive(line: line)
+        }
+
+        try AsyncBridge.run {
+            await session.finish()
         }
     }
 }

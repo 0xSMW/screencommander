@@ -43,6 +43,9 @@ struct ClickCommand: ParsableCommand {
     @Flag(name: .customLong("verify-target"), help: "Hit-test the mapped point via accessibility before clicking and include the element in the result (coordinate clicks only).")
     var verifyTarget: Bool = false
 
+    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate clicks when screenshot metadata is known stale.")
+    var strictMetadata: Bool = false
+
     @Option(name: .long, help: "Mouse button.")
     var button: MouseButtonChoice = .left
 
@@ -70,6 +73,12 @@ struct ClickCommand: ParsableCommand {
 
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
+
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
 
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
@@ -99,6 +108,7 @@ struct ClickCommand: ParsableCommand {
                 throw ScreenCommanderError.invalidArguments("--double and --triple are mutually exclusive.")
             }
             let parsedModifiers = try MouseModifiers.parse(modifiers)
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             let request = ClickRequest(
                 x: parsedX,
@@ -118,7 +128,8 @@ struct ClickCommand: ParsableCommand {
                 via: via,
                 noCursor: noCursor,
                 strict: strict,
-                verifyTarget: verifyTarget
+                verifyTarget: verifyTarget,
+                strictMetadata: strictMetadata
             )
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
@@ -126,7 +137,7 @@ struct ClickCommand: ParsableCommand {
                 try await CommandRuntime.engine.click(request)
             }
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
@@ -155,6 +166,9 @@ struct ClickCommand: ParsableCommand {
             if let hit = result.verifiedTarget {
                 let label = hit.title ?? hit.description ?? hit.value ?? ""
                 print("Target at point: \(hit.role)\(label.isEmpty ? "" : " \"\(label)\"")")
+            }
+            if let freshness = result.metadataFreshness {
+                print("Metadata freshness: \(freshness.status.rawValue) (\(freshness.reason))")
             }
             if !result.modifiers.isEmpty {
                 print("Modifiers: \(result.modifiers.joined(separator: ","))")

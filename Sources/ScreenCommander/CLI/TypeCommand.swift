@@ -46,6 +46,12 @@ struct TypeCommand: ParsableCommand {
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
 
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -63,6 +69,7 @@ struct TypeCommand: ParsableCommand {
             } else {
                 parsedDelay = nil
             }
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             let request = TypeRequest(
                 text: text,
@@ -81,7 +88,7 @@ struct TypeCommand: ParsableCommand {
                 try await CommandRuntime.engine.type(request)
             }
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(

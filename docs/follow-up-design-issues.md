@@ -1,161 +1,208 @@
-# Follow-Up Implementation Plan
+# Follow-Up Implementation Spec
 
-This is the working plan for the remaining agreed follow-up work. It tracks only items we intend to implement or clean up.
+This document is the working implementation spec for the remaining agreed follow-up work. Keep it current as decisions change. Each section should describe the intended behavior, the files involved, the concrete code changes, and the acceptance checks.
 
 ## 1. MCP Serve Request Scheduling
 
-### Goal
+### Intent
 
-`serve --mcp` must support concurrent requests without head-of-line blocking, while also allowing clients to explicitly chain dependent requests serially.
+`serve --mcp` should keep accepting requests while slow tools are still running. Requests run concurrently by default. A caller can explicitly serialize a follow-on request by declaring that it depends on an earlier request id.
 
-### Product Contract
+### Protocol Contract
 
-- Requests run in parallel by default.
-- A request can opt into serial execution by declaring that it depends on an upstream request.
-- A serial follow-on request starts only after its upstream request has completed.
-- Unrelated requests continue running while a serial chain is queued or active.
-- `notifications/cancelled` can cancel an in-flight request by id.
-- Cancellation semantics for a serial chain must be explicit: canceling an upstream request should prevent dependent queued requests from running unless the protocol says otherwise.
+- Requests without a dependency start as soon as they are received.
+- A request with `params.dependsOn` waits for that request id while it is still running.
+- If the dependency has already completed, the dependent request can start immediately.
+- `notifications/cancelled` with `params.requestId` cancels the matching in-flight request.
+- Canceling an upstream request also cancels queued dependents that were waiting on it.
+- Response lines are serialized on stdout so JSON-RPC output never interleaves.
 
-### Files To Change
+### File Plan
 
 - `Sources/ScreenCommander/CLI/ServeCommand.swift`
-  - Replace the inline `readLine` / `await server.handle(line:)` loop with a serve-session dispatcher.
-  - Keep stdin reading continuous.
-  - Dispatch each request into the scheduler.
+  - Replace the inline `readLine()` loop that awaits each request with a serve-session dispatcher.
+  - Keep stdin reading synchronous and continuous.
+  - Route each raw line into the dispatcher.
+  - Write responses through a locked stdout writer.
+  - On EOF, wait for currently tracked tasks to finish or cancel according to dispatcher behavior.
+
+- `Sources/ScreenCommander/MCP/MCPServeSession.swift`
+  - Add this file as the transport-level scheduler.
+  - Decode JSON-RPC once per input line.
+  - Handle parse errors immediately with JSON-RPC parse-error responses.
+  - Track in-flight request tasks by JSON-RPC id.
+  - Track dependency edges from upstream request id to dependent request ids.
+  - Start unrelated requests in independent tasks.
+  - Wait on the upstream task when `params.dependsOn` names an active request.
+  - Suppress late success/error responses for canceled requests.
+  - Remove completed tasks from the registry so long-running sessions do not grow unbounded.
+
 - `Sources/ScreenCommander/MCP/MCPServer.swift`
-  - Keep JSON-RPC parsing/response formatting here, but remove assumptions that calls are serialized by the transport loop.
-  - Protect or move mutable server state such as initialization state.
+  - Keep request routing, tool dispatch, and JSON-RPC response formatting here.
+  - Add an entry point that accepts an already-decoded `JSONRPCRequest`.
+  - Keep `handle(line:)` as a compatibility wrapper around decode plus request handling.
+  - Protect mutable shared server state, especially initialization state, because requests can now overlap.
+
 - `Sources/ScreenCommander/MCP/MCPToolRegistry.swift`
-  - Add any MCP argument/schema fields needed for serial dependency metadata if the dependency is expressed inside tool calls.
-  - Keep tool handlers independent of transport scheduling where possible.
+  - Keep tool handlers unaware of transport scheduling.
+  - Do not add tool arguments for dependency metadata; request ordering belongs at the JSON-RPC request layer through `params.dependsOn`.
+
 - `Sources/ScreenCommander/Persistence/SnapshotMetadataStore.swift`
-  - Make concurrent `save`/`load` safe if MCP requests can overlap.
-  - Prefer local `JSONEncoder` / `JSONDecoder` instances per call or a small lock.
-- `docs/json-output-schema.md`
-  - Document any new request/dependency field if it becomes part of the MCP-facing contract.
+  - Remove shared mutable `JSONEncoder` and `JSONDecoder` instances.
+  - Create local encoders and decoders per call.
+  - Confirm concurrent `save` and `load` calls do not corrupt metadata.
+
+- `Tests/ScreenCommanderTests/MCPServerTests.swift`
+  - Add a serve-session test where a long `observe_wait` is in flight and a quick request still returns.
+  - Add a dependency test where request B waits for request A.
+  - Add a cancellation test where canceling request A suppresses A and any queued dependent B.
+  - Add a stdout ordering test if response collection can otherwise hide interleaving.
+
+- `Tests/ScreenCommanderTests/SnapshotMetadataStoreTests.swift`
+  - Add concurrent save/load coverage against the same store instance.
+
 - `README.md`
-  - Document `serve --mcp` scheduling behavior: parallel by default, serial when chained.
+  - Document `serve --mcp` as parallel by default.
+  - Document `params.dependsOn` for clients that need ordered follow-on actions.
+  - Document cancellation behavior.
+
 - `SKILL.md`
-  - Add operator guidance for when to use serial chaining.
+  - Add operator guidance for when an agent should use `dependsOn`.
+  - Mention that independent reads or diagnostics should stay parallel.
 
-### Implementation Steps
+- `docs/json-output-schema.md`
+  - Document `params.dependsOn` and `notifications/cancelled`.
 
-1. Add a `MCPServeSession` or `MCPRequestDispatcher` owned by `ServeCommand`.
-2. Add a stdout writer actor or queue so response lines cannot interleave.
-3. Add an in-flight task registry keyed by JSON-RPC request id.
-4. Add dependency tracking for serial follow-on requests.
-5. Support `notifications/cancelled` by canceling the matching task.
-6. Define what happens to queued dependents when their upstream request is canceled or fails.
-7. Harden shared state that becomes reachable concurrently.
+### Acceptance Checks
 
-### Tests
-
-- Add serve-session tests for a long `observe_wait` plus a quick second request; the second response must return before `observe_wait` completes.
-- Add cancellation tests for an in-flight `observe_wait`.
-- Add serial-chain tests proving a dependent request waits for its upstream request.
-- Add parallel tests proving unrelated requests do not wait for a serial chain.
-- Add snapshot metadata store concurrency coverage if the store is hardened.
-
-### Acceptance Criteria
-
-- A long `observe_wait` cannot block unrelated MCP requests.
-- A serial follow-on request can be expressed and waits behind its upstream request.
-- Response lines remain valid NDJSON/JSON-RPC and never interleave.
-- Canceled requests stop work and do not emit a late success response.
+- A long `observe_wait` does not block an unrelated MCP request.
+- A dependent request waits for its upstream request.
+- Canceling an upstream request cancels queued dependents.
+- JSON-RPC responses remain valid one-line JSON objects.
+- Concurrent metadata save/load tests pass.
 - `swift test` passes.
 
 ## 2. Metadata Freshness Signal
 
-### Goal
+### Intent
 
-Coordinate actions should surface whether the screenshot metadata still appears to describe the live desktop, without making freshness a hard failure by default.
+Coordinate actions should report whether the screenshot metadata still appears to match the live desktop. Freshness is advisory by default, with an opt-in strict mode for workflows that want stale metadata to fail.
 
 ### Product Contract
 
-- Metadata freshness is informational by default.
-- Coordinate actions can report freshness status in their result.
-- Strict coordinate workflows can opt into failing when metadata is stale.
-- Background accessibility actions are not blocked by coordinate metadata freshness.
+- Coordinate actions include a `metadataFreshness` result when metadata is used.
+- Default behavior reports freshness and continues.
+- Strict freshness mode fails with `stale_metadata` when the metadata is known stale.
+- Unknown freshness is reported as `unknown`; default behavior still continues.
+- Background AX element actions are not blocked by coordinate metadata freshness.
 
-### Files To Change
+### File Plan
+
+- `Sources/ScreenCommander/Persistence/Models.swift`
+  - Add `MetadataFreshnessResult`.
+  - Include fields for status, reason, and checked scope.
+  - Add optional `metadataFreshness` to coordinate action result models:
+    - `ClickResult`
+    - `ScrollResult`
+    - `DragResult`
+    - `MoveResult`
+
+- `Sources/ScreenCommander/Core/CaptureFreshness.swift`
+  - Add a new freshness checker.
+  - Validate display-scoped metadata by comparing captured display id and bounds against live display state.
+  - Validate window-scoped metadata by checking whether the captured window id still exists and whether bounds still match within a small tolerance.
+  - Return `unknown` when live validation is unavailable.
+  - Keep all live system checks out of coordinate mapping.
 
 - `Sources/ScreenCommander/Core/ScreenCommanderEngine.swift`
-  - Validate metadata freshness before coordinate `click`, `scroll`, `drag`, and `move` when practical.
-  - Include freshness information in coordinate action results.
-  - Add strict-mode failure behavior for coordinate workflows if a strict freshness flag is introduced.
+  - Inject the freshness checker through the engine dependency set.
+  - Run freshness checks before coordinate `click`, `scroll`, `drag`, and `move`.
+  - Attach freshness results to action results.
+  - If strict freshness is enabled and status is `stale`, throw `stale_metadata`.
+  - Leave AX element actions on their current path.
+
 - `Sources/ScreenCommander/Core/CoordinateMapping.swift`
-  - Keep pure coordinate mapping unchanged.
-  - Do not add live-system checks here.
+  - Keep this pure and metadata-only.
+  - Do not add live display or live window lookup here.
+
 - `Sources/ScreenCommander/Core/Errors.swift`
-  - Add `staleMetadata` / `stale_metadata` only if strict mode can fail.
-- `Sources/ScreenCommander/Persistence/Models.swift`
-  - Add result fields for freshness reporting, likely on coordinate action result models.
-  - Consider a compact model such as `MetadataFreshnessResult`.
+  - Add `staleMetadata` / `stale_metadata`.
+  - Error text should identify which metadata scope is stale and tell the caller to recapture.
+
 - `Sources/ScreenCommander/Core/Targets.swift`
-  - Reuse window/display lookup helpers if freshness validation needs live window geometry.
-- `Sources/ScreenCommander/Core/Displays.swift` or a new `Sources/ScreenCommander/Core/CaptureFreshness.swift`
-  - Add live display/window geometry validation helpers.
-- CLI command files for coordinate actions:
+  - Reuse existing window/display resolution helpers where they provide live geometry.
+  - Add narrow helpers for live geometry the freshness checker cannot read through existing APIs.
+
+- CLI coordinate commands:
   - `Sources/ScreenCommander/CLI/ClickCommand.swift`
   - `Sources/ScreenCommander/CLI/ScrollCommand.swift`
   - `Sources/ScreenCommander/CLI/DragCommand.swift`
   - `Sources/ScreenCommander/CLI/MoveCommand.swift`
-  - Add any strict freshness flag if needed.
+  - Add `--strict-metadata`.
+  - Thread that flag into the corresponding request model.
+  - Ensure JSON output includes the freshness result.
+
 - `Sources/ScreenCommander/MCP/MCPToolRegistry.swift`
-  - Expose the same strict freshness option if added to CLI.
-- `docs/json-output-schema.md`
-  - Document freshness fields and `stale_metadata` if introduced.
+  - Add the same strict freshness argument to coordinate tools.
+  - Keep the default as advisory.
+  - Include freshness result fields in tool responses through the existing result models.
+
+- Tests
+  - Add fake freshness checker coverage in engine tests.
+  - Add stale-display metadata coverage.
+  - Add stale-window metadata coverage.
+  - Add strict-mode failure coverage.
+  - Add non-strict stale metadata coverage proving the action still runs and reports freshness.
+
 - `README.md`
-  - Explain advisory freshness and strict freshness behavior.
+  - Document the advisory freshness field.
+  - Document the strict freshness flag.
+  - Tell users to recapture when freshness is stale.
+
 - `SKILL.md`
-  - Tell agents how to interpret freshness info during action chains.
+  - Tell agents to treat stale freshness as a signal to recapture before continuing a coordinate chain.
 
-### Implementation Steps
+- `docs/json-output-schema.md`
+  - Document `metadataFreshness`.
+  - Document `stale_metadata`.
 
-1. Define the result model for freshness information.
-2. Implement live display validation for display-scoped metadata.
-3. Implement live window validation for window-scoped metadata when the window id is present.
-4. Thread freshness info through coordinate action results.
-5. Add strict failure behavior only for callers that request it.
-6. Keep missing/unavailable freshness checks advisory unless strict mode is active.
+### Acceptance Checks
 
-### Tests
-
-- Coordinate click reports fresh metadata when live geometry matches.
-- Coordinate click reports stale metadata when display geometry differs.
-- Window-coordinate action reports stale metadata when the window is gone or moved beyond tolerance.
-- Strict freshness mode throws `stale_metadata`.
-- Non-strict mode still performs the action and includes freshness info.
-- `elements` behavior remains independent unless explicitly changed.
-
-### Acceptance Criteria
-
-- Freshness appears in JSON output for coordinate actions.
-- Default coordinate actions do not fail solely because metadata is stale.
-- Strict freshness mode can fail deterministically.
-- Background AX actions are unaffected.
+- Coordinate action JSON includes freshness info when metadata was used.
+- Non-strict stale metadata still performs the action.
+- Strict stale metadata fails before injection.
+- Unknown freshness is represented distinctly from fresh and stale.
+- AX-only element workflows are unaffected.
 - `swift test` passes.
 
 ## 3. Frame Diff Tuning
 
-### Goal
+### Intent
 
-Keep the current frame diff behavior by default, while allowing callers to tune the diff grid and threshold when the default is too coarse or too sensitive.
+Keep the existing frame diff defaults and allow callers to tune sensitivity when checking small or subtle UI changes.
 
 ### Product Contract
 
-- Default frame diff remains `64x64` grid with `0.04` threshold.
-- CLI and MCP callers can override grid size and threshold.
-- Existing callers get the same output unless they opt into overrides.
+- Default grid remains `64x64`.
+- Default threshold remains `0.04`.
+- CLI callers can override grid and threshold.
+- Invalid values fail with `invalid_arguments`.
 
-### Files To Change
+### File Plan
 
 - `Sources/ScreenCommander/Capture/FrameDiff.swift`
-  - Keep current defaults.
-  - Validate custom grid and threshold values.
+  - Add `FrameDiffConfig`.
+  - Store grid size and threshold in the config.
+  - Keep defaults equal to current behavior.
+  - Validate grid size is positive and bounded.
+  - Validate threshold is within a sane closed range.
+  - Keep the compare implementation behavior unchanged when using defaults.
+
 - `Sources/ScreenCommander/CLI/RootCommand.swift`
-  - Allow `CommandRuntime.frameDiff` to accept a config object instead of calling `FrameDiff.compare` with defaults only.
+  - Update `CommandRuntime.frameDiff` to accept `FrameDiffConfig`.
+  - Keep `--no-diff` behavior unchanged.
+  - Return the same `FrameDiffResult` shape.
+
 - CLI action commands:
   - `Sources/ScreenCommander/CLI/ClickCommand.swift`
   - `Sources/ScreenCommander/CLI/TypeCommand.swift`
@@ -164,95 +211,93 @@ Keep the current frame diff behavior by default, while allowing callers to tune 
   - `Sources/ScreenCommander/CLI/ScrollCommand.swift`
   - `Sources/ScreenCommander/CLI/DragCommand.swift`
   - `Sources/ScreenCommander/CLI/MoveCommand.swift`
-  - `Sources/ScreenCommander/CLI/SequenceCommand.swift`
-  - Add flags such as `--diff-grid` and `--diff-threshold`.
-- `Sources/ScreenCommander/MCP/MCPToolRegistry.swift`
-  - Add matching tool arguments for actions that return diffs.
+  - Add `--diff-grid`.
+  - Add `--diff-threshold`.
+  - Validate once and pass a config into `CommandRuntime.frameDiff`.
+
+- `Sources/ScreenCommander/CLI/SequenceCommand.swift`
+  - Support diff config at the sequence command level.
+  - Apply that config consistently to each step that captures before/after screenshots.
+
 - `Sources/ScreenCommander/Persistence/Models.swift`
-  - Add config/result fields only if output needs to report the effective diff config.
-- `docs/json-output-schema.md`
-  - Update only if output includes effective diff config.
+  - Keep result models unchanged for this cycle.
+  - Do not add effective config fields to action output.
+
+- Tests
+  - Add unit coverage for config validation.
+  - Add tests proving default config maps to current `64x64 / 0.04` behavior.
+  - Add command/runtime coverage proving overrides reach `FrameDiff.compare`.
+  - Add invalid value tests.
+
 - `README.md`
-  - Document the override flags.
+  - Document `--diff-grid`.
+  - Document `--diff-threshold`.
+  - Keep default behavior examples unchanged.
+
 - `SKILL.md`
-  - Add short guidance for tuning small UI changes.
+  - Add short guidance for raising grid size or lowering threshold when checking small UI changes.
 
-### Implementation Steps
+- `docs/json-output-schema.md`
+  - Leave unchanged for frame diff tuning because output shape stays the same.
 
-1. Define `FrameDiffConfig` with defaults matching current behavior.
-2. Add validation for grid and threshold.
-3. Thread config from CLI/MCP action surfaces into `CommandRuntime.frameDiff`.
-4. Keep `--no-diff` behavior unchanged.
-5. Decide whether result output should include effective config; if yes, document it.
+### Acceptance Checks
 
-### Tests
-
-- Existing default frame diff tests continue to pass.
-- Default action path still uses `64x64 / 0.04`.
-- Custom grid/threshold reaches `FrameDiff.compare`.
-- Invalid grid/threshold returns `invalid_arguments`.
-- MCP action arguments mirror CLI behavior.
-
-### Acceptance Criteria
-
-- No default diff behavior changes.
-- CLI callers can override grid and threshold.
-- MCP callers can override grid and threshold.
+- Existing default diff tests still pass.
+- Existing action output remains compatible by default.
+- CLI override flags change the frame diff calculation.
 - Invalid tuning values fail clearly.
 - `swift test` passes.
 
 ## 4. Documentation Consolidation
 
-### Goal
+### Intent
 
-Make each documentation file own one clear job and remove legacy docs that no longer represent the current project.
+Make the documentation set describe the shipped tool consistently and remove legacy planning artifacts that read as active sources of truth.
 
-### Product Contract
+### Documentation Ownership
 
-- `README.md` is the GitHub-facing project README and current user contract.
-- `SKILL.md` is the short operator runbook for agents using the CLI.
-- `AGENTS.md` is repo-specific instruction for agents working in this repository.
-- `docs/capability-plan.md` is legacy and can be removed.
-- `INIT.md` was the original implementation tracker and can be removed if it is no longer current.
-- Docs must not tell conflicting stories about shipped behavior.
+- `README.md` is the GitHub-facing product README and current command contract.
+- `SKILL.md` is the operator runbook for agents using the CLI.
+- `AGENTS.md` is repo-local contributor and agent guidance.
+- `docs/json-output-schema.md` is the machine-readable output contract.
+- `docs/follow-up-design-issues.md` is the temporary implementation spec for this cleanup cycle.
 
-### Files To Change
+### File Plan
 
 - `README.md`
-  - Keep the full current user-facing command contract here.
-  - Remove references to legacy tracker status.
+  - Keep current installation, command, output, MCP, and troubleshooting docs.
+  - Remove stale references to old implementation phases or future-tense shipped work.
+  - Add current click/focus behavior, MCP scheduling, metadata freshness, and frame diff tuning as the code changes land.
+
 - `SKILL.md`
-  - Keep concise operator workflows and troubleshooting.
-  - Link to `README.md` for exhaustive syntax instead of duplicating every command detail.
+  - Keep concise operational workflows.
+  - Ensure examples match the current CLI surface.
+  - Add current guidance for MCP serial chaining, freshness interpretation, and diff tuning as the code changes land.
+
 - `AGENTS.md`
-  - Keep repo-specific agent workflow and project instructions.
-  - Remove command-manual duplication that belongs in `README.md` or `SKILL.md`.
-- `docs/capability-plan.md`
-  - Delete if no current content remains.
-- `INIT.md`
-  - Delete if no current content remains.
+  - Keep repo workflow instructions only.
+  - Remove claims that `INIT.md` is the active source of truth once `INIT.md` is deleted.
+  - Point implementation tracking to this follow-up spec while the cleanup cycle is active.
+
 - `docs/json-output-schema.md`
-  - Keep as the machine-readable output contract.
+  - Keep and update as schema changes land.
+  - Document new error codes and result fields introduced by this plan.
 
-### Implementation Steps
+- `docs/capability-plan.md`
+  - Delete. It is legacy planning.
 
-1. Audit each doc for current behavior, historical planning text, and duplicated command semantics.
-2. Move or preserve current user contract content in `README.md`.
-3. Reduce `SKILL.md` to the operator runbook.
-4. Reduce `AGENTS.md` to repo-agent instructions.
-5. Delete `docs/capability-plan.md` if it is only legacy planning.
-6. Delete `INIT.md` if it is only legacy tracker content.
-7. Run a final terminology pass for click semantics, metadata freshness, MCP serve behavior, and frame diff tuning.
+- `INIT.md`
+  - Delete. It is the original implementation tracker and no longer owns current scope.
 
-### Tests / Verification
+### Verification Plan
 
-- `rg` for removed legacy claims after deleting/rewriting docs.
-- `swift run screencommander --help` spot-check if command help changed during doc cleanup.
-- Verify `README.md`, `SKILL.md`, and `AGENTS.md` each describe the same defaults.
+- Run `rg "capability-plan|INIT.md|future|planned|TODO"` across docs after cleanup.
+- Run `rg "double|focus|dependsOn|metadataFreshness|diff"` across docs to confirm current semantics are described in the right place.
+- Spot-check `swift run screencommander --help` if CLI flags changed.
 
-### Acceptance Criteria
+### Acceptance Checks
 
 - No shipped command is described as future work.
-- No legacy plan doc remains as an apparent source of truth.
-- `README.md`, `SKILL.md`, and `AGENTS.md` have distinct ownership.
-- `docs/json-output-schema.md` remains the output contract.
+- No deleted legacy doc is referenced as the active source of truth.
+- README, SKILL, and AGENTS have distinct responsibilities.
+- Schema docs reflect any result or error changes introduced by this plan.

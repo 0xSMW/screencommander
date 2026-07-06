@@ -27,6 +27,8 @@ Use this skill to reliably control a macOS desktop through `screencommander` wit
 6. Default `click` activates a known target app/window before posting the click; use `--raw` only for strict low-level behavior.
 7. Default `type` mode is `paste` (`cmd+v`) for reliable full payload input.
 8. Prefer managed defaults (`~/Library/Caches/screencommander/...`); use explicit `--out`/`--meta` only when you need custom paths or a specific historical capture.
+9. Treat stale `metadataFreshness` as a recapture signal before continuing a coordinate chain. Use `--strict-metadata` when a stale coordinate click would be worse than no action.
+10. Keep default frame diff settings unless small UI changes are being missed; then raise `--diff-grid` or lower `--diff-threshold`.
 
 ## Fast Start
 
@@ -76,6 +78,16 @@ screencommander key "enter"
   ```
 
 All above emit pre/post screenshot paths by default.
+
+Useful action-wide verification flags:
+
+```bash
+screencommander click <x> <y> --strict-metadata
+screencommander click <x> <y> --diff-grid 128 --diff-threshold 0.02
+screencommander sequence --file ./sequence.json --diff-grid 128
+```
+
+`--strict-metadata` applies to coordinate `click`, `scroll`, `drag`, and `move`. `--diff-grid` and `--diff-threshold` apply to action commands that produce before/after screenshots.
 
 ## Reading UI Structure Without Pixels (`elements`)
 
@@ -178,12 +190,14 @@ Example:
 - Click appears to target wrong element:
   - Capture a fresh screenshot and use its matching metadata.
   - Verify coordinates in pixel space.
+  - Check `metadataFreshness` in JSON output; if stale, recapture before retrying.
   - Retry with default human-like click (avoid `--raw`).
 - Enter/return issues in text fields:
   - Keep `type` in default `paste` mode.
   - Use `key "return"` or app-specific send controls if needed.
 - Need deterministic validation after actions:
   - Use default pre/post capture and inspect printed `Preshot`/`Postshot` paths.
+  - For tiny changes such as checkbox toggles, retry verification with a larger `--diff-grid` or lower `--diff-threshold`.
 
 ## Execution Notes
 
@@ -220,7 +234,7 @@ Example:
 3. Execute single intended action (avoid batching until validated).
 4. Confirm result in postshot before proceeding to next destructive step.
 
-## Window Targeting (WP2)
+## Window Targeting
 
 ### Enumerate Windows
 
@@ -266,6 +280,7 @@ screencommander focus --app 1234
 | 80 | Window not found — check `windows` output for valid IDs |
 | 81 | App not found — verify app name/PID with `windows` or `ps aux` |
 | 82 | Element ambiguous — use `--element-id` or narrow with `--role`/`--app` |
+| 83 | Stale metadata — recapture or omit `--strict-metadata` for advisory-only freshness |
 
 ## MCP Server Mode (`serve --mcp`)
 
@@ -276,5 +291,8 @@ claude mcp add screencommander -- screencommander serve --mcp
 ```
 
 - Tools mirror the CLI 1:1 (`screenshot`, `click`, `type`, `key`, `keys`, `scroll`, `drag`, `move`, `elements`, `windows`, `focus`, `observe_wait`, `doctor`, `cleanup`); tool results are the same JSON envelopes documented in `docs/json-output-schema.md`, returned as `structuredContent`.
+- Requests run in parallel by default. Use JSON-RPC request `params.dependsOn` when the next request must wait for a prior request id, for example a follow-on action after an `observe_wait`.
+- Independent reads and diagnostics should stay parallel; do not serialize them behind long waits.
+- `notifications/cancelled` with `params.requestId` cancels an in-flight request and queued dependents.
 - `observe_wait` replaces the streaming `observe` command: pass `app`, `timeoutMs`, and optionally `until`; it returns the events seen and the outcome in one call.
 - Keep using the CLI for shell scripts and one-off captures.

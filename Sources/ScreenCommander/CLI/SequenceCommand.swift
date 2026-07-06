@@ -20,6 +20,12 @@ struct SequenceCommand: ParsableCommand {
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
 
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -31,6 +37,7 @@ struct SequenceCommand: ParsableCommand {
             let fileURL = resolvedURL(for: file)
             let data = try Data(contentsOf: fileURL)
             let sequence = try JSONDecoder().decode(SequenceFile.self, from: data)
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             if sequence.steps.isEmpty {
                 throw ScreenCommanderError.invalidArguments("Sequence file must include at least one step.")
@@ -46,7 +53,8 @@ struct SequenceCommand: ParsableCommand {
                 let diff = CommandRuntime.frameDiff(
                     pre: preshotResult,
                     post: postshotResult,
-                    skip: noDiff || step.noDiff
+                    skip: noDiff || step.noDiff,
+                    config: diffConfig
                 )
 
                 let stepResult = SequenceStepResult(
@@ -103,7 +111,8 @@ struct SequenceCommand: ParsableCommand {
                 appIdentifier: click.app,
                 via: click.via,
                 noCursor: click.noCursor ?? false,
-                strict: click.strict ?? false
+                strict: click.strict ?? false,
+                strictMetadata: click.strictMetadata ?? false
             )
             let result = try AsyncBridge.run {
                 try await CommandRuntime.engine.click(request)
@@ -124,7 +133,8 @@ struct SequenceCommand: ParsableCommand {
                 appIdentifier: scroll.app,
                 via: scroll.via,
                 noCursor: scroll.noCursor ?? false,
-                strict: scroll.strict ?? false
+                strict: scroll.strict ?? false,
+                strictMetadata: scroll.strictMetadata ?? false
             )
             let result = try AsyncBridge.run {
                 try await CommandRuntime.engine.scroll(request)
@@ -141,7 +151,8 @@ struct SequenceCommand: ParsableCommand {
                     metadataPath: drag.meta,
                     button: drag.button ?? .left,
                     steps: drag.steps ?? 12,
-                    durationMS: drag.durationMS ?? 300
+                    durationMS: drag.durationMS ?? 300,
+                    strictMetadata: drag.strictMetadata ?? false
                 )
             )
             return StepActionResult(action: "drag", drag: result)
@@ -152,7 +163,8 @@ struct SequenceCommand: ParsableCommand {
                     y: move.y,
                     coordinateSpace: move.space ?? .pixels,
                     metadataPath: move.meta,
-                    dwellMS: move.dwellMS ?? 0
+                    dwellMS: move.dwellMS ?? 0,
+                    strictMetadata: move.strictMetadata ?? false
                 )
             )
             return StepActionResult(action: "move", move: result)
@@ -329,6 +341,7 @@ struct SequenceClickStep: Decodable {
     var via: InputDeliveryMethod?
     var noCursor: Bool?
     var strict: Bool?
+    var strictMetadata: Bool?
     var noDiff: Bool?
 }
 
@@ -347,6 +360,7 @@ struct SequenceScrollStep: Decodable {
     var via: InputDeliveryMethod?
     var noCursor: Bool?
     var strict: Bool?
+    var strictMetadata: Bool?
     var noDiff: Bool?
 }
 
@@ -360,6 +374,7 @@ struct SequenceDragStep: Decodable {
     var durationMS: Int?
     var space: CoordinateSpace?
     var meta: String?
+    var strictMetadata: Bool?
     var noDiff: Bool?
 }
 
@@ -369,6 +384,7 @@ struct SequenceMoveStep: Decodable {
     var dwellMS: Int?
     var space: CoordinateSpace?
     var meta: String?
+    var strictMetadata: Bool?
     var noDiff: Bool?
 }
 

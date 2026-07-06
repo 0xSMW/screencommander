@@ -22,6 +22,9 @@ struct MoveCommand: ParsableCommand {
     @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
     var meta: String?
 
+    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate moves when screenshot metadata is known stale.")
+    var strictMetadata: Bool = false
+
     @Flag(
         name: .long,
         inversion: .prefixedNo,
@@ -31,6 +34,12 @@ struct MoveCommand: ParsableCommand {
 
     @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
     var noDiff: Bool = false
+
+    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    var diffGrid: Int?
+
+    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    var diffThreshold: Double?
 
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
@@ -44,6 +53,7 @@ struct MoveCommand: ParsableCommand {
                   let parsedY = Double(y), parsedY.isFinite else {
                 throw ScreenCommanderError.invalidArguments("x and y must be numeric values.")
             }
+            let diffConfig = try FrameDiffConfig.validated(grid: diffGrid, threshold: diffThreshold)
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
             let result = try CommandRuntime.engine.move(
@@ -52,11 +62,12 @@ struct MoveCommand: ParsableCommand {
                     y: parsedY,
                     coordinateSpace: space,
                     metadataPath: meta,
-                    dwellMS: dwellMS
+                    dwellMS: dwellMS,
+                    strictMetadata: strictMetadata
                 )
             )
             let postshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Postshot") : nil
-            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff)
+            let diff = CommandRuntime.frameDiff(pre: preshotResult, post: postshotResult, skip: noDiff, config: diffConfig)
 
             if format == .json {
                 try CommandRuntime.emitJSON(
@@ -74,6 +85,9 @@ struct MoveCommand: ParsableCommand {
 
             print("Moved to global point (\(result.resolved.globalX), \(result.resolved.globalY)).")
             print("Dwell: \(result.dwellMilliseconds) ms")
+            if let freshness = result.metadataFreshness {
+                print("Metadata freshness: \(freshness.status.rawValue) (\(freshness.reason))")
+            }
             print("Metadata: \(result.metadataPath)")
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")

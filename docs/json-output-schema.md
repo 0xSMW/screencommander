@@ -23,7 +23,11 @@ the `structuredContent` of the MCP result and as its text content block — so t
 document is the contract for both the CLI and MCP surfaces. MCP-only additions:
 `screenshot` also returns an image content block, and `observe_wait` returns
 `{ outcome, matched?, events, droppedEvents? }` (an unmet `until` is an
-`observe_timeout` error envelope).
+`observe_timeout` error envelope). MCP stdio requests run in parallel by default.
+To serialize a follow-on request, include `params.dependsOn` with the upstream
+JSON-RPC request id. To cancel an in-flight request, send
+`notifications/cancelled` with `params.requestId`; queued dependents are canceled
+with their upstream request.
 
 ## Error envelope
 
@@ -67,6 +71,7 @@ On failure in JSON mode, the same stdout contains:
 | `window_not_found` | 80 |
 | `app_not_found` | 81 |
 | `element_ambiguous` | 82 |
+| `stale_metadata` | 83 |
 
 ## Command result shapes
 
@@ -113,28 +118,33 @@ Brings an app to the foreground.
   - **deliveryMethod** (string): the tier that actually delivered the input — `"ax"`, `"pid"`, or `"global"`. Coordinate clicks default to `"global"`. A `deliveryMethod` differing from the preferred tier records a downgrade (not an error unless `--strict`).
   - **element** (object, optional): the resolved `AXElementRecord` (same shape as `elements` records), present for `--element`/`--element-id` clicks
   - **verifiedTarget** (object, optional): the `AXElementRecord` hit-tested at the mapped point when `--verify-target` was passed (may be absent when nothing was hit)
+  - **metadataFreshness** (object, optional): present for coordinate clicks that used metadata. Shape: `{ status, scope, reason }`, where `status` is `"fresh"`, `"stale"`, or `"unknown"`, `scope` is `"display"` or `"window"`, and `reason` is a human-readable explanation. `--strict-metadata` turns known stale metadata into `stale_metadata` before input injection.
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
+- **result.diff** (object or null): optional frame comparison between `preshot` and `postshot`; omitted or null when disabled with `--no-diff`, when either shot is missing, or when an image cannot be loaded. Shape: `{ changedFraction, changedRegion }`, where `changedFraction` is a number from `0.0` to `1.0` and `changedRegion` is either null or `{ x, y, w, h }` in post-shot pixel coordinates. `--diff-grid` and `--diff-threshold` tune calculation only; output shape is unchanged.
 
 ### scroll
 
 - **result.action** (object): `metadataPath` (string, coordinate scrolls only), `resolved` (inputX, inputY, space, globalX, globalY — element scrolls report the element center in `points` space), `dx`, `dy`, `unit`
   - **requestedVia** (string, optional), **deliveryMethod** (string), **element** (object, optional): same semantics as `click`. Scroll has no `ax` tier; element scrolls deliver via `"pid"` or `"global"`.
+  - **metadataFreshness** (object, optional): same semantics as `click`, present for coordinate scrolls that used metadata.
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
+- **result.diff**: same as click
 
 ### drag
 
-- **result.action** (object): `metadataPath`, `from` (ResolvedCoordinate), `to` (ResolvedCoordinate), `button`, `steps`, `durationMilliseconds`
+- **result.action** (object): `metadataPath`, `from` (ResolvedCoordinate), `to` (ResolvedCoordinate), `button`, `steps`, `durationMilliseconds`, `metadataFreshness` (same semantics as click)
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
+- **result.diff**: same as click
 
 ### move
 
-- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `dwellMilliseconds`
+- **result.action** (object): `metadataPath`, `resolved` (inputX, inputY, space, globalX, globalY), `dwellMilliseconds`, `metadataFreshness` (same semantics as click)
 - **result.preshot** (object or null): `imagePath`, `metadataPath` if pre-shot was captured
 - **result.postshot** (object or null): same for post-shot
-- **result.diff** (object or null): optional frame comparison between `preshot` and `postshot`; omitted or null when disabled with `--no-diff`, when either shot is missing, or when an image cannot be loaded. Shape: `{ changedFraction, changedRegion }`, where `changedFraction` is a number from `0.0` to `1.0` and `changedRegion` is either null or `{ x, y, w, h }` in post-shot pixel coordinates.
+- **result.diff**: same as click
 
 ### type
 

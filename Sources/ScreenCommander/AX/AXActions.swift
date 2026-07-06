@@ -17,8 +17,8 @@ enum InputDeliveryMethod: String, Codable, Sendable, ExpressibleByArgument, Equa
     case global
 }
 
-/// Coordinate-free AX actuation (WP5 tier `ax`), injected into the engine so tests can
-/// fake it without a live Accessibility grant.
+/// Coordinate-free AX actuation, injected into the engine so tests can fake it
+/// without a live Accessibility grant.
 protocol AXActionPerforming {
     /// Performs a named AX action (`AXPress`, `AXShowMenu`, `AXConfirm`,
     /// `AXIncrement`, `AXDecrement`) on a live element.

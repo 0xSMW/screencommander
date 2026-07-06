@@ -144,9 +144,11 @@ Behavior:
 - Disabled elements fail with exit `72` before any fallback tier runs.
 - `--via ax|pid|global` forces one tier with no fallback (`--strict` implied). `--no-cursor` removes the `global` tier so the pointer never moves. `--strict` turns any downgrade into exit `72` (`element_not_actionable`).
 - Coordinate clicks keep the historical `global` delivery; `--via pid` with `--app <name|pid>` posts a coordinate click to one app instead.
+- Plain coordinate clicks send one physical click. For human-like global clicks, `--app` or window metadata lets the engine activate the target before clicking, instead of firing an extra focus click.
 - `--verify-target` (coordinate clicks) hit-tests the mapped point via accessibility first and includes the element found there in the result.
+- Coordinate actions report advisory `metadataFreshness` in JSON when metadata is used. Add `--strict-metadata` to fail with `stale_metadata` before input injection when the metadata is known stale.
 - Captures pre-action and post-action screenshots by default and prints both paths.
-- Compares pre-action and post-action screenshots and reports a changed region when pixels differ.
+- Compares pre-action and post-action screenshots and reports a changed region when pixels differ. Tune with `--diff-grid <1...512>` and `--diff-threshold <0...1>`; defaults stay `64` and `0.04`.
 - Disable before/after capture with `--no-postshot`.
 - Disable only frame comparison with `--no-diff`.
 
@@ -171,7 +173,9 @@ Behavior:
 - Uses line units by default; pass `--unit pixels` for pixel scrolling.
 - Requires at least one nonzero delta across `--dx` and `--dy`.
 - `--element`/`--element-id` scrolls at an element's center. There is no AX scroll action, so element scrolls try `pid` then `global`; `--no-cursor` restricts to `pid`; `--via pid|global` forces a tier. The result records `deliveryMethod`.
+- Coordinate scrolls report advisory `metadataFreshness`; use `--strict-metadata` to fail before input injection when metadata is known stale.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+- Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Drag
 
@@ -185,7 +189,9 @@ Behavior:
 - Maps both endpoints through the same metadata and coordinate space.
 - Posts mouse-down, interpolated drag events, and mouse-up.
 - Defaults to `--steps 12` and `--duration-ms 300`.
+- Reports advisory `metadataFreshness`; use `--strict-metadata` to fail before input injection when metadata is known stale.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+- Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Move
 
@@ -198,7 +204,9 @@ Behavior:
 
 - Maps screenshot coordinates to global Quartz coordinates and posts one mouse-move event.
 - Sleeps after the move when `--dwell-ms` is provided.
+- Reports advisory `metadataFreshness`; use `--strict-metadata` to fail before input injection when metadata is known stale.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
+- Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Type
 
@@ -225,6 +233,7 @@ Behavior:
 - `--element`/`--element-id` targets an accessibility element: tier `ax` sets `AXValue` directly (works on background apps), falling back to focusing the element and using the keyboard path (`global`). `type` has no `pid` tier. `--via ax|global` forces a tier; `--strict` turns downgrades into exit `72`.
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
 - Compares pre-action and post-action screenshots by default (`--no-diff` to disable).
+- Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Key
 
@@ -245,6 +254,7 @@ Behavior:
 
 - Captures pre-action and post-action screenshots by default (`--no-postshot` to disable).
 - Compares pre-action and post-action screenshots by default (`--no-diff` to disable).
+- Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Keys
 
@@ -255,7 +265,7 @@ screencommander keys "press:next" "sleep:100" "press:prev"
 
 `keys` executes `down`/`up`/`press`/`sleep` steps in strict order.
 For repeated modifier-based shortcuts, include modifiers explicitly in each `press` step (for example `press:cmd+tab`). Standalone keys such as `press:next` and `press:prev` do not require modifiers.
-It captures and compares pre-action and post-action screenshots by default; use `--no-postshot` or `--no-diff` to disable those separately.
+It captures and compares pre-action and post-action screenshots by default; use `--no-postshot` or `--no-diff` to disable those separately. Tune frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Elements
 
@@ -334,9 +344,10 @@ Behavior:
 - Executes steps in order.
 - Step keys are exactly one of `click`, `scroll`, `drag`, `move`, `type`, `key`, or `sleep`.
 - `click`, `scroll`, and `type` steps accept the element-targeting fields `element`, `elementId`, `role`, `app`, `via`, `noCursor` (`click`/`scroll`), and `strict`, mirroring the CLI options (for example `{ "click": { "element": "Save", "app": "TextEdit", "via": "ax" } }`).
+- Coordinate `click`, `scroll`, `drag`, and `move` steps accept `strictMetadata`.
 - Captures pre-action and post-action screenshots around each step by default.
 - Disable per-step before/after capture with `--no-postshot`.
-- Compares each step's pre-action and post-action screenshots by default. Use command-level `--no-diff` or a step-level `noDiff: true` field to disable comparison.
+- Compares each step's pre-action and post-action screenshots by default. Use command-level `--no-diff` or a step-level `noDiff: true` field to disable comparison. Tune sequence-wide frame diff with `--diff-grid <1...512>` and `--diff-threshold <0...1>`.
 
 ### Windows
 
@@ -412,6 +423,11 @@ Behavior:
 - One warm engine instance serves all calls — no per-action process startup — and
   tool results are the same JSON envelopes the CLI prints (as `structuredContent`
   plus a text block), so `docs/json-output-schema.md` covers both surfaces.
+- Requests run in parallel by default. A client that needs a serialized follow-on
+  request can put `dependsOn` in the JSON-RPC request `params` with the upstream
+  request id; the follow-on starts after that upstream request completes.
+- `notifications/cancelled` with `params.requestId` cancels the matching in-flight
+  request and any queued dependents.
 - Window/display enumeration (~100–300 ms) is cached for 2 seconds in serve mode, so
   bursts like `windows` → `screenshot` → `click` pay it once. The CLI always
   enumerates fresh.
@@ -479,3 +495,4 @@ For maximum speed in scripts, combine `--json --compact --no-postshot` (and opti
 - `80`: window not found (`--window` id/name matched nothing)
 - `81`: app not found (`--app` name/pid matched no running app)
 - `82`: element ambiguous (`--element` matched multiple best candidates; use `--element-id` or narrow with `--role`/`--app`)
+- `83`: stale metadata (`--strict-metadata` found display/window metadata that no longer matches the live desktop)

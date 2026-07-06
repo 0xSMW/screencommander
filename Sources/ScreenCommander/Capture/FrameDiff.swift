@@ -6,6 +6,34 @@ struct FrameDiffResult: Codable, Sendable {
     var changedRegion: RectD?
 }
 
+struct FrameDiffConfig: Sendable, Equatable {
+    static let defaultGrid = 64
+    static let defaultThreshold = 0.04
+    static let maximumGrid = 512
+
+    var grid: Int
+    var threshold: Double
+
+    static let `default` = FrameDiffConfig(
+        grid: FrameDiffConfig.defaultGrid,
+        threshold: FrameDiffConfig.defaultThreshold
+    )
+
+    static func validated(grid: Int?, threshold: Double?) throws -> FrameDiffConfig {
+        let grid = grid ?? defaultGrid
+        let threshold = threshold ?? defaultThreshold
+
+        guard (1...maximumGrid).contains(grid) else {
+            throw ScreenCommanderError.invalidArguments("--diff-grid must be between 1 and \(maximumGrid).")
+        }
+        guard threshold.isFinite, (0...1).contains(threshold) else {
+            throw ScreenCommanderError.invalidArguments("--diff-threshold must be between 0 and 1.")
+        }
+
+        return FrameDiffConfig(grid: grid, threshold: threshold)
+    }
+}
+
 enum FrameDiff {
     static func compare(
         _ pre: CGImage,
@@ -72,6 +100,14 @@ enum FrameDiff {
             changedFraction: Double(changedCells) / Double(grid * grid),
             changedRegion: region
         )
+    }
+
+    static func compare(
+        _ pre: CGImage,
+        _ post: CGImage,
+        config: FrameDiffConfig
+    ) -> FrameDiffResult {
+        compare(pre, post, grid: config.grid, threshold: config.threshold)
     }
 
     private static func draw(

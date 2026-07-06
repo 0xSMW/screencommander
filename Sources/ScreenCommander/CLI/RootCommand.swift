@@ -224,14 +224,19 @@ enum CommandRuntime {
         return nil
     }
 
-    static func frameDiff(pre: ActionScreenshotCapture?, post: ActionScreenshotCapture?, skip: Bool) -> FrameDiffResult? {
+    static func frameDiff(
+        pre: ActionScreenshotCapture?,
+        post: ActionScreenshotCapture?,
+        skip: Bool,
+        config: FrameDiffConfig = .default
+    ) -> FrameDiffResult? {
         guard !skip,
               let preImage = pre?.image,
               let postImage = post?.image else {
             return nil
         }
 
-        return FrameDiff.compare(preImage, postImage)
+        return FrameDiff.compare(preImage, postImage, config: config)
     }
 
     static func printFrameDiff(_ diff: FrameDiffResult?) {
@@ -265,7 +270,7 @@ enum CommandRuntime {
         switch error {
         case .permissionDeniedScreenRecording, .permissionDeniedAccessibility, .captureFailed, .axTreeUnavailable:
             return false
-        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .observeTimeout, .windowNotFound, .appNotFound, .elementAmbiguous:
+        case .imageWriteFailed, .metadataFailure, .invalidCoordinate, .mappingFailed, .inputSynthesisFailed, .invalidArguments, .elementNotFound, .elementNotActionable, .observeTimeout, .windowNotFound, .appNotFound, .elementAmbiguous, .staleMetadata:
             return true
         }
     }

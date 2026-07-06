@@ -177,6 +177,7 @@ final class MCPToolRegistry {
                 "noCursor": boolProp("Never fall back to global delivery (real cursor stays put)."),
                 "strict": boolProp("Tier downgrades become errors."),
                 "verifyTarget": boolProp("Hit-test the mapped point and include the element found there (coordinate clicks only)."),
+                "strictMetadata": boolProp("Fail coordinate clicks when screenshot metadata is known stale."),
             ])
         ) { [engine] args in
             let request = ClickRequest(
@@ -197,7 +198,8 @@ final class MCPToolRegistry {
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
                 noCursor: Self.boolArg(args, "noCursor") ?? false,
                 strict: Self.boolArg(args, "strict") ?? false,
-                verifyTarget: Self.boolArg(args, "verifyTarget") ?? false
+                verifyTarget: Self.boolArg(args, "verifyTarget") ?? false,
+                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.click(request)
             return try self.okOutcome(command: "click", result: ActionResultEnvelope(action: result))
@@ -284,6 +286,7 @@ final class MCPToolRegistry {
                 "via": enumProp("Force one delivery tier.", values: ["pid", "global"]),
                 "noCursor": boolProp("Never fall back to global delivery."),
                 "strict": boolProp("Tier downgrades become errors."),
+                "strictMetadata": boolProp("Fail coordinate scrolls when screenshot metadata is known stale."),
             ])
         ) { [engine] args in
             let request = ScrollRequest(
@@ -300,7 +303,8 @@ final class MCPToolRegistry {
                 appIdentifier: Self.stringArg(args, "app"),
                 via: try Self.enumArg(args, "via", InputDeliveryMethod.self),
                 noCursor: Self.boolArg(args, "noCursor") ?? false,
-                strict: Self.boolArg(args, "strict") ?? false
+                strict: Self.boolArg(args, "strict") ?? false,
+                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try await engine.scroll(request)
             return try self.okOutcome(command: "scroll", result: ActionResultEnvelope(action: result))
@@ -321,6 +325,7 @@ final class MCPToolRegistry {
                 "button": enumProp("Mouse button.", values: ["left", "right", "middle"]),
                 "steps": numberProp("Interpolated move count (default 12)."),
                 "durationMs": numberProp("Total drag duration in ms (default 300)."),
+                "strictMetadata": boolProp("Fail coordinate drags when screenshot metadata is known stale."),
             ], required: ["x1", "y1", "x2", "y2"])
         ) { [engine] args in
             let request = DragRequest(
@@ -332,7 +337,8 @@ final class MCPToolRegistry {
                 metadataPath: Self.stringArg(args, "meta"),
                 button: try Self.enumArg(args, "button", MouseButtonChoice.self) ?? .left,
                 steps: try Self.intArg(args, "steps") ?? 12,
-                durationMS: try Self.intArg(args, "durationMs") ?? 300
+                durationMS: try Self.intArg(args, "durationMs") ?? 300,
+                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.drag(request)
             return try self.okOutcome(command: "drag", result: ActionResultEnvelope(action: result))
@@ -349,6 +355,7 @@ final class MCPToolRegistry {
                 "space": enumProp("Coordinate space.", values: ["pixels", "points", "normalized"]),
                 "meta": stringProp("Screenshot metadata path; defaults to last-screenshot.json."),
                 "dwellMs": numberProp("Milliseconds to dwell after moving (default 0)."),
+                "strictMetadata": boolProp("Fail coordinate moves when screenshot metadata is known stale."),
             ], required: ["x", "y"])
         ) { [engine] args in
             let request = MoveRequest(
@@ -356,7 +363,8 @@ final class MCPToolRegistry {
                 y: try Self.requireDouble(args, "y"),
                 coordinateSpace: try Self.enumArg(args, "space", CoordinateSpace.self) ?? .pixels,
                 metadataPath: Self.stringArg(args, "meta"),
-                dwellMS: try Self.intArg(args, "dwellMs") ?? 0
+                dwellMS: try Self.intArg(args, "dwellMs") ?? 0,
+                strictMetadata: Self.boolArg(args, "strictMetadata") ?? false
             )
             let result = try engine.move(request)
             return try self.okOutcome(command: "move", result: ActionResultEnvelope(action: result))
