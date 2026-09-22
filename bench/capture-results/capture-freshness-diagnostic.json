@@ -1,0 +1,61 @@
+{
+  "status": "partial",
+  "format": "png",
+  "scenariosSelected": [
+    "freshness",
+    "resize"
+  ],
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-3j4ip1oa/baseline/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/CaptureFixture.swift",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "ttlWaitSeconds": 2.25,
+  "seed": 20260922,
+  "sha256": {
+    "baselineBinary": "c53ec354c35cb3937b6943ccd3c03f2f00633fc63cc8bed1e0001e49603b338d",
+    "candidateBinary": "cb099ad81ab29d4e27918f7a50a62689f423ef4a9cf658a24bd6780890fe48f9",
+    "fixtureSource": "964df5998f4202e6965e4c3bf9a3317e3a8d21689fd0d456800c162f42e0db54",
+    "pixelProbeSource": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2"
+  },
+  "scenarios": {},
+  "notes": [
+    "All captures target one disposable fixture window by CGWindowID; no display or user-app capture.",
+    "MCP response duration includes capture, encoding, file write, JSON serialization, and stdio transfer.",
+    "Cold initialization, first capture, and combined times are reported separately; warm and expired-TTL sessions remain alive.",
+    "ImageIO pixel probing and fixture changes occur outside measured screenshot request time.",
+    "For live freshness/geometry checks, the candidate is captured immediately after mutation; baseline oracle is taken after TTL expiry."
+  ],
+  "scratchPath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-9j0ywu1a",
+  "fixturePID": 1862,
+  "initialFixtureGeometry": {
+    "contentCocoa": {
+      "h": 680,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "frameCocoa": {
+      "h": 708,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "marker": "red",
+    "pid": 1862,
+    "windowID": 159146
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "fixtureWindowID": 159146,
+  "fixtureSettleWarmupPairs": 3,
+  "error": "marker candidate vs baseline post-TTL oracle: A/B PNG pixels differ; baselineRGBA=32e43eddff60b9cd480fa2ee3f1665cecae40577b7438067adf3d8818edfa487 candidateRGBA=f962fe1e0435f8832802710dafe30f9b0f7cafb9fc135b74476f0fe21aaf0b5c; centers=[20, 50, 245]/[20, 49, 245]"
+}

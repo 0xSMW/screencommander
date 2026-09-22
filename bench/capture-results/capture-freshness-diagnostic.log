@@ -1,0 +1,1 @@
+partial: /Users/stephenwalker/Code/projects/screencommander/bench/capture-results/capture-freshness-diagnostic.json (marker candidate vs baseline post-TTL oracle: A/B PNG pixels differ; baselineRGBA=32e43eddff60b9cd480fa2ee3f1665cecae40577b7438067adf3d8818edfa487 candidateRGBA=f962fe1e0435f8832802710dafe30f9b0f7cafb9fc135b74476f0fe21aaf0b5c; centers=[20, 50, 245]/[20, 49, 245])

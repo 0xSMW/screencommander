@@ -33,6 +33,8 @@ struct WindowInfo: Codable, Sendable {
 struct ResolvedWindow {
     var info: WindowInfo
     var scWindow: SCWindow?
+    // Reuse the same enumeration for capture geometry instead of querying SCK twice.
+    var displays: [SCDisplay]? = nil
 }
 
 // MARK: - Protocol
@@ -176,39 +178,43 @@ final class Targets: TargetResolving {
     }
 
     func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
-        let content: SCShareableContent
+        var content: SCShareableContent
         do {
-            content = try await contentProvider.content(onScreenWindowsOnly: false)
+            // Name-based selection depends on current window ordering, which can
+            // change without any frame changing. Resolve that order freshly.
+            content = try await contentProvider.content(
+                onScreenWindowsOnly: false, forceRefresh: UInt32(identifier) == nil
+            )
+            let selected = selectWindow(identifier: identifier, app: app, content: content)
+            // SCK handles may be cached by a long-running MCP session. Check cheap
+            // WindowServer geometry before reusing their frame/display snapshot.
+            if selected.map({ !CaptureGeometry.isCurrent(window: $0, displays: content.displays) }) ?? true {
+                content = try await contentProvider.content(onScreenWindowsOnly: false, forceRefresh: true)
+            }
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }
-
-        var candidates = content.windows
-        if let app {
-            candidates = candidates.filter { $0.owningApplication?.processID == app.pid }
-        }
-
-        // Numeric: match by windowID
-        if let idValue = UInt32(identifier) {
-            guard let win = candidates.first(where: { $0.windowID == idValue }) else {
-                throw ScreenCommanderError.windowNotFound("No window with ID \(idValue).")
+        guard let win = selectWindow(identifier: identifier, app: app, content: content) else {
+            if let id = UInt32(identifier) {
+                throw ScreenCommanderError.windowNotFound("No window with ID \(id).")
             }
-            return ResolvedWindow(info: windowInfo(from: win), scWindow: win)
+            throw ScreenCommanderError.windowNotFound("No window matching '\(identifier)'.")
         }
+        return ResolvedWindow(info: windowInfo(from: win), scWindow: win, displays: content.displays)
+    }
 
-        // App-name prefix: frontmost window of that app. All normal windows share
-        // layer 0, so prefer on-screen windows (off-screen/minimized ones have no
-        // defined ordering in the enumeration) before tie-breaking on layer.
+    private func selectWindow(identifier: String, app: ResolvedApp?, content: SCShareableContent) -> SCWindow? {
+        let candidates = content.windows.filter { app == nil || $0.owningApplication?.processID == app?.pid }
+        if let idValue = UInt32(identifier) {
+            return candidates.first { $0.windowID == idValue }
+        }
         let lower = identifier.lowercased()
         let appWindows = candidates.filter {
             $0.owningApplication?.applicationName.lowercased().hasPrefix(lower) == true
         }
         let onScreenWindows = appWindows.filter { $0.isOnScreen }
         let pool = onScreenWindows.isEmpty ? appWindows : onScreenWindows
-        guard let win = pool.min(by: { $0.windowLayer < $1.windowLayer }) else {
-            throw ScreenCommanderError.windowNotFound("No window matching '\(identifier)'.")
-        }
-        return ResolvedWindow(info: windowInfo(from: win), scWindow: win)
+        return pool.min { $0.windowLayer < $1.windowLayer }
     }
 
     private func windowInfo(from w: SCWindow) -> WindowInfo {

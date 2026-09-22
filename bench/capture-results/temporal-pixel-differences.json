@@ -1,0 +1,19 @@
+{
+  "scratchPath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-c72i514o",
+  "comparisons": {
+    "marker-candidate-immediate vs marker-baseline-immediate": {
+      "absoluteChannelDifferenceHistogram": {
+        "0": 10195200
+      },
+      "channels": 10195200
+    },
+    "marker-baseline-immediate vs marker-baseline-oracle": {
+      "absoluteChannelDifferenceHistogram": {
+        "0": 7878418,
+        "1": 2316779,
+        "2": 3
+      },
+      "channels": 10195200
+    }
+  }
+}

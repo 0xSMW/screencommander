@@ -1,0 +1,26 @@
+{
+  "scope": "gated local fetch-count comparison; wall time is scheduling only",
+  "results": [
+    {
+      "variant": "legacy_ttl2",
+      "ttl": 2,
+      "call_count": 20,
+      "fetch_count": 20,
+      "wall_s": 0.0012974166311323643
+    },
+    {
+      "variant": "singleflight_ttl2",
+      "ttl": 2,
+      "call_count": 20,
+      "fetch_count": 1,
+      "wall_s": 0.0015788748860359192
+    },
+    {
+      "variant": "fresh_ttl0",
+      "ttl": 0,
+      "call_count": 20,
+      "fetch_count": 20,
+      "wall_s": 0.0020967083983123302
+    }
+  ]
+}

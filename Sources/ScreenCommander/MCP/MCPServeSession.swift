@@ -58,11 +58,14 @@ final class MCPServeSession {
                 return
             }
             let request = self.requestByApplyingInheritedMetadata(request, dependencyKey: dependencyKey)
-            if let line = await server.handle(request: request), !Task.isCancelled {
-                if let metadataPath = Self.extractMetadataPath(from: line) ?? Self.explicitMetadataPath(in: request) {
+            if let response = await server.handleWithContext(request: request) {
+                // Cancellation may interrupt postObserve after input was delivered.
+                // Preserve that receipt so a client does not blindly repeat input.
+                guard !Task.isCancelled || response.actionDelivered else { return }
+                if let metadataPath = response.metadataPath ?? Self.explicitMetadataPath(in: request) {
                     self.setMetadataContext(metadataPath, for: key)
                 }
-                writer(line)
+                writer(response.line)
             }
         }
 
@@ -221,12 +224,4 @@ final class MCPServeSession {
         return request.params?["arguments"]?["meta"]?.stringValue
     }
 
-    private static func extractMetadataPath(from line: String) -> String? {
-        guard let data = line.data(using: .utf8),
-              let value = try? JSONDecoder().decode(JSONValue.self, from: data),
-              value["result"]?["isError"]?.boolValue != true else {
-            return nil
-        }
-        return value["result"]?["structuredContent"]?["result"]?["metadataPath"]?.stringValue
-    }
 }

@@ -334,7 +334,22 @@ private final class FakeAXActions: AXActionPerforming {
     }
 }
 
+private actor WindowResolutionGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 private final class FakeTargets: TargetResolving {
+    var resolveWindowHandler: ((String) async throws -> ResolvedWindow)?
     var apps: [String: ResolvedApp] = [:]
     var windowList: [WindowInfo] = []
     var windowByIdentifier: [String: WindowInfo] = [:]
@@ -358,6 +373,7 @@ private final class FakeTargets: TargetResolving {
 
     func resolveWindow(identifier: String, app: ResolvedApp?) async throws -> ResolvedWindow {
         resolveWindowCalls.append(identifier)
+        if let resolveWindowHandler { return try await resolveWindowHandler(identifier) }
         guard let info = windowByIdentifier[identifier] else {
             throw ScreenCommanderError.windowNotFound("No window for '\(identifier)' in fake.")
         }
@@ -2429,6 +2445,49 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(activated, [windowApp])
         XCTAssertEqual(fixture.targets.resolveWindowCalls, ["42"])
         XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testCanceledWindowResolutionCannotActivateOrClick() async throws {
+        var activated: [ResolvedApp] = []
+        let fixture = makeInputEngineFixture(
+            "cancelled-window-resolution",
+            activateApp: { activated.append($0) }
+        )
+        let metadata = ScreenshotMetadata(
+            capturedAtISO8601: "2026-02-21T00:00:00Z", displayID: 123,
+            displayBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+            imageSizePixels: SizeD(w: 800, h: 600), pointPixelScale: 2,
+            imagePath: "/tmp/window.png", windowID: 42,
+            windowBoundsPoints: RectD(x: 100, y: 200, w: 400, h: 300)
+        )
+        fixture.metadataStore.seedLoad(metadata, at: fixture.state.lastMetadataURL)
+        let cache = TTLCache<Bool, WindowInfo>(ttl: 2)
+        let gate = WindowResolutionGate()
+        let started = expectation(description: "Window enumeration started")
+        fixture.targets.resolveWindowHandler = { _ in
+            let info = try await cache.value(for: true) {
+                started.fulfill()
+                await gate.wait()
+                return WindowInfo(windowID: 42, title: "Main", appName: "Fixture", pid: 88,
+                                  boundsPoints: RectD(x: 100, y: 200, w: 400, h: 300),
+                                  isOnScreen: true, layer: 0)
+            }
+            return ResolvedWindow(info: info, scWindow: nil)
+        }
+        let action = Task {
+            try await fixture.engine.click(ClickRequest(
+                x: 200, y: 100, coordinateSpace: .pixels, metadataPath: nil,
+                button: .left, doubleClick: false, triple: false,
+                primeClick: false, humanLike: true, modifiers: []
+            ))
+        }
+        await fulfillment(of: [started], timeout: 2)
+        action.cancel()
+        await gate.open()
+        do { _ = try await action.value; XCTFail("Canceled action should throw") }
+        catch is CancellationError {}
+        XCTAssertTrue(activated.isEmpty)
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
     }
 
     func testTypeElementSetsValueViaAX() async throws {

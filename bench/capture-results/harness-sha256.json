@@ -1,0 +1,8 @@
+{
+  "bench/AXFixture.swift": "bc208f406793b8bf5059ade10c283e24578dc7ecf7c15e66cbd6d701dcd13589",
+  "bench/CaptureFixture.swift": "1c6ab481a6ec75cde71a4a52b98a548aa61ac772ce2d314724e94e035ff3b53c",
+  "bench/CapturePixelProbe.swift": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2",
+  "bench/README.md": "5d43a711fbe64b5ce822fdae1302b648cecd889cf1ae3cf4f1b19301a31e3e4f",
+  "bench/capture_ab.py": "941f7eafa1514054fa790c0a36efaf0f76b60d245bd33dab4e9c514799b1a140",
+  "bench/live_ab.py": "a49ea547c1e19c9326510407dbfc216989fe7940ca6f857844d73ffeb7081012"
+}

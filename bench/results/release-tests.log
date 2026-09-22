@@ -1,0 +1,688 @@
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for production...
+[2/7] Write sources
+[4/7] Write swift-version--58304C5D6DBC2206.txt
+[6/8] Compiling ScreenCommander AXActions.swift
+/Users/stephenwalker/Code/projects/screencommander/Sources/ScreenCommander/AX/AXObserverStream.swift:589:42: warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+587 |                 return nil
+588 |             }
+589 |             return CFBooleanGetValue(ref as! CFBoolean)
+    |                                      |   | `- note: use 'as?' to perform a conditional downcast to 'CFBoolean'
+    |                                      |   `- warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+    |                                      `- note: add parentheses around the cast to silence this warning
+590 |         }
+591 |
+[6/9] Write Objects.LinkFileList
+[7/9] Linking screencommander
+[9/10] Compiling ScreenCommanderTests AXPerformanceTests.swift
+/Users/stephenwalker/Code/projects/screencommander/Tests/ScreenCommanderTests/ObserverPerformanceTests.swift:44:42: warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+ 42 |                 return nil
+ 43 |             }
+ 44 |             return CFBooleanGetValue(ref as! CFBoolean)
+    |                                      |   | `- note: use 'as?' to perform a conditional downcast to 'CFBoolean'
+    |                                      |   `- warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+    |                                      `- note: add parentheses around the cast to silence this warning
+ 45 |         }
+ 46 |
+[10/12] Compiling screencommanderPackageTests runner.swift
+[10/12] Write Objects.LinkFileList
+[11/12] Linking screencommanderPackageTests
+Build complete! (27.10s)
+Test Suite 'All tests' started at 2026-09-22 15:57:00.566.
+Test Suite 'screencommanderPackageTests.xctest' started at 2026-09-22 15:57:00.568.
+Test Suite 'AXBoundsMapperTests' started at 2026-09-22 15:57:00.568.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFrameFillingWholeDisplayMaps]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFrameFillingWholeDisplayMaps]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFrameOutsideMetadataBoundsReturnsNil]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFrameOutsideMetadataBoundsReturnsNil]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFramePartiallyOutsideBoundsReturnsNil]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testFramePartiallyOutsideBoundsReturnsNil]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testMapsGlobalPointsToScreenshotPixels]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testMapsGlobalPointsToScreenshotPixels]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testNonPositiveScaleReturnsNil]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testNonPositiveScaleReturnsNil]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testWindowMetadataMapsAgainstWindowBounds]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testWindowMetadataMapsAgainstWindowBounds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testWindowMetadataRejectsFramesOutsideWindowEvenWhenOnDisplay]' started.
+Test Case '-[ScreenCommanderTests.AXBoundsMapperTests testWindowMetadataRejectsFramesOutsideWindowEvenWhenOnDisplay]' passed (0.000 seconds).
+Test Suite 'AXBoundsMapperTests' passed at 2026-09-22 15:57:00.571.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'AXElementRecordTests' started at 2026-09-22 15:57:00.571.
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testDepthDerivedFromIDPath]' started.
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testDepthDerivedFromIDPath]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testRecordRoundTripsThroughJSONWithStableKeys]' started.
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testRecordRoundTripsThroughJSONWithStableKeys]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testValueTruncationMarker]' started.
+Test Case '-[ScreenCommanderTests.AXElementRecordTests testValueTruncationMarker]' passed (0.000 seconds).
+Test Suite 'AXElementRecordTests' passed at 2026-09-22 15:57:00.574.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'AXIDPathTests' started at 2026-09-22 15:57:00.574.
+Test Case '-[ScreenCommanderTests.AXIDPathTests testParsesDotJoinedChildIndexPaths]' started.
+Test Case '-[ScreenCommanderTests.AXIDPathTests testParsesDotJoinedChildIndexPaths]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXIDPathTests testRejectsMalformedIDPaths]' started.
+Test Case '-[ScreenCommanderTests.AXIDPathTests testRejectsMalformedIDPaths]' passed (0.000 seconds).
+Test Suite 'AXIDPathTests' passed at 2026-09-22 15:57:00.574.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'AXPerformanceTests' started at 2026-09-22 15:57:00.574.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testCheapFiltersRetainDescendantsAndAvoidRecordHydration]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testCheapFiltersRetainDescendantsAndAvoidRecordHydration]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testDirectPathRejectsOutOfScopeAndStaleIDs]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testDirectPathRejectsOutOfScopeAndStaleIDs]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testDirectPathReturnsSameRecordAsFullTraversalWithFewerNodeReads]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testDirectPathReturnsSameRecordAsFullTraversalWithFewerNodeReads]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testMissingOrShortExpectedChildPageIsIncomplete]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testMissingOrShortExpectedChildPageIsIncomplete]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testPagingPreservesOriginalIndicesAndVisitedBudgetStopsFurtherPages]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testPagingPreservesOriginalIndicesAndVisitedBudgetStopsFurtherPages]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testRangedTextUsesUTF16OffsetsAndFallsBackOnIncompleteGrapheme]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testRangedTextUsesUTF16OffsetsAndFallsBackOnIncompleteGrapheme]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testTimeoutAndCancellationReportPartialReason]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testTimeoutAndCancellationReportPartialReason]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testTransientAXErrorsAreDistinguishedFromUnsupportedAttributes]' started.
+Test Case '-[ScreenCommanderTests.AXPerformanceTests testTransientAXErrorsAreDistinguishedFromUnsupportedAttributes]' passed (0.000 seconds).
+Test Suite 'AXPerformanceTests' passed at 2026-09-22 15:57:00.577.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'AXTextRendererTests' started at 2026-09-22 15:57:00.577.
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testFallsBackToDescriptionWhenTitleMissing]' started.
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testFallsBackToDescriptionWhenTitleMissing]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testRendersIndentedTreeAndSkipsTextlessRecords]' started.
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testRendersIndentedTreeAndSkipsTextlessRecords]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testWhitespaceOnlyContentCountsAsEmpty]' started.
+Test Case '-[ScreenCommanderTests.AXTextRendererTests testWhitespaceOnlyContentCountsAsEmpty]' passed (0.000 seconds).
+Test Suite 'AXTextRendererTests' passed at 2026-09-22 15:57:00.577.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'AXTreeUnavailableHeuristicTests' started at 2026-09-22 15:57:00.577.
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testDepthLimitedSingleRootIsNotUnusable]' started.
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testDepthLimitedSingleRootIsNotUnusable]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testMultiNodeTreeIsNotUnusable]' started.
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testMultiNodeTreeIsNotUnusable]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testOneNodeNaturalTraversalIsUnusable]' started.
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testOneNodeNaturalTraversalIsUnusable]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testTruncatedTraversalIsNotUnusable]' started.
+Test Case '-[ScreenCommanderTests.AXTreeUnavailableHeuristicTests testTruncatedTraversalIsNotUnusable]' passed (0.000 seconds).
+Test Suite 'AXTreeUnavailableHeuristicTests' passed at 2026-09-22 15:57:00.578.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'AXTreeWalkerTests' started at 2026-09-22 15:57:00.578.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testDeepTreeWalksWithoutRecursiveCallStack]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testDeepTreeWalksWithoutRecursiveCallStack]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testDepthFirstOrderAndIDPaths]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testDepthFirstOrderAndIDPaths]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testExactElementCountIsNotMarkedTruncated]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testExactElementCountIsNotMarkedTruncated]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMaxDepthStopsDescent]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMaxDepthStopsDescent]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMaxElementsTruncates]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMaxElementsTruncates]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMultipleRootsWalkInOrder]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testMultipleRootsWalkInOrder]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testRoleFilterEmitsOnlyMatchesButStillTraversesChildren]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testRoleFilterEmitsOnlyMatchesButStillTraversesChildren]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testRoleFilterMatchesWithAndWithoutAXPrefixCaseInsensitively]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testRoleFilterMatchesWithAndWithoutAXPrefixCaseInsensitively]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testVisibleOnlySkipsOffscreenAndFramelessRecords]' started.
+Test Case '-[ScreenCommanderTests.AXTreeWalkerTests testVisibleOnlySkipsOffscreenAndFramelessRecords]' passed (0.000 seconds).
+Test Suite 'AXTreeWalkerTests' passed at 2026-09-22 15:57:00.585.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'CaptureRetentionManagerTests' started at 2026-09-22 15:57:00.585.
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testIgnoresSubdirectoriesAndUnknownExtensions]' started.
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testIgnoresSubdirectoriesAndUnknownExtensions]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testPrunesOldFilesAndPreservesExtensions]' started.
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testPrunesOldFilesAndPreservesExtensions]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testReturnsZeroForMissingDirectory]' started.
+Test Case '-[ScreenCommanderTests.CaptureRetentionManagerTests testReturnsZeroForMissingDirectory]' passed (0.000 seconds).
+Test Suite 'CaptureRetentionManagerTests' passed at 2026-09-22 15:57:00.591.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'CoordinateMapperTests' started at 2026-09-22 15:57:00.591.
+Test Case '-[ScreenCommanderTests.CoordinateMapperTests testMapsPixelCoordinatesToGlobalPoint]' started.
+Test Case '-[ScreenCommanderTests.CoordinateMapperTests testMapsPixelCoordinatesToGlobalPoint]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.CoordinateMapperTests testRejectsOutOfBoundsPixels]' started.
+Test Case '-[ScreenCommanderTests.CoordinateMapperTests testRejectsOutOfBoundsPixels]' passed (0.000 seconds).
+Test Suite 'CoordinateMapperTests' passed at 2026-09-22 15:57:00.592.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'FrameDiffTests' started at 2026-09-22 15:57:00.592.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testActionResultEnvelopeEncodesOptionalDiff]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testActionResultEnvelopeEncodesOptionalDiff]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFrameDiffConfigDefaultsMatchExistingBehavior]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFrameDiffConfigDefaultsMatchExistingBehavior]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFrameDiffConfigRejectsInvalidValues]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFrameDiffConfigRejectsInvalidValues]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFullDifferentImagesProduceFullChange]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testFullDifferentImagesProduceFullChange]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testIdenticalImagesProduceNoChange]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testIdenticalImagesProduceNoChange]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testMismatchedSizesProduceFullPostshotRegion]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testMismatchedSizesProduceFullPostshotRegion]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testRuntimeSkipsDiffWhenRequestedOrImageMissing]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testRuntimeSkipsDiffWhenRequestedOrImageMissing]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testRuntimeUsesCustomFrameDiffConfig]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testRuntimeUsesCustomFrameDiffConfig]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.FrameDiffTests testSingleChangedBlockProducesTightRegion]' started.
+Test Case '-[ScreenCommanderTests.FrameDiffTests testSingleChangedBlockProducesTightRegion]' passed (0.000 seconds).
+Test Suite 'FrameDiffTests' passed at 2026-09-22 15:57:00.594.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'JSONOutputSchemaTests' started at 2026-09-22 15:57:00.594.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testErrorEnvelopeEncodesWithRequiredKeys]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testErrorEnvelopeEncodesWithRequiredKeys]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testExplicitHumanOutputOverridesJSONEnvironment]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testExplicitHumanOutputOverridesJSONEnvironment]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testInvalidExplicitOutputModeThrowsEvenWhenJsonFlagIsSet]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testInvalidExplicitOutputModeThrowsEvenWhenJsonFlagIsSet]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testInvalidOutputModeThrowsInsteadOfFallingBack]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testInvalidOutputModeThrowsInsteadOfFallingBack]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testJsonFlagOverridesInvalidEnvironmentOutput]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testJsonFlagOverridesInvalidEnvironmentOutput]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testStableErrorCodes]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testStableErrorCodes]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testSuccessEnvelopeEncodesWithRequiredKeys]' started.
+Test Case '-[ScreenCommanderTests.JSONOutputSchemaTests testSuccessEnvelopeEncodesWithRequiredKeys]' passed (0.000 seconds).
+Test Suite 'JSONOutputSchemaTests' passed at 2026-09-22 15:57:00.596.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'KeyCodesTests' started at 2026-09-22 15:57:00.596.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesAliasAndFunctionKeys]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesAliasAndFunctionKeys]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesBasicKeyboardChord]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesBasicKeyboardChord]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesCommandAndMacroAliases]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesCommandAndMacroAliases]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesCompleteFunctionRow]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesCompleteFunctionRow]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesHoldTargetForModifierAndSystemTokens]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesHoldTargetForModifierAndSystemTokens]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesModifierAliasesAndNormalizationOrder]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesModifierAliasesAndNormalizationOrder]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesNavigationAndKeypad]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesNavigationAndKeypad]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSpaceSeparatedModifierChord]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSpaceSeparatedModifierChord]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSystemKeyAliases]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSystemKeyAliases]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSystemMediaKey]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testParsesSystemMediaKey]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsMalformedChordTokens]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsMalformedChordTokens]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsModifierOnlyChord]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsModifierOnlyChord]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsModifierOnlyHoldTargetForFn]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsModifierOnlyHoldTargetForFn]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsSystemKeyWithModifier]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsSystemKeyWithModifier]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsUnsupportedToken]' started.
+Test Case '-[ScreenCommanderTests.KeyCodesTests testRejectsUnsupportedToken]' passed (0.000 seconds).
+Test Suite 'KeyCodesTests' passed at 2026-09-22 15:57:00.599.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.001 (0.003) seconds
+Test Suite 'KeySequenceParserTests' started at 2026-09-22 15:57:00.599.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesPressWithModifierAndSystemSteps]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesPressWithModifierAndSystemSteps]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSimpleHoldSequence]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSimpleHoldSequence]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSleepStep]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSleepStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSpecialMacroPressSteps]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSpecialMacroPressSteps]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSystemKeyPressStep]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testParsesSystemKeyPressStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsBadDownUpPayload]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsBadDownUpPayload]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsBlankStep]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsBlankStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsEmptySequence]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsEmptySequence]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsInvalidAction]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsInvalidAction]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsNegativeSleep]' started.
+Test Case '-[ScreenCommanderTests.KeySequenceParserTests testRejectsNegativeSleep]' passed (0.000 seconds).
+Test Suite 'KeySequenceParserTests' passed at 2026-09-22 15:57:00.601.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'MCPJSONRPCTests' started at 2026-09-22 15:57:00.601.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testDecodesRequestWithNumberID]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testDecodesRequestWithNumberID]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testDecodesRequestWithStringIDAndParams]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testDecodesRequestWithStringIDAndParams]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testEncodesErrorResponseWithoutResult]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testEncodesErrorResponseWithoutResult]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testEncodesSuccessResponse]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testEncodesSuccessResponse]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testIntValueRequiresExactRepresentation]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testIntValueRequiresExactRepresentation]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueEncodesWholeNumbersWithoutFraction]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueEncodesWholeNumbersWithoutFraction]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueEncodingFromEncodable]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueEncodingFromEncodable]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueRoundTripsNestedStructures]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testJSONValueRoundTripsNestedStructures]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRejectsUnparseableAndStructurallyInvalidLines]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRejectsUnparseableAndStructurallyInvalidLines]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRequestWithNullIDIsNotANotification]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRequestWithNullIDIsNotANotification]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRequestWithoutIDIsNotification]' started.
+Test Case '-[ScreenCommanderTests.MCPJSONRPCTests testRequestWithoutIDIsNotification]' passed (0.000 seconds).
+Test Suite 'MCPJSONRPCTests' passed at 2026-09-22 15:57:00.605.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'MCPServerTests' started at 2026-09-22 15:57:00.605.
+Test Case '-[ScreenCommanderTests.MCPServerTests testBlankLineIsIgnored]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testBlankLineIsIgnored]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testElementsRejectsNegativeWindowIdInsteadOfTrapping]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testElementsRejectsNegativeWindowIdInsteadOfTrapping]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testInitializedNotificationDoesNotUnlockTools]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testInitializedNotificationDoesNotUnlockTools]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testInitializeHandshake]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testInitializeHandshake]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testKeysRejectsMixedTypeStepsWithoutPartialExecution]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testKeysRejectsMixedTypeStepsWithoutPartialExecution]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testMalformedBooleanArgumentIsRejectedWithoutPartialExecution]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testMalformedBooleanArgumentIsRejectedWithoutPartialExecution]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testNotificationGetsNoResponse]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testNotificationGetsNoResponse]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitMatchesScriptedEvent]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitMatchesScriptedEvent]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitRejectsOutOfRangeTimeout]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitRejectsOutOfRangeTimeout]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitUnmetPredicateIsObserveTimeoutError]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testObserveWaitUnmetPredicateIsObserveTimeoutError]' passed (0.056 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testParallelSafeDefaultScreenshotPathsAreUniqueWithinSameSecond]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testParallelSafeDefaultScreenshotPathsAreUniqueWithinSameSecond]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testPing]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testPing]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testScrollRejectsOutOfInt32RangeDeltaInsteadOfTrapping]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testScrollRejectsOutOfInt32RangeDeltaInsteadOfTrapping]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionCancellationSuppressesLateResponseAndDependents]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionCancellationSuppressesLateResponseAndDependents]' passed (0.172 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionInheritsScreenshotMetadataForDependentCoordinateAction]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionInheritsScreenshotMetadataForDependentCoordinateAction]' passed (0.200 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionLateCancelDoesNotCancelCompletedDependencyFollower]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionLateCancelDoesNotCancelCompletedDependencyFollower]' passed (0.087 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionRunsUnrelatedRequestsInParallel]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionRunsUnrelatedRequestsInParallel]' passed (0.025 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionSerialDependencyWaitsForUpstream]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testServeSessionSerialDependencyWaitsForUpstream]' passed (0.175 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallClickDispatchesToEngine]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallClickDispatchesToEngine]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallClickWithoutTargetIsToolError]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallClickWithoutTargetIsToolError]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallDoctorReturnsOkEnvelope]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallDoctorReturnsOkEnvelope]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallScreenshotJPEGReturnsJpegImageBlock]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallScreenshotJPEGReturnsJpegImageBlock]' passed (0.003 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallScreenshotWindowReturnsImageBlock]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallScreenshotWindowReturnsImageBlock]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallUnknownToolIsInvalidParams]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsCallUnknownToolIsInvalidParams]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsListExposesAllFourteenTools]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsListExposesAllFourteenTools]' passed (0.008 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsRequireInitialize]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testToolsRequireInitialize]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testUnknownMethodReturnsMethodNotFound]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testUnknownMethodReturnsMethodNotFound]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MCPServerTests testUnparseableLineReturnsParseError]' started.
+Test Case '-[ScreenCommanderTests.MCPServerTests testUnparseableLineReturnsParseError]' passed (0.000 seconds).
+Test Suite 'MCPServerTests' passed at 2026-09-22 15:57:01.354.
+	 Executed 28 tests, with 0 failures (0 unexpected) in 0.746 (0.749) seconds
+Test Suite 'MetadataFreshnessCheckerTests' started at 2026-09-22 15:57:01.354.
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testChangedDisplayBoundsReportsStale]' started.
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testChangedDisplayBoundsReportsStale]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testFreshDisplayMetadataReportsFresh]' started.
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testFreshDisplayMetadataReportsFresh]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testMissingWindowReportsStale]' started.
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testMissingWindowReportsStale]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testMovedWindowReportsStale]' started.
+Test Case '-[ScreenCommanderTests.MetadataFreshnessCheckerTests testMovedWindowReportsStale]' passed (0.000 seconds).
+Test Suite 'MetadataFreshnessCheckerTests' passed at 2026-09-22 15:57:01.355.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'MouseControllerTests' started at 2026-09-22 15:57:01.355.
+Test Case '-[ScreenCommanderTests.MouseControllerTests testHumanLikeDoubleClickEmitsExactlyTwoClicks]' started.
+Test Case '-[ScreenCommanderTests.MouseControllerTests testHumanLikeDoubleClickEmitsExactlyTwoClicks]' passed (0.160 seconds).
+Test Case '-[ScreenCommanderTests.MouseControllerTests testHumanLikeSingleClickEmitsExactlyOneClick]' started.
+Test Case '-[ScreenCommanderTests.MouseControllerTests testHumanLikeSingleClickEmitsExactlyOneClick]' passed (0.095 seconds).
+Test Case '-[ScreenCommanderTests.MouseControllerTests testPrimeAndHumanLikeShareOnePreClickMove]' started.
+Test Case '-[ScreenCommanderTests.MouseControllerTests testPrimeAndHumanLikeShareOnePreClickMove]' passed (0.095 seconds).
+Test Case '-[ScreenCommanderTests.MouseControllerTests testRawSingleClickEmitsExactLowLevelClick]' started.
+Test Case '-[ScreenCommanderTests.MouseControllerTests testRawSingleClickEmitsExactLowLevelClick]' passed (0.000 seconds).
+Test Suite 'MouseControllerTests' passed at 2026-09-22 15:57:01.706.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.351 (0.351) seconds
+Test Suite 'MultiTurnPerformanceTests' started at 2026-09-22 15:57:01.706.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testActionCanReturnObservationInSameCall]' started.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testActionCanReturnObservationInSameCall]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testFailedPostReadPreservesDeliveryReceipt]' started.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testFailedPostReadPreservesDeliveryReceipt]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testInvalidPostObservationBudgetPreventsAction]' started.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testInvalidPostObservationBudgetPreventsAction]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testRingBufferPreservesNewestEventsInOrder]' started.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testRingBufferPreservesNewestEventsInOrder]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testTimeoutKeepsCollectedEventsAndErrorSemantics]' started.
+Test Case '-[ScreenCommanderTests.MultiTurnPerformanceTests testTimeoutKeepsCollectedEventsAndErrorSemantics]' passed (0.013 seconds).
+Test Suite 'MultiTurnPerformanceTests' passed at 2026-09-22 15:57:01.722.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.016 (0.016) seconds
+Test Suite 'ObserveTests' started at 2026-09-22 15:57:01.722.
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListDefaultsToAll]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListDefaultsToAll]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListRejectsUnknown]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListRejectsUnknown]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListSelectsSubset]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testEventKindParseListSelectsSubset]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testFirstMatchReturnsFirstMatchingRecord]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testFirstMatchReturnsFirstMatchingRecord]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testNotificationClassify]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testNotificationClassify]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testNotificationNamesForKinds]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testNotificationNamesForKinds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testObservedEventNDJSONLine]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testObservedEventNDJSONLine]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testObservedEventOmitsElementWhenNil]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testObservedEventOmitsElementWhenNil]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveMatchNDJSONLine]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveMatchNDJSONLine]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveMatchOmitsElementWhenNil]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveMatchOmitsElementWhenNil]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveTimeoutExitCode]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testObserveTimeoutExitCode]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateConjunctionRequiresAllConditions]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateConjunctionRequiresAllConditions]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateContainsIsCaseInsensitiveSubstring]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateContainsIsCaseInsensitiveSubstring]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateEqualsIsExactAndCaseSensitive]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateEqualsIsExactAndCaseSensitive]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateMatchesOnValueAndId]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateMatchesOnValueAndId]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesAllKeys]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesAllKeys]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesConjunction]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesConjunction]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesContainsCondition]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesContainsCondition]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesEqualsCondition]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateParsesEqualsCondition]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyKey]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyKey]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyString]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyString]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyValue]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsEmptyValue]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsMissingOperator]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsMissingOperator]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsUnknownKey]' started.
+Test Case '-[ScreenCommanderTests.ObserveTests testPredicateRejectsUnknownKey]' passed (0.000 seconds).
+Test Suite 'ObserveTests' passed at 2026-09-22 15:57:01.727.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 0.003 (0.005) seconds
+Test Suite 'ObserverPerformanceTests' started at 2026-09-22 15:57:01.727.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testBatchedRecordMatchesFormerIndividualReads]' started.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testBatchedRecordMatchesFormerIndividualReads]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testHydrationUsesOneBatchAndPreservesFrameFallbackResult]' started.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testHydrationUsesOneBatchAndPreservesFrameFallbackResult]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testLiveWindowObserverHydrationABBenchmark]' started.
+/Users/stephenwalker/Code/projects/screencommander/Tests/ScreenCommanderTests/ObserverPerformanceTests.swift:195: -[ScreenCommanderTests.ObserverPerformanceTests testLiveWindowObserverHydrationABBenchmark] : Test skipped - Set SCREENCOMMANDER_PERF_APP_PID to opt in to real AX window reads
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testLiveWindowObserverHydrationABBenchmark]' skipped (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testObserverHydrationABBenchmark]' started.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testObserverHydrationABBenchmark]' passed (0.031 seconds).
+Test Suite 'ObserverPerformanceTests' passed at 2026-09-22 15:57:01.759.
+	 Executed 4 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.032 (0.032) seconds
+Test Suite 'PermissionsTests' started at 2026-09-22 15:57:01.759.
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityLaterGrantIsObservedWithoutRePrompting]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityLaterGrantIsObservedWithoutRePrompting]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityNonPromptingCheckNeverRequestsTrust]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityNonPromptingCheckNeverRequestsTrust]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityPromptIsAttemptedOnlyOnceWhileDenied]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testAccessibilityPromptIsAttemptedOnlyOnceWhileDenied]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingLaterGrantIsObservedWithoutRePrompting]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingLaterGrantIsObservedWithoutRePrompting]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingNonPromptingCheckNeverRequestsAccess]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingNonPromptingCheckNeverRequestsAccess]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingPromptIsAttemptedOnlyOnceWhileDenied]' started.
+Test Case '-[ScreenCommanderTests.PermissionsTests testScreenRecordingPromptIsAttemptedOnlyOnceWhileDenied]' passed (0.000 seconds).
+Test Suite 'PermissionsTests' passed at 2026-09-22 15:57:01.760.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ScreenCommanderEngineTests' started at 2026-09-22 15:57:01.760.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupDefaultsTo24HoursWhenNil]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupDefaultsTo24HoursWhenNil]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupRejectsNegativeAges]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupRejectsNegativeAges]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupUsesRetentionManager]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCleanupUsesRetentionManager]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickDoubleAndTripleMutuallyExclusive]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickDoubleAndTripleMutuallyExclusive]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickLoadsDefaultMetadataPathAndMapsPixels]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickLoadsDefaultMetadataPathAndMapsPixels]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickReportsStaleMetadataWithoutStrictFailure]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickReportsStaleMetadataWithoutStrictFailure]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickStrictMetadataRejectsKnownStaleMetadata]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickStrictMetadataRejectsKnownStaleMetadata]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickTriple]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickTriple]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickWithModifiers]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testClickWithModifiers]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickVerifyTargetIncludesHitElement]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickVerifyTargetIncludesHitElement]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickViaPidRequiresAppAndPostsToPid]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickViaPidRequiresAppAndPostsToPid]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithAppActivatesBeforeGlobalClick]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithAppActivatesBeforeGlobalClick]' passed (0.124 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithAppSkipsActivationWhenAlreadyFrontmost]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithAppSkipsActivationWhenAlreadyFrontmost]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithWindowMetadataActivatesOwningApp]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateClickWithWindowMetadataActivatesOwningApp]' passed (0.125 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateMapperWindowBoundsOverridesDisplayBounds]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateMapperWindowBoundsOverridesDisplayBounds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateMapperWithoutWindowBoundsUsesDisplayBounds]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCoordinateMapperWithoutWindowBoundsUsesDisplayBounds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testDragCallsMouseController]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testDragCallsMouseController]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickAmbiguousSubstringThrows82]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickAmbiguousSubstringThrows82]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickByIdAndRoleFilter]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickByIdAndRoleFilter]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementDefaultThrows72WithoutFallback]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementDefaultThrows72WithoutFallback]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementForcedMouseTierThrows72]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementForcedMouseTierThrows72]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementStrictThrows72]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDisabledElementStrictThrows72]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDoubleClickSkipsAXTier]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickDoubleClickSkipsAXTier]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickExactTitleOutranksSubstring]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickExactTitleOutranksSubstring]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickFallsBackToGlobalWhenPidFails]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickFallsBackToGlobalWhenPidFails]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickFallsBackToPidWhenAXUnsupported]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickFallsBackToPidWhenAXUnsupported]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickForcedViaAXUnsupportedThrows72]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickForcedViaAXUnsupportedThrows72]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickForcedViaPidSkipsAX]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickForcedViaPidSkipsAX]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickNoCursorNeverReachesGlobal]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickNoCursorNeverReachesGlobal]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickNotFoundThrows70]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickNotFoundThrows70]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickPrefersAXTier]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickPrefersAXTier]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickResolvesAppThroughTargets]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickResolvesAppThroughTargets]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickResolvesFreshOnEveryInvocation]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickResolvesFreshOnEveryInvocation]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickRightButtonUsesAXShowMenu]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementClickRightButtonUsesAXShowMenu]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementScrollRejectsAXTier]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementScrollRejectsAXTier]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementScrollUsesPidTierThenGlobal]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementScrollUsesPidTierThenGlobal]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsDefaultsToFrontmostAppAndChecksAccessibility]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsDefaultsToFrontmostAppAndChecksAccessibility]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsDeniedAccessibilityStopsBeforeReadingTree]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsDeniedAccessibilityStopsBeforeReadingTree]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsFailsWithoutFrontmostAppOrIdentifier]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsFailsWithoutFrontmostAppOrIdentifier]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsMapsBoundsPixelsFromLastScreenshotMetadata]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsMapsBoundsPixelsFromLastScreenshotMetadata]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsOmitsPixelBoundsAndMetadataPathWithoutLastScreenshot]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsOmitsPixelBoundsAndMetadataPathWithoutLastScreenshot]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsPropagatesAxTreeUnavailable]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsPropagatesAxTreeUnavailable]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsRejectsInvalidLimitsAndConflictingWindowFlags]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsRejectsInvalidLimitsAndConflictingWindowFlags]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsResolvesAppIdentifierThroughTargetsAndForwardsOptions]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsResolvesAppIdentifierThroughTargetsAndForwardsOptions]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsSurfacesCorruptLastScreenshotMetadata]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsSurfacesCorruptLastScreenshotMetadata]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsTextModePopulatesRenderedText]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testElementsTextModePopulatesRenderedText]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusActivatesResolvedAppAndReportsPriorApp]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusActivatesResolvedAppAndReportsPriorApp]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusPropagatesAppNotFoundFromResolver]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusPropagatesAppNotFoundFromResolver]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusReportsNilPriorAppWhenNoneIsFrontmost]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusReportsNilPriorAppWhenNoneIsFrontmost]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusThrowsAppNotFoundWhenAppIsGoneAtActivation]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testFocusThrowsAppNotFoundWhenAppIsGoneAtActivation]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testKeysRejectsSystemKeyModifiersAndAcceptsSystemPressWithoutModifiers]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testKeysRejectsSystemKeyModifiersAndAcceptsSystemPressWithoutModifiers]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testKeySupportsSpecialAliasesThroughEngine]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testKeySupportsSpecialAliasesThroughEngine]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testMetadataBackwardCompatibilityWithoutWindowFields]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testMetadataBackwardCompatibilityWithoutWindowFields]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testMoveCallsMouseController]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testMoveCallsMouseController]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveDeniedAccessibilityStopsBeforeResolvingApp]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveDeniedAccessibilityStopsBeforeResolvingApp]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveFiltersEmittedEventsByKind]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveFiltersEmittedEventsByKind]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveInitialScanMatchesImmediately]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveInitialScanMatchesImmediately]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObservePlainTimeoutReturnsTimedOut]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObservePlainTimeoutReturnsTimedOut]' passed (0.054 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveRejectsNegativeTimeout]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveRejectsNegativeTimeout]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveResolvesAppChecksPermissionAndForwardsKinds]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveResolvesAppChecksPermissionAndForwardsKinds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveSurfacesObserverSetupFailure]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveSurfacesObserverSetupFailure]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveTimeoutWithUntilReturns73Outcome]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveTimeoutWithUntilReturns73Outcome]' passed (0.055 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveUntilMatchesIncomingEvent]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testObserveUntilMatchesIncomingEvent]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotUsesManagedCaptureDirectoryForDefaultOutput]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotUsesManagedCaptureDirectoryForDefaultOutput]' passed (0.041 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowCapturePersistsWindowMetadata]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowCapturePersistsWindowMetadata]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowMetadataRoundTripsThroughJSON]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowMetadataRoundTripsThroughJSON]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowNotFoundPropagates]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWindowNotFoundPropagates]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWithExplicitOutputAndDisabledLastMetadataUpdate]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScreenshotWithExplicitOutputAndDisabledLastMetadataUpdate]' passed (0.031 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollCallsMouseController]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollCallsMouseController]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollCommandAllowsHorizontalOnlyDelta]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollCommandAllowsHorizontalOnlyDelta]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollRequiresNonzeroDelta]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testScrollRequiresNonzeroDelta]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesDragStep]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesDragStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesElementClickAndTypeSteps]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesElementClickAndTypeSteps]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesHorizontalOnlyScrollStep]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesHorizontalOnlyScrollStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesMoveStep]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesMoveStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesScrollStep]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesScrollStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesSleepStep]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSequenceDecodesSleepStep]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSleepTimerChunkFitsInUseconds]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSleepTimerChunkFitsInUseconds]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSleepTimerReturnsImmediatelyForNonPositiveValues]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testSleepTimerReturnsImmediatelyForNonPositiveValues]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeAndKeysFlowThroughKeyboardController]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeAndKeysFlowThroughKeyboardController]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementDisabledThrows72WithoutKeyboardFallback]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementDisabledThrows72WithoutKeyboardFallback]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementDoesNotKeyboardFallbackWhenFocusFails]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementDoesNotKeyboardFallbackWhenFocusFails]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementFallsBackToFocusPlusKeyboard]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementFallsBackToFocusPlusKeyboard]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementForcedViaAXFailureThrows72]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementForcedViaAXFailureThrows72]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementSetsValueViaAX]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeElementSetsValueViaAX]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeRejectsNegativeDelay]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeRejectsNegativeDelay]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeRejectsPidTierAndBareViaAX]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testTypeRejectsPidTierAndBareViaAX]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testWindowsFiltersByApp]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testWindowsFiltersByApp]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testWindowsListsAllWindows]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testWindowsListsAllWindows]' passed (0.000 seconds).
+Test Suite 'ScreenCommanderEngineTests' passed at 2026-09-22 15:57:02.226.
+	 Executed 89 tests, with 0 failures (0 unexpected) in 0.456 (0.465) seconds
+Test Suite 'ScreenshotPerformanceTests' started at 2026-09-22 15:57:02.226.
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testLegacyImageWriterStillSupportsEncodedMethod]' started.
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testLegacyImageWriterStillSupportsEncodedMethod]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testScreenshotEncodingAndMetadataAB]' started.
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testScreenshotEncodingAndMetadataAB]' passed (0.357 seconds).
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testSingleEncodeWritesTheReturnedBytesForBothFormats]' started.
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testSingleEncodeWritesTheReturnedBytesForBothFormats]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testTypedResponseMetadataPreservesErrorSemantics]' started.
+Test Case '-[ScreenCommanderTests.ScreenshotPerformanceTests testTypedResponseMetadataPreservesErrorSemantics]' passed (0.000 seconds).
+Test Suite 'ScreenshotPerformanceTests' passed at 2026-09-22 15:57:02.589.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.362 (0.363) seconds
+Test Suite 'SnapshotMetadataStoreTests' started at 2026-09-22 15:57:02.589.
+Test Case '-[ScreenCommanderTests.SnapshotMetadataStoreTests testConcurrentSaveLoadUsesIndependentCoders]' started.
+Test Case '-[ScreenCommanderTests.SnapshotMetadataStoreTests testConcurrentSaveLoadUsesIndependentCoders]' passed (0.006 seconds).
+Test Case '-[ScreenCommanderTests.SnapshotMetadataStoreTests testDefaultLastMetadataURLCanBeInjected]' started.
+Test Case '-[ScreenCommanderTests.SnapshotMetadataStoreTests testDefaultLastMetadataURLCanBeInjected]' passed (0.001 seconds).
+Test Suite 'SnapshotMetadataStoreTests' passed at 2026-09-22 15:57:02.596.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.007 (0.007) seconds
+Test Suite 'SnapshotPerformanceTests' started at 2026-09-22 15:57:02.596.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testABSnapshotWireBytes]' started.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testABSnapshotWireBytes]' passed (0.274 seconds).
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testDeltaReconstructsFullObservationIncludingRemovalsAndChanges]' started.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testDeltaReconstructsFullObservationIncludingRemovalsAndChanges]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testEvictionAndScopeChangesReturnFullReset]' started.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testEvictionAndScopeChangesReturnFullReset]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testIncompleteReadNeverBecomesBaselineOrClaimsRemoval]' started.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testIncompleteReadNeverBecomesBaselineOrClaimsRemoval]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testOversizedSnapshotIsNotRetained]' started.
+Test Case '-[ScreenCommanderTests.SnapshotPerformanceTests testOversizedSnapshotIsNotRetained]' passed (0.000 seconds).
+Test Suite 'SnapshotPerformanceTests' passed at 2026-09-22 15:57:02.872.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.275 (0.276) seconds
+Test Suite 'StatePathsTests' started at 2026-09-22 15:57:02.872.
+Test Case '-[ScreenCommanderTests.StatePathsTests testDefaultStateDirectoryUsesCaches]' started.
+Test Case '-[ScreenCommanderTests.StatePathsTests testDefaultStateDirectoryUsesCaches]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.StatePathsTests testRespectsEnvironmentOverride]' started.
+Test Case '-[ScreenCommanderTests.StatePathsTests testRespectsEnvironmentOverride]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.StatePathsTests testRespectsRelativeEnvironmentOverride]' started.
+Test Case '-[ScreenCommanderTests.StatePathsTests testRespectsRelativeEnvironmentOverride]' passed (0.000 seconds).
+Test Suite 'StatePathsTests' passed at 2026-09-22 15:57:02.873.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'TTLCacheTests' started at 2026-09-22 15:57:02.873.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testErrorsAreNotCached]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testErrorsAreNotCached]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testKeysAreCachedIndependently]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testKeysAreCachedIndependently]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testRefetchesAfterTTLExpires]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testRefetchesAfterTTLExpires]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testReusesValueWithinTTL]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testReusesValueWithinTTL]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLNeverCaches]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLNeverCaches]' passed (0.104 seconds).
+Test Suite 'TTLCacheTests' passed at 2026-09-22 15:57:02.979.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.105 (0.105) seconds
+Test Suite 'TargetsTests' started at 2026-09-22 15:57:02.979.
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppExactAmbiguityIncludesPidAndBundleID]' started.
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppExactAmbiguityIncludesPidAndBundleID]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppNameIncludesAllRunningAppSnapshots]' started.
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppNameIncludesAllRunningAppSnapshots]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppPrefixAmbiguityIncludesPidAndBundleID]' started.
+Test Case '-[ScreenCommanderTests.TargetsTests testResolveAppPrefixAmbiguityIncludesPidAndBundleID]' passed (0.000 seconds).
+Test Suite 'TargetsTests' passed at 2026-09-22 15:57:02.980.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'screencommanderPackageTests.xctest' passed at 2026-09-22 15:57:02.980.
+	 Executed 279 tests, with 1 test skipped and 0 failures (0 unexpected) in 2.384 (2.413) seconds
+Test Suite 'All tests' passed at 2026-09-22 15:57:02.980.
+	 Executed 279 tests, with 1 test skipped and 0 failures (0 unexpected) in 2.384 (2.414) seconds
+SC_PERF_AB {"baseline_local_nanoseconds":13412250,"baseline_scalar_attribute_calls":70000,"benchmark":"observer_hydration_ab","iterations_per_variant":10000,"optimized_batch_attribute_calls":10000,"optimized_local_nanoseconds":17001875,"other_calls_per_record":{"actions":1,"frame":1},"scope":"local_fixture_no_remote_ipc"}
+SC_PERF_AB {"fixture":"generated_960x640_png","image_file_bytes":14224,"iterations":20,"new":{"cpu_total_s":0.094429000000000041,"response_bytes":19192,"wall_p50_s":0.0049278335645794868,"wall_p95_s":0.0055857920087873936},"old":{"cpu_total_s":0.18511400000000006,"response_bytes":19192,"wall_p50_s":0.0097610414959490299,"wall_p95_s":0.010140166617929935},"warmups":4}
+SC_PERF_AB {"baseline_bytes":852838,"baseline_records":2000,"candidate_bytes":9198,"candidate_records":20,"case":"snapshot_wire_2000_nodes_1_percent_changed","note":"Same full AX read; measures response bytes, not AX latency."}
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

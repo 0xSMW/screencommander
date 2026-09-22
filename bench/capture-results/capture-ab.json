@@ -1,0 +1,723 @@
+{
+  "status": "partial",
+  "format": "png",
+  "scenariosSelected": [
+    "warm",
+    "cold",
+    "ttl",
+    "freshness",
+    "resize"
+  ],
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-3j4ip1oa/baseline/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/CaptureFixture.swift",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "ttlWaitSeconds": 2.25,
+  "seed": 20260922,
+  "sha256": {
+    "baselineBinary": "c53ec354c35cb3937b6943ccd3c03f2f00633fc63cc8bed1e0001e49603b338d",
+    "candidateBinary": "cb099ad81ab29d4e27918f7a50a62689f423ef4a9cf658a24bd6780890fe48f9",
+    "fixtureSource": "964df5998f4202e6965e4c3bf9a3317e3a8d21689fd0d456800c162f42e0db54",
+    "pixelProbeSource": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2"
+  },
+  "scenarios": {
+    "warm": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 145.532,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 138.305,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 148.54,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 142.277,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 143.411,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 212.283,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 138.756,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 139.405,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 144.875,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 143.534,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 146.553,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 209.152,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 142.75,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 224.471,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 147.779,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 122.216,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 111.995,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 117.968,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 109.265,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 191.759,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 115.774,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 111.146,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 112.777,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 112.489,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 107.411,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 112.846,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 117.472,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 191.215,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 122.61,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 112.08,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          }
+        ]
+      },
+      "pixelsEquivalent": true,
+      "semantics": "warm persistent serve sessions, same fixture window and pixels",
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 144.875,
+          "p95Ms": 215.939,
+          "p50WireBytes": 571490,
+          "p95WireBytes": 571490
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 112.846,
+          "p95Ms": 191.378,
+          "p50WireBytes": 571498,
+          "p95WireBytes": 571498
+        }
+      }
+    },
+    "ttl": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 217.154,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 212.492,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 215.539,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 213.917,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 215.08,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 212.617,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 216.302,
+            "wireBytes": 571474,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 213.235,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 216.689,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 218.72,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 215.758,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 232.433,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 221.93,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 227.438,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 215.84,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 220.407,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 182.75,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 198.196,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 199.246,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 193.732,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 185.312,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 279.286,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 184.317,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 204.758,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 186.204,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 181.828,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 192.477,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 179.802,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 196.024,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 251.472,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          }
+        ]
+      },
+      "pixelsEquivalent": true,
+      "semantics": "same fixture window and pixels; TTL wait precedes each call",
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 215.84,
+          "p95Ms": 228.936,
+          "p50WireBytes": 571482,
+          "p95WireBytes": 571482
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 193.732,
+          "p95Ms": 259.816,
+          "p50WireBytes": 571490,
+          "p95WireBytes": 571490
+        }
+      }
+    },
+    "cold": {
+      "samples": {
+        "baseline": [],
+        "candidate": []
+      },
+      "pixelsEquivalent": true,
+      "semantics": "fresh server per capture; startupMs=launch+initialize, durationMs=first screenshot request"
+    }
+  },
+  "notes": [
+    "All captures target one disposable fixture window by CGWindowID; no display or user-app capture.",
+    "MCP response duration includes capture, encoding, file write, JSON serialization, and stdio transfer.",
+    "Cold initialization, first capture, and combined times are reported separately; warm and expired-TTL sessions remain alive.",
+    "ImageIO pixel probing and fixture changes occur outside measured screenshot request time.",
+    "For live freshness/geometry checks, the candidate is captured immediately after mutation; baseline oracle is taken after TTL expiry."
+  ],
+  "fixturePID": 96966,
+  "initialFixtureGeometry": {
+    "contentCocoa": {
+      "h": 680,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "frameCocoa": {
+      "h": 708,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "marker": "red",
+    "pid": 96966,
+    "windowID": 159065
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "fixtureWindowID": 159065,
+  "error": "baseline-cold response timed out after 30s"
+}

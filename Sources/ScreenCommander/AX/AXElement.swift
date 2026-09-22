@@ -11,6 +11,29 @@ private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMut
 /// combined frame attribute, which most apps nevertheless implement.
 private let axFrameAttributeName = "AXFrame"
 
+/// Owned by one tree read. A transient child or attribute failure must not make
+/// an incomplete tree appear authoritative to snapshot/delta consumers.
+final class AXReadDiagnostics {
+    private(set) var hadTransientError = false
+
+    func markIncomplete() { hadTransientError = true }
+
+    /// A requested positive child page must arrive in full, including when AX
+    /// reports noValue after a preceding count read. Otherwise absence is unknown.
+    func validatePage(receivedCount: Int?, requestedCount: Int) {
+        if receivedCount != requestedCount { markIncomplete() }
+    }
+
+    func record(_ error: AXError) {
+        switch error {
+        case .cannotComplete, .invalidUIElement, .failure:
+            hadTransientError = true
+        default:
+            break
+        }
+    }
+}
+
 /// Value-typed wrapper over `AXUIElement` with typed, optional-returning accessors.
 ///
 /// Every accessor swallows AX errors and returns `nil` (or an empty collection) instead:
@@ -18,17 +41,24 @@ private let axFrameAttributeName = "AXFrame"
 /// without crashing or aborting.
 struct AXElement {
     let raw: AXUIElement
+    let diagnostics: AXReadDiagnostics?
 
-    init(raw: AXUIElement) {
+    init(raw: AXUIElement, diagnostics: AXReadDiagnostics? = nil) {
         self.raw = raw
+        self.diagnostics = diagnostics
     }
 
-    static func application(pid: pid_t) -> AXElement {
-        AXElement(raw: AXUIElementCreateApplication(pid))
+    static func application(pid: pid_t, diagnostics: AXReadDiagnostics? = nil) -> AXElement {
+        AXElement(raw: AXUIElementCreateApplication(pid), diagnostics: diagnostics)
     }
 
     static func systemWide() -> AXElement {
         AXElement(raw: AXUIElementCreateSystemWide())
+    }
+
+    /// Applies a timeout only to this AX handle; the system-wide timeout is left alone.
+    func setMessagingTimeout(seconds: Float) {
+        diagnostics?.record(AXUIElementSetMessagingTimeout(raw, seconds))
     }
 
     // MARK: - Typed accessors
@@ -69,6 +99,53 @@ struct AXElement {
         elementArray(copyAttribute(kAXChildrenAttribute))
     }
 
+    func indexedChildren(beforePage: () -> Bool = { true }) -> [(index: Int, element: AXElement)] {
+        let count = childCount
+        guard count > 0 else { return [] }
+        var result: [(index: Int, element: AXElement)] = []
+        for start in stride(from: 0, to: count, by: 128) {
+            guard beforePage() else { break }
+            result.append(contentsOf: childrenPage(start: start, length: min(128, count - start)))
+        }
+        return result
+    }
+
+    /// Count and page AX children without copying a large child array at once.
+    /// Transient AX failures do not trigger a second wholesale read.
+    var childCount: Int {
+        var count: CFIndex = 0
+        let error = AXUIElementGetAttributeValueCount(raw, kAXChildrenAttribute as CFString, &count)
+        diagnostics?.record(error)
+        if error == .success { return max(0, count) }
+        if error == .notImplemented || error == .attributeUnsupported {
+            return (copyAttribute(kAXChildrenAttribute) as? [AnyObject])?.count ?? 0
+        }
+        return 0
+    }
+
+    func childrenPage(start: Int, length: Int) -> [(index: Int, element: AXElement)] {
+        guard start >= 0, length > 0 else { return [] }
+        var values: CFArray?
+        let error = AXUIElementCopyAttributeValues(
+            raw, kAXChildrenAttribute as CFString, start, length, &values
+        )
+        diagnostics?.record(error)
+        if error == .illegalArgument { diagnostics?.markIncomplete() }
+        if error == .success, let values = values as? [AnyObject] {
+            diagnostics?.validatePage(receivedCount: values.count, requestedCount: length)
+            return Self.indexedElements(values, startingAt: start, diagnostics: diagnostics)
+        }
+        guard error == .notImplemented || error == .attributeUnsupported,
+              let all = copyAttribute(kAXChildrenAttribute) as? [AnyObject],
+              start < all.count else {
+            diagnostics?.validatePage(receivedCount: nil, requestedCount: length)
+            return []
+        }
+        let page = Array(all[start..<min(all.count, start + length)])
+        diagnostics?.validatePage(receivedCount: page.count, requestedCount: length)
+        return Self.indexedElements(page, startingAt: start, diagnostics: diagnostics)
+    }
+
     var windows: [AXElement] {
         elementArray(copyAttribute(kAXWindowsAttribute))
     }
@@ -80,7 +157,9 @@ struct AXElement {
     /// CGWindowID for window elements; `nil` for non-windows or when unavailable.
     var windowID: CGWindowID? {
         var id: CGWindowID = 0
-        guard _AXUIElementGetWindow(raw, &id) == .success, id != 0 else {
+        let error = _AXUIElementGetWindow(raw, &id)
+        diagnostics?.record(error)
+        guard error == .success, id != 0 else {
             return nil
         }
         return id
@@ -88,7 +167,9 @@ struct AXElement {
 
     var actionNames: [String] {
         var names: CFArray?
-        guard AXUIElementCopyActionNames(raw, &names) == .success,
+        let error = AXUIElementCopyActionNames(raw, &names)
+        diagnostics?.record(error)
+        guard error == .success,
               let names = names as? [String] else {
             return []
         }
@@ -109,6 +190,7 @@ struct AXElement {
             rangeValue,
             &result
         )
+        diagnostics?.record(error)
         guard error == .success, let result else {
             return nil
         }
@@ -117,9 +199,8 @@ struct AXElement {
 
     // MARK: - Batched reads
 
-    /// Reads several attributes in one IPC round trip via
-    /// `AXUIElementCopyMultipleAttributeValues`. Per-attribute failures come back as
-    /// `nil` entries; a wholesale failure falls back to individual reads.
+    /// Reads several attributes in one IPC round trip. Transient wholesale errors
+    /// return nil entries; retrying each attribute would multiply a failing call.
     func attributeValues(_ names: [String]) -> [CFTypeRef?] {
         var values: CFArray?
         let error = AXUIElementCopyMultipleAttributeValues(
@@ -128,10 +209,15 @@ struct AXElement {
             AXCopyMultipleAttributeOptions(),
             &values
         )
+        diagnostics?.record(error)
         guard error == .success,
               let values = values as? [AnyObject],
               values.count == names.count else {
-            return names.map { copyAttribute($0) }
+            if error == .success { diagnostics?.markIncomplete() }
+            if error == .notImplemented || error == .attributeUnsupported {
+                return names.map { copyAttribute($0) }
+            }
+            return Array(repeating: nil, count: names.count)
         }
 
         return values.map { item -> CFTypeRef? in
@@ -139,6 +225,10 @@ struct AXElement {
             if CFGetTypeID(ref) == AXValueGetTypeID() {
                 let axValue = unsafeDowncast(item, to: AXValue.self)
                 if AXValueGetType(axValue) == .axError {
+                    var attributeError = AXError.success
+                    if AXValueGetValue(axValue, .axError, &attributeError) {
+                        diagnostics?.record(attributeError)
+                    }
                     return nil
                 }
             }
@@ -150,14 +240,18 @@ struct AXElement {
 
     func copyAttribute(_ name: String) -> CFTypeRef? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(raw, name as CFString, &value) == .success else {
+        let error = AXUIElementCopyAttributeValue(raw, name as CFString, &value)
+        diagnostics?.record(error)
+        guard error == .success else {
             return nil
         }
         return value
     }
 
     func setAttribute(_ name: String, value: CFTypeRef) -> AXError {
-        AXUIElementSetAttributeValue(raw, name as CFString, value)
+        let error = AXUIElementSetAttributeValue(raw, name as CFString, value)
+        diagnostics?.record(error)
+        return error
     }
 
     private func string(_ name: String) -> String? {
@@ -175,7 +269,7 @@ struct AXElement {
         guard let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else {
             return nil
         }
-        return AXElement(raw: ref as! AXUIElement)
+        return AXElement(raw: ref as! AXUIElement, diagnostics: diagnostics)
     }
 
     private func elementArray(_ ref: CFTypeRef?) -> [AXElement] {
@@ -186,7 +280,16 @@ struct AXElement {
             guard CFGetTypeID(item) == AXUIElementGetTypeID() else {
                 return nil
             }
-            return AXElement(raw: item as! AXUIElement)
+            return AXElement(raw: item as! AXUIElement, diagnostics: diagnostics)
+        }
+    }
+
+    private static func indexedElements(_ values: [AnyObject], startingAt start: Int,
+                                        diagnostics: AXReadDiagnostics?) -> [(index: Int, element: AXElement)] {
+        values.enumerated().compactMap { offset, item in
+            guard CFGetTypeID(item) == AXUIElementGetTypeID() else { return nil }
+            return (index: start + offset,
+                    element: AXElement(raw: item as! AXUIElement, diagnostics: diagnostics))
         }
     }
 

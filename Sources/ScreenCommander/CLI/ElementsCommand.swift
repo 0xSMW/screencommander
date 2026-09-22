@@ -34,6 +34,15 @@ struct ElementsCommand: ParsableCommand {
     @Option(name: .customLong("max-value-length"), help: "Truncate element values longer than this many characters.")
     var maxValueLength: Int = 200
 
+    @Option(name: .long, help: "Read profile: full or text (omits geometry/actions).")
+    var profile: String = "full"
+
+    @Option(name: .customLong("max-visited"), help: "Hard visited-node budget (1...100000).")
+    var maxVisited: Int?
+
+    @Option(name: .customLong("timeout-ms"), help: "AX read deadline in milliseconds (1...60000).")
+    var timeoutMS: Int?
+
     @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
     var json: Bool = false
 
@@ -46,6 +55,9 @@ struct ElementsCommand: ParsableCommand {
                 $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             }
 
+            guard let readProfile = AXTreeOptions.Profile(rawValue: profile) else {
+                throw ScreenCommanderError.invalidArguments("profile must be full or text.")
+            }
             let request = ElementsRequest(
                 appIdentifier: app,
                 windowID: windowID,
@@ -55,7 +67,10 @@ struct ElementsCommand: ParsableCommand {
                 maxElements: maxElements,
                 roles: parsedRoles,
                 visibleOnly: visibleOnly,
-                maxValueLength: maxValueLength
+                maxValueLength: maxValueLength,
+                profile: readProfile,
+                maxVisited: maxVisited,
+                timeoutMS: timeoutMS
             )
 
             let result = try AsyncBridge.run {

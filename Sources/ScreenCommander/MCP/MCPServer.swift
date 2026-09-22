@@ -1,5 +1,11 @@
 import Foundation
 
+struct MCPEncodedResponse {
+    var line: String
+    var metadataPath: String?
+    var actionDelivered: Bool = false
+}
+
 /// Stdio MCP server core: one JSON-RPC message per line in, one per line out.
 /// `handle(line:)` is the whole protocol surface, so tests drive it directly with
 /// strings — no pipes or process plumbing required.
@@ -33,6 +39,12 @@ final class MCPServer {
     /// Processes one decoded JSON-RPC request. Serve-mode dispatchers use this to
     /// parse once at the transport boundary, then schedule work without reparsing.
     func handle(request: JSONRPCRequest) async -> String? {
+        await handleWithContext(request: request)?.line
+    }
+
+    /// Preserve response metadata before JSON serialization, so serve mode never
+    /// reparses an image-bearing response simply to inherit a sidecar path.
+    func handleWithContext(request: JSONRPCRequest) async -> MCPEncodedResponse? {
         if request.isNotification {
             // notifications/initialized, notifications/cancelled, etc. — nothing to say.
             return nil
@@ -40,7 +52,18 @@ final class MCPServer {
 
         let id = request.id ?? .null
         let response = await respond(to: request, id: id)
-        return encodeOrNil(response)
+        guard let line = encodeOrNil(response) else { return nil }
+        let delivered = request.params?["arguments"]?["postObserve"] != nil
+            && response.result?["structuredContent"]?["status"]?.stringValue == "ok"
+            && response.result?["structuredContent"]?["result"]?["action"] != nil
+        return MCPEncodedResponse(line: line, metadataPath: Self.metadataPath(in: response), actionDelivered: delivered)
+    }
+
+    static func metadataPath(in response: JSONRPCResponse) -> String? {
+        let result = response.result
+        return result?["isError"]?.boolValue == true
+            ? nil
+            : result?["structuredContent"]?["result"]?["metadataPath"]?.stringValue
     }
 
     private func respond(to request: JSONRPCRequest, id: JSONValue) async -> JSONRPCResponse {

@@ -62,10 +62,13 @@ struct AXElementRecord: Codable, Sendable, Equatable {
     /// Truncates `value` to `maxLength` characters. Returns the (possibly shortened)
     /// value and whether truncation happened.
     static func truncatedValue(_ value: String, maxLength: Int) -> (value: String, truncated: Bool) {
-        guard maxLength >= 0, value.count > maxLength else {
+        guard maxLength >= 0 else {
             return (value, false)
         }
-        return (String(value.prefix(maxLength)), true)
+        let end = value.index(value.startIndex, offsetBy: maxLength, limitedBy: value.endIndex)
+            ?? value.endIndex
+        guard end != value.endIndex else { return (value, false) }
+        return (String(value[..<end]), true)
     }
 }
 
