@@ -12,7 +12,7 @@ struct MCPEncodedResponse {
 final class MCPServer {
     static let protocolVersion = "2025-06-18"
     static let serverName = "screencommander"
-    static let serverVersion = "0.4.1"
+    static let serverVersion = "0.5.0"
 
     private let registry: MCPToolRegistry
     private let stateLock = NSLock()
