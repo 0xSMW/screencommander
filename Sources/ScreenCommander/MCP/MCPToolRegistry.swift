@@ -36,8 +36,25 @@ final class MCPToolRegistry {
     init(engine: ScreenCommanderEngine, doctor: DoctorReporting) {
         self.engine = engine
         self.doctor = doctor
-        tools = buildTools()
+        tools = buildTools().map { tool in
+            guard Self.actionTools.contains(tool.name), var schema = tool.inputSchema.objectValue,
+                  var properties = schema["properties"]?.objectValue else { return tool }
+            var tool = tool
+            properties["postObserve"] = objectSchema([
+                "app": stringProp("App name or PID to observe after delivery; required."),
+                "since": stringProp("Optional snapshot ID for a delta."),
+                "maxElements": numberProp("Maximum records (default 200; 1...10000)."),
+                "maxVisited": numberProp("Maximum visited nodes (default 2000; 1...100000)."),
+                "timeoutMs": numberProp("Read deadline (default 500; 1...60000)."),
+                "profile": enumProp("full (default) or text.", values: ["full", "text"])
+            ], required: ["app"])
+            schema["properties"] = .object(properties)
+            tool.inputSchema = .object(schema)
+            return tool
+        }
     }
+
+    private static let actionTools: Set<String> = ["click", "type", "key", "keys", "scroll", "drag", "move"]
 
     func listToolsResult() -> JSONValue {
         .object([
@@ -58,7 +75,21 @@ final class MCPToolRegistry {
             return nil
         }
         do {
-            return try await tool.handler(arguments)
+            // Validate follow-up options before any side effect. A failed post-read
+            // must never turn a successfully delivered action into a retryable error.
+            let observation = try postObservationRequest(name: name, arguments: arguments)
+            var outcome = try await tool.handler(arguments)
+            if let observation, !outcome.isError, var envelope = outcome.envelope.objectValue,
+               var result = envelope["result"]?.objectValue {
+                do {
+                    result["observation"] = try JSONValue(encoding: await engine.elements(observation))
+                } catch {
+                    result["observationError"] = .string(String(describing: error))
+                }
+                envelope["result"] = .object(result)
+                outcome.envelope = .object(envelope)
+            }
+            return outcome
         } catch let error as ScreenCommanderError {
             return errorOutcome(command: name, error: error)
         } catch {
@@ -67,6 +98,32 @@ final class MCPToolRegistry {
                 error: .invalidArguments(error.localizedDescription)
             )
         }
+    }
+
+    private func postObservationRequest(name: String, arguments: JSONValue) throws -> ElementsRequest? {
+        guard let options = arguments["postObserve"], options != .null else { return nil }
+        guard Self.actionTools.contains(name), options.objectValue != nil else {
+            throw ScreenCommanderError.invalidArguments("postObserve requires an action tool and an options object.")
+        }
+        for key in ["profile", "since"] {
+            if let value = options[key], value != .null, value.stringValue == nil {
+                throw ScreenCommanderError.invalidArguments("postObserve.\(key) must be a string.")
+            }
+        }
+        let app = try Self.requireString(options, "app")
+        guard !app.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ScreenCommanderError.invalidArguments("postObserve.app must not be empty.")
+        }
+        let count = try Self.intArg(options, "maxElements") ?? 200
+        let visited = try Self.intArg(options, "maxVisited") ?? 2000
+        let timeout = try Self.intArg(options, "timeoutMs") ?? 500
+        guard (1...10_000).contains(count), (1...100_000).contains(visited), (1...60_000).contains(timeout) else {
+            throw ScreenCommanderError.invalidArguments("Invalid postObserve read budget.")
+        }
+        return ElementsRequest(appIdentifier: app, maxElements: count,
+                               profile: try Self.enumArg(options, "profile", AXTreeOptions.Profile.self) ?? .full,
+                               maxVisited: visited, timeoutMS: timeout, snapshot: true,
+                               since: Self.stringArg(options, "since"))
     }
 
     // MARK: - Envelope plumbing
@@ -143,7 +200,7 @@ final class MCPToolRegistry {
             let result = try await engine.screenshot(request)
 
             var extra: [JSONValue] = []
-            if let image = result.image, let encoded = try? Self.imageData(from: image, format: format) {
+            if let encoded = result.encodedImageData ?? result.image.flatMap({ try? Self.imageData(from: $0, format: format) }) {
                 extra.append(.object([
                     "type": .string("image"),
                     "data": .string(encoded.base64EncodedString()),
@@ -385,6 +442,11 @@ final class MCPToolRegistry {
                 "roles": arrayProp("Only include these roles.", itemType: "string"),
                 "visibleOnly": boolProp("Skip elements without an on-screen frame."),
                 "maxValueLength": numberProp("Truncate element values to this length (default 200)."),
+                "profile": enumProp("Fields to read: full (default) or text (omits geometry/actions).", values: ["full", "text"]),
+                "maxVisited": numberProp("Hard visited-node budget, 1...100000; partial reads report a reason."),
+                "timeoutMs": numberProp("AX read deadline in milliseconds, 1...60000."),
+                "snapshot": boolProp("Retain a bounded session snapshot and return its snapshotId."),
+                "since": stringProp("Return changed records and removedIds since this snapshot. Missing/incompatible baselines return a full reset."),
             ])
         ) { [engine] args in
             let request = ElementsRequest(
@@ -396,7 +458,12 @@ final class MCPToolRegistry {
                 maxElements: try Self.intArg(args, "maxElements") ?? 2000,
                 roles: try Self.stringArrayArg(args, "roles"),
                 visibleOnly: try Self.boolArg(args, "visibleOnly") ?? false,
-                maxValueLength: try Self.intArg(args, "maxValueLength") ?? 200
+                maxValueLength: try Self.intArg(args, "maxValueLength") ?? 200,
+                profile: try Self.enumArg(args, "profile", AXTreeOptions.Profile.self) ?? .full,
+                maxVisited: try Self.intArg(args, "maxVisited"),
+                timeoutMS: try Self.intArg(args, "timeoutMs"),
+                snapshot: try Self.boolArg(args, "snapshot") ?? false,
+                since: Self.stringArg(args, "since")
             )
             let result = try await engine.elements(request)
             return try self.okOutcome(command: "elements", result: result)
@@ -456,13 +523,6 @@ final class MCPToolRegistry {
                 collector.append(event)
             }
 
-            if case .timedOutUnmet = outcome {
-                return self.errorOutcome(
-                    command: "observe_wait",
-                    error: .observeTimeout("'until' predicate was not matched within \(timeout) ms.")
-                )
-            }
-
             let (events, dropped) = collector.snapshot()
             let result = ObserveWaitResult(
                 outcome: Self.describe(outcome),
@@ -473,6 +533,14 @@ final class MCPToolRegistry {
                 events: events,
                 droppedEvents: dropped > 0 ? dropped : nil
             )
+            if case .timedOutUnmet = outcome {
+                var failure = self.errorOutcome(command: "observe_wait", error: .observeTimeout("'until' predicate was not matched within \(timeout) ms."))
+                if var envelope = failure.envelope.objectValue {
+                    envelope["result"] = try JSONValue(encoding: result)
+                    failure.envelope = .object(envelope)
+                }
+                return failure
+            }
             return try self.okOutcome(command: "observe_wait", result: result)
         }
     }
@@ -684,17 +752,20 @@ final class ObserveEventCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var events: [ObservedEvent] = []
     private var dropped = 0
+    private var start = 0
 
     init(cap: Int) {
-        self.cap = cap
+        self.cap = max(1, cap)
     }
 
     func append(_ event: ObservedEvent) {
         lock.lock()
         defer { lock.unlock() }
-        events.append(event)
-        if events.count > cap {
-            events.removeFirst(events.count - cap)
+        if events.count < cap {
+            events.append(event)
+        } else {
+            events[start] = event
+            start = (start + 1) % cap
             dropped += 1
         }
     }
@@ -702,6 +773,6 @@ final class ObserveEventCollector: @unchecked Sendable {
     func snapshot() -> (events: [ObservedEvent], dropped: Int) {
         lock.lock()
         defer { lock.unlock() }
-        return (events, dropped)
+        return (Array(events[start...]) + Array(events[..<start]), dropped)
     }
 }

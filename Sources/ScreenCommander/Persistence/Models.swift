@@ -25,19 +25,22 @@ struct ScreenshotResult: Codable, Sendable {
     /// The captured image, kept in memory for in-process consumers (frame diff)
     /// so they need not re-decode the just-written PNG. Never serialized.
     var image: CGImage?
+    var encodedImageData: Data? = nil
 
     init(
         imagePath: String,
         metadataPath: String,
         lastMetadataPath: String,
         metadata: ScreenshotMetadata,
-        image: CGImage? = nil
+        image: CGImage? = nil,
+        encodedImageData: Data? = nil
     ) {
         self.imagePath = imagePath
         self.metadataPath = metadataPath
         self.lastMetadataPath = lastMetadataPath
         self.metadata = metadata
         self.image = image
+        self.encodedImageData = encodedImageData
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -254,6 +257,11 @@ struct ElementsRequest {
     var roles: [String]?
     var visibleOnly: Bool
     var maxValueLength: Int
+    var profile: AXTreeOptions.Profile
+    var maxVisited: Int?
+    var timeoutMS: Int?
+    var snapshot: Bool
+    var since: String?
 
     init(
         appIdentifier: String? = nil,
@@ -264,7 +272,12 @@ struct ElementsRequest {
         maxElements: Int = 2000,
         roles: [String]? = nil,
         visibleOnly: Bool = false,
-        maxValueLength: Int = 200
+        maxValueLength: Int = 200,
+        profile: AXTreeOptions.Profile = .full,
+        maxVisited: Int? = nil,
+        timeoutMS: Int? = nil,
+        snapshot: Bool = false,
+        since: String? = nil
     ) {
         self.appIdentifier = appIdentifier
         self.windowID = windowID
@@ -275,6 +288,11 @@ struct ElementsRequest {
         self.roles = roles
         self.visibleOnly = visibleOnly
         self.maxValueLength = maxValueLength
+        self.profile = profile
+        self.maxVisited = maxVisited
+        self.timeoutMS = timeoutMS
+        self.snapshot = snapshot
+        self.since = since
     }
 }
 
@@ -289,6 +307,13 @@ struct ElementsResult: Codable, Sendable {
     var elements: [AXElementRecord]
     /// Text-only tree rendering; present only in `--text` mode.
     var text: String?
+    var profile: String? = nil
+    var visitedCount: Int? = nil
+    var partialReason: String? = nil
+    var snapshotId: String? = nil
+    var baseSnapshotId: String? = nil
+    var removedIds: [String]? = nil
+    var resetReason: String? = nil
 }
 
 struct RectD: Codable, Sendable, Equatable {

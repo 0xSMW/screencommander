@@ -795,3 +795,65 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(envelope["error"]?["code"]?.stringValue, "invalid_arguments")
     }
 }
+
+final class MultiTurnPerformanceTests: XCTestCase {
+    func testTimeoutKeepsCollectedEventsAndErrorSemantics() async throws {
+        let fixture = makeFixture("timeout-retains-observations")
+        fixture.targets.apps["Fixture"] = ResolvedApp(pid: 42, name: "Fixture", bundleID: nil)
+        fixture.observation.keepOpen = true
+        fixture.observation.scriptedEvents = [ObservedEvent(ts: "2026-09-22T00:00:00Z", kind: .value, event: "value_changed",
+            app: ResolvedApp(pid: 42, name: "Fixture", bundleID: nil), element: AXElementRecord(id: "", role: "AXTextField", value: "working"))]
+        let response = await fixture.registry.call(name: "observe_wait", arguments: .object([
+            "app": .string("Fixture"), "timeoutMs": .number(10), "until": .string("value=done")
+        ]))
+        let outcome = try XCTUnwrap(response)
+        XCTAssertTrue(outcome.isError)
+        XCTAssertEqual(outcome.envelope["exitCode"]?.intValue, 73)
+        XCTAssertEqual(outcome.envelope["result"]?["events"]?.arrayValue?.count, 1)
+    }
+
+    func testActionCanReturnObservationInSameCall() async throws {
+        let fixture = makeFixture("action-observation")
+        fixture.targets.apps["Fixture"] = ResolvedApp(pid: 42, name: "Fixture", bundleID: nil)
+        let response = await fixture.registry.call(name: "keys", arguments: .object([
+            "steps": .array([.string("press:return")]), "postObserve": .object(["app": .string("Fixture")])
+        ]))
+        let outcome = try XCTUnwrap(response)
+        XCTAssertFalse(outcome.isError)
+        XCTAssertEqual(fixture.keyboard.runCount, 1)
+        XCTAssertNotNil(outcome.envelope["result"]?["observation"]?["elements"])
+        XCTAssertNotNil(outcome.envelope["result"]?["observation"]?["snapshotId"])
+    }
+
+    func testInvalidPostObservationBudgetPreventsAction() async throws {
+        let fixture = makeFixture("invalid-post-observation")
+        let response = await fixture.registry.call(name: "keys", arguments: .object([
+            "steps": .array([.string("press:return")]), "postObserve": .object(["app": .string("Fixture"), "maxVisited": .number(0)])
+        ]))
+        let outcome = try XCTUnwrap(response)
+        XCTAssertTrue(outcome.isError)
+        XCTAssertEqual(fixture.keyboard.runCount, 0)
+    }
+
+    func testFailedPostReadPreservesDeliveryReceipt() async throws {
+        let fixture = makeFixture("post-read-failure")
+        try await initializeMCP(fixture.server)
+        let request = try XCTUnwrap(JSONRPCCodec.decodeRequest(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"keys","arguments":{"steps":["press:return"],"postObserve":{"app":"missing"}}}}"#))
+        let response = await fixture.server.handleWithContext(request: request)
+        XCTAssertTrue(try XCTUnwrap(response).actionDelivered)
+        let decoded = try decodeResponse(response?.line)
+        XCTAssertEqual(decoded["result"]?["isError"]?.boolValue, false)
+        XCTAssertNotNil(decoded["result"]?["structuredContent"]?["result"]?["observationError"])
+        XCTAssertEqual(fixture.keyboard.runCount, 1)
+    }
+
+    func testRingBufferPreservesNewestEventsInOrder() {
+        let collector = ObserveEventCollector(cap: 3)
+        for i in 0..<8 {
+            collector.append(ObservedEvent(ts: String(i), kind: .value, event: "value_changed", app: ResolvedApp(pid: 42, name: "Fixture", bundleID: nil), element: nil))
+        }
+        let result = collector.snapshot()
+        XCTAssertEqual(result.events.map(\.ts), ["5", "6", "7"])
+        XCTAssertEqual(result.dropped, 5)
+    }
+}

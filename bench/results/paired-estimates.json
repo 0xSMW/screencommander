@@ -1,0 +1,79 @@
+{
+  "full": {
+    "a": "baseline",
+    "b": "candidate",
+    "p50_gain_percent": -7.07750451263538,
+    "paired_bootstrap_95_percent_interval": [
+      -27.03344735841884,
+      23.83674976026834
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "role": {
+    "a": "baseline",
+    "b": "candidate",
+    "p50_gain_percent": 72.36359737013183,
+    "paired_bootstrap_95_percent_interval": [
+      65.45911541735923,
+      73.97519295800097
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "text": {
+    "a": "baseline",
+    "b": "candidate",
+    "p50_gain_percent": 37.05488368805187,
+    "paired_bootstrap_95_percent_interval": [
+      30.626327938916344,
+      47.10926054437504
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "screenshot": {
+    "a": "baseline",
+    "b": "candidate",
+    "p50_gain_percent": 13.814783792273067,
+    "paired_bootstrap_95_percent_interval": [
+      12.326164359502478,
+      21.440493676439733
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "action": {
+    "a": "baseline",
+    "b": "candidate",
+    "p50_gain_percent": 46.28548534798536,
+    "paired_bootstrap_95_percent_interval": [
+      44.97150868065736,
+      46.80461937796936
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "postObserve": {
+    "a": "baselineTwoCalls",
+    "b": "candidateFused",
+    "p50_gain_percent": 26.36256717495472,
+    "paired_bootstrap_95_percent_interval": [
+      25.024429943672576,
+      28.210079110133655
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  },
+  "snapshot": {
+    "a": "baselineFull",
+    "b": "candidateDelta",
+    "p50_gain_percent": 34.75089083252348,
+    "paired_bootstrap_95_percent_interval": [
+      32.055972196817265,
+      36.59214641491949
+    ],
+    "resamples": 10000,
+    "note": "Within-run paired bootstrap; does not cover cross-app or cross-run variation."
+  }
+}

@@ -1,0 +1,415 @@
+{
+  "status": "ok",
+  "format": "png",
+  "scenariosSelected": [
+    "freshness",
+    "resize"
+  ],
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-3j4ip1oa/baseline/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/CaptureFixture.swift",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "ttlWaitSeconds": 2.25,
+  "seed": 20260922,
+  "sha256": {
+    "baselineBinary": "c53ec354c35cb3937b6943ccd3c03f2f00633fc63cc8bed1e0001e49603b338d",
+    "candidateBinary": "e4fb2e60cda8924ba6fda4a53270eb2556def75f2498f138dc414892f4c813ee",
+    "fixtureSource": "1c6ab481a6ec75cde71a4a52b98a548aa61ac772ce2d314724e94e035ff3b53c",
+    "pixelProbeSource": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2"
+  },
+  "scenarios": {
+    "freshness": {
+      "candidatePreToPostCaptureSeconds": 0.328,
+      "prewarmStartToPostCaptureSeconds": 0.534,
+      "candidatePreToPostRequestStartSeconds": 0.209,
+      "beforeCandidateSHA256": "eb9e00c269ebe934a4db10e6db67cfad4561dbc4136dbf7e2233781f46968169",
+      "beforeCandidateBoundsPoints": {
+        "h": 708,
+        "w": 900,
+        "x": 130,
+        "y": 279
+      },
+      "candidateImmediate": {
+        "sample": {
+          "durationMs": 117.927,
+          "wireBytes": 508525,
+          "fileBytes": 379943,
+          "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:28:07.598Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/marker-candidate-immediate.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159312
+        }
+      },
+      "baselineImmediate": {
+        "sample": {
+          "durationMs": 148.043,
+          "wireBytes": 508517,
+          "fileBytes": 379943,
+          "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:28:07.746Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/marker-baseline-immediate.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159312
+        },
+        "markerCurrent": true,
+        "boundsCurrent": true,
+        "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+      },
+      "baselineAfterTTL": {
+        "sample": {
+          "durationMs": 222.456,
+          "wireBytes": 519825,
+          "fileBytes": 388443,
+          "pixelSHA256": "4c3af0df8206581ede9890e51790f5035744e4b6b1912070b71c29f33bb491d0"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:28:10.225Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/marker-baseline-oracle.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159312
+        }
+      },
+      "authoritativeFixtureBoundsCG": {
+        "h": 708,
+        "w": 900,
+        "x": 130,
+        "y": 279
+      },
+      "candidateGeometryAndMarkerMatchPostTTLOracle": true,
+      "candidatePixelHashMatchesPostTTLOracle": false,
+      "candidatePixelHashMatchesImmediateBaseline": true
+    },
+    "resize": {
+      "resize": {
+        "candidatePreToPostCaptureSeconds": 0.381,
+        "prewarmStartToPostCaptureSeconds": 0.625,
+        "candidatePreToPostRequestStartSeconds": 0.207,
+        "beforeCandidateSHA256": "4c3af0df8206581ede9890e51790f5035744e4b6b1912070b71c29f33bb491d0",
+        "beforeCandidateBoundsPoints": {
+          "h": 708,
+          "w": 900,
+          "x": 130,
+          "y": 279
+        },
+        "candidateImmediate": {
+          "sample": {
+            "durationMs": 173.558,
+            "wireBytes": 69597,
+            "fileBytes": 50747,
+            "pixelSHA256": "9ecdbcf67310da907a3788680acb0c69893c5b2b0f37caaf949a79eb3daa3291"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:14.099Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/resize-candidate-immediate.png",
+            "imageSizePixels": {
+              "h": 1176,
+              "w": 1560
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 588,
+              "w": 780,
+              "x": 130,
+              "y": 279
+            },
+            "windowID": 159312
+          }
+        },
+        "baselineImmediate": {
+          "sample": {
+            "durationMs": 127.444,
+            "wireBytes": 86878,
+            "fileBytes": 63714,
+            "pixelSHA256": "a80c6fac76ca59d3d9b37c035ac817eeafee8bae9dda60657d67c5635699d9ad"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:14.226Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/resize-baseline-immediate.png",
+            "imageSizePixels": {
+              "h": 1416,
+              "w": 1800
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 708,
+              "w": 900,
+              "x": 130,
+              "y": 279
+            },
+            "windowID": 159312
+          },
+          "markerCurrent": true,
+          "boundsCurrent": false,
+          "pixelSHA256": "a80c6fac76ca59d3d9b37c035ac817eeafee8bae9dda60657d67c5635699d9ad"
+        },
+        "baselineAfterTTL": {
+          "sample": {
+            "durationMs": 203.848,
+            "wireBytes": 68734,
+            "fileBytes": 50124,
+            "pixelSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:16.686Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/resize-baseline-oracle.png",
+            "imageSizePixels": {
+              "h": 1176,
+              "w": 1560
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 588,
+              "w": 780,
+              "x": 130,
+              "y": 279
+            },
+            "windowID": 159312
+          }
+        },
+        "authoritativeFixtureBoundsCG": {
+          "h": 588,
+          "w": 780,
+          "x": 130,
+          "y": 279
+        },
+        "candidateGeometryAndMarkerMatchPostTTLOracle": true,
+        "candidatePixelHashMatchesPostTTLOracle": false,
+        "candidatePixelHashMatchesImmediateBaseline": false
+      },
+      "move": {
+        "candidatePreToPostCaptureSeconds": 0.394,
+        "prewarmStartToPostCaptureSeconds": 0.576,
+        "candidatePreToPostRequestStartSeconds": 0.213,
+        "beforeCandidateSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826",
+        "beforeCandidateBoundsPoints": {
+          "h": 588,
+          "w": 780,
+          "x": 130,
+          "y": 279
+        },
+        "candidateImmediate": {
+          "sample": {
+            "durationMs": 180.648,
+            "wireBytes": 68750,
+            "fileBytes": 50124,
+            "pixelSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:19.909Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/move-candidate-immediate.png",
+            "imageSizePixels": {
+              "h": 1176,
+              "w": 1560
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 588,
+              "w": 780,
+              "x": 165,
+              "y": 254
+            },
+            "windowID": 159312
+          }
+        },
+        "baselineImmediate": {
+          "sample": {
+            "durationMs": 136.682,
+            "wireBytes": 68742,
+            "fileBytes": 50124,
+            "pixelSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:20.046Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/move-baseline-immediate.png",
+            "imageSizePixels": {
+              "h": 1176,
+              "w": 1560
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 588,
+              "w": 780,
+              "x": 130,
+              "y": 279
+            },
+            "windowID": 159312
+          },
+          "markerCurrent": true,
+          "boundsCurrent": false,
+          "pixelSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826"
+        },
+        "baselineAfterTTL": {
+          "sample": {
+            "durationMs": 234.382,
+            "wireBytes": 68718,
+            "fileBytes": 50124,
+            "pixelSHA256": "d652400efb8db9994202fe7d8cb3b4f712f26f7c4ab00a46413c6e9fd2867826"
+          },
+          "metadata": {
+            "capturedAtISO8601": "2026-09-22T12:28:22.533Z",
+            "displayBoundsPoints": {
+              "h": 1117,
+              "w": 1728,
+              "x": 0,
+              "y": 0
+            },
+            "displayID": 1,
+            "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq/move-baseline-oracle.png",
+            "imageSizePixels": {
+              "h": 1176,
+              "w": 1560
+            },
+            "pointPixelScale": 2,
+            "windowBoundsPoints": {
+              "h": 588,
+              "w": 780,
+              "x": 165,
+              "y": 254
+            },
+            "windowID": 159312
+          }
+        },
+        "authoritativeFixtureBoundsCG": {
+          "h": 588,
+          "w": 780,
+          "x": 165,
+          "y": 254
+        },
+        "candidateGeometryAndMarkerMatchPostTTLOracle": true,
+        "candidatePixelHashMatchesPostTTLOracle": true,
+        "candidatePixelHashMatchesImmediateBaseline": true
+      },
+      "pixelAndCoordinateChecksPassed": true
+    }
+  },
+  "notes": [
+    "All captures target one disposable fixture window by CGWindowID; no display or user-app capture.",
+    "MCP response duration includes capture, encoding, file write, JSON serialization, and stdio transfer.",
+    "Cold initialization, first capture, and combined times are reported separately; warm and expired-TTL sessions remain alive.",
+    "ImageIO pixel probing and fixture changes occur outside measured screenshot request time.",
+    "For live freshness/geometry checks, the candidate is captured immediately after mutation; baseline oracle is taken after TTL expiry."
+  ],
+  "scratchPath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-cc1_73zq",
+  "fixturePID": 99855,
+  "initialFixtureGeometry": {
+    "contentCocoa": {
+      "h": 680,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "frameCocoa": {
+      "h": 708,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "marker": "red",
+    "pid": 99855,
+    "windowID": 159312
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "fixtureWindowID": 159312,
+  "fixtureSettleWarmupPairs": 3
+}

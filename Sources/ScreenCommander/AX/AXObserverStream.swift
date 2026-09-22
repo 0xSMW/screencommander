@@ -544,7 +544,52 @@ private final class AXObserverSession: @unchecked Sendable {
     /// Minimal record for an observed element (no id path / pixel bounds — the observer
     /// reports live elements without a stable tree position).
     static func makeRecord(element: AXElement, maxValueLength: Int) -> AXElementRecord {
-        var value = element.value
+        ObserverRecordHydrator.makeRecord(
+            maxValueLength: maxValueLength,
+            attributeValues: element.attributeValues,
+            actionNames: { element.actionNames },
+            frame: { element.frame }
+        )
+    }
+}
+
+/// Hydrates the callback's record with one batched read of its scalar attributes.
+/// The separate frame accessor preserves AXFrame → AXPosition + AXSize fallback.
+/// Injectable reads let tests compare output and count request boundaries without
+/// requiring Accessibility permission or guessing at IPC latency.
+enum ObserverRecordHydrator {
+    static let attributeNames: [String] = [
+        kAXRoleAttribute,
+        kAXSubroleAttribute,
+        kAXTitleAttribute,
+        kAXValueAttribute,
+        kAXDescriptionAttribute,
+        kAXEnabledAttribute,
+        kAXFocusedAttribute
+    ]
+
+    static func makeRecord(
+        maxValueLength: Int,
+        attributeValues: ([String]) -> [CFTypeRef?],
+        actionNames: () -> [String],
+        frame: () -> CGRect?
+    ) -> AXElementRecord {
+        let values = attributeValues(attributeNames)
+
+        func stringAt(_ index: Int) -> String? {
+            guard values.indices.contains(index) else { return nil }
+            return values[index].flatMap(AXElement.coerceToString)
+        }
+        func boolAt(_ index: Int) -> Bool? {
+            guard values.indices.contains(index),
+                  let ref = values[index],
+                  CFGetTypeID(ref) == CFBooleanGetTypeID() else {
+                return nil
+            }
+            return CFBooleanGetValue(ref as! CFBoolean)
+        }
+
+        var value = stringAt(3)
         var valueTruncated: Bool?
         if let fullValue = value {
             let (shortened, truncated) = AXElementRecord.truncatedValue(fullValue, maxLength: maxValueLength)
@@ -555,16 +600,16 @@ private final class AXObserverSession: @unchecked Sendable {
         }
         return AXElementRecord(
             id: "",
-            role: element.role ?? "AXUnknown",
-            subrole: element.subrole,
-            title: element.title,
+            role: stringAt(0) ?? "AXUnknown",
+            subrole: stringAt(1),
+            title: stringAt(2),
             value: value,
             valueTruncated: valueTruncated,
-            description: element.axDescription,
-            enabled: element.isEnabled ?? true,
-            focused: element.isFocused,
-            actions: element.actionNames,
-            boundsPoints: element.frame.map(RectD.init),
+            description: stringAt(4),
+            enabled: boolAt(5) ?? true,
+            focused: boolAt(6),
+            actions: actionNames(),
+            boundsPoints: frame().map(RectD.init),
             boundsPixels: nil
         )
     }

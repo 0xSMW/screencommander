@@ -1,0 +1,2147 @@
+{
+  "status": "ok",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/AXFixture.swift",
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-ab-21x3syjn/baseline/.build/release/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "seed": 20260922,
+  "scenarios": {
+    "full": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 179.424,
+            "wireBytes": 256708
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 163.383,
+            "wireBytes": 256708
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 157.003,
+            "wireBytes": 256708
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 159.191,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 157.03,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 149.618,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 165.918,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 153.317,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 155.345,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 165.24,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 157.201,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 153.578,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 155.416,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 192.206,
+            "wireBytes": 256709
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 150.139,
+            "wireBytes": 256709
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 138.539,
+            "wireBytes": 256748
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 150.086,
+            "wireBytes": 256748
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 142.299,
+            "wireBytes": 256748
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 159.713,
+            "wireBytes": 256748
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 142.756,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 142.343,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 148.189,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 144.198,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 150.087,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 155.985,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 156.968,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 156.042,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 149.686,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 152.765,
+            "wireBytes": 256749
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 138.29,
+            "wireBytes": 256749
+          }
+        ]
+      },
+      "equivalent": true,
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 157.03,
+          "p95Ms": 183.259,
+          "p50WireBytes": 256709,
+          "p95WireBytes": 256709
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 149.686,
+          "p95Ms": 157.791,
+          "p50WireBytes": 256749,
+          "p95WireBytes": 256749
+        }
+      }
+    },
+    "role": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 84.045,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 87.276,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 86.797,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 90.601,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 128.129,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 110.607,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 119.147,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 93.813,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 86.784,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 89.2,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 84.691,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 84.897,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 85.107,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 77.106,
+            "wireBytes": 1200
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 79.617,
+            "wireBytes": 1200
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 34.468,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 42.786,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 32.751,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 34.169,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 37.301,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 43.786,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 37.539,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 36.35,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 33.978,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 33.803,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 34.247,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 33.053,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 28.378,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 34.564,
+            "wireBytes": 1240
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 37.997,
+            "wireBytes": 1240
+          }
+        ]
+      },
+      "equivalent": true,
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 86.797,
+          "p95Ms": 121.842,
+          "p50WireBytes": 1200,
+          "p95WireBytes": 1200
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 34.468,
+          "p95Ms": 43.086,
+          "p50WireBytes": 1240,
+          "p95WireBytes": 1240
+        }
+      }
+    },
+    "text": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 144.113,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 160.119,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 149.448,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 161.007,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 177.534,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 172.703,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 183.781,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 7,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 153.648,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 8,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 167.094,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 168.977,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 211.438,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 150.997,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 157.963,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 173.012,
+            "wireBytes": 288753
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 179.894,
+            "wireBytes": 288753
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 84.691,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 85.576,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 87.289,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 110.174,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 96.898,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 86.371,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 91.707,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 7,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 90.978,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 8,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 97.788,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 99.616,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 89.677,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 87.628,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 87.701,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 13,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 102.135,
+            "wireBytes": 186319
+          },
+          {
+            "pair": 14,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 111.625,
+            "wireBytes": 186319
+          }
+        ]
+      },
+      "equivalent": true,
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 167.094,
+          "p95Ms": 192.078,
+          "p50WireBytes": 288753,
+          "p95WireBytes": 288753
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 90.978,
+          "p95Ms": 110.609,
+          "p50WireBytes": 186319,
+          "p95WireBytes": 186319
+        }
+      }
+    },
+    "budget": {
+      "samples": {
+        "candidate": [
+          {
+            "pair": 0,
+            "durationMs": 28.852,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 1,
+            "durationMs": 29.566,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 2,
+            "durationMs": 28.58,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 3,
+            "durationMs": 30.996,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 4,
+            "durationMs": 32.824,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 5,
+            "durationMs": 28.915,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 6,
+            "durationMs": 29.239,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 7,
+            "durationMs": 31.741,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 8,
+            "durationMs": 29.715,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 9,
+            "durationMs": 28.691,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 10,
+            "durationMs": 31.145,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 11,
+            "durationMs": 30.307,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 12,
+            "durationMs": 32.608,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 13,
+            "durationMs": 32.994,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          },
+          {
+            "pair": 14,
+            "durationMs": 38.348,
+            "wireBytes": 38112,
+            "visited": 90,
+            "returned": 90
+          }
+        ]
+      },
+      "summary": {
+        "candidate": {
+          "n": 15,
+          "p50Ms": 30.307,
+          "p95Ms": 34.6,
+          "p50WireBytes": 38112,
+          "p95WireBytes": 38112
+        }
+      },
+      "equivalent": false,
+      "semantics": "maxVisited=90; incomplete tree; compare visited and returned counts, not full-tree equality"
+    },
+    "screenshot": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 186.139,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 185.982,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 272.803,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 191.178,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 300.89,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 221.435,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 264.132,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 197.121,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 273.142,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 179.698,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 204.932,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 198.195,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 200.04,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 183.021,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 345.139,
+            "wireBytes": 492240
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 159.155,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 296.382,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 183.855,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 251.946,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 178.624,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 172.589,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 172.626,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 157.714,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 160.393,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 243.769,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 153.926,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 152.375,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 162.46,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 160.033,
+            "wireBytes": 492240
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 265.721,
+            "wireBytes": 492240
+          }
+        ]
+      },
+      "equivalent": false,
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 200.04,
+          "p95Ms": 314.165,
+          "p50WireBytes": 492240,
+          "p95WireBytes": 492240
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 172.589,
+          "p95Ms": 274.919,
+          "p50WireBytes": 492240,
+          "p95WireBytes": 492240
+        }
+      },
+      "dimensionsEquivalent": true
+    },
+    "action": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 229.891,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 1,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 204.18,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 2,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 325.244,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 335.618,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 224.186,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 208.466,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 210.166,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 205.715,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 209.971,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 220.069,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 193.167,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 191.087,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 184.825,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 200.883,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 191.383,
+            "wireBytes": 1048
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 108.585,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 1,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 104.067,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 2,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 112.624,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 115.298,
+            "wireBytes": 1048
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 104.319,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 5,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 103.436,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 6,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 102.392,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 103.131,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 103.498,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 9,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 103.092,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 10,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 104.111,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 11,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 102.452,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 12,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 105.8,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 106.41,
+            "wireBytes": 1049
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 105.298,
+            "wireBytes": 1049
+          }
+        ]
+      },
+      "equivalent": false,
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 208.466,
+          "p95Ms": 328.356,
+          "p50WireBytes": 1048,
+          "p95WireBytes": 1048
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 104.111,
+          "p95Ms": 113.426,
+          "p50WireBytes": 1049,
+          "p95WireBytes": 1049
+        }
+      },
+      "counterBeforeAfter": [
+        0,
+        36
+      ]
+    },
+    "postObserve": {
+      "samples": {
+        "baselineTwoCalls": [
+          {
+            "pair": 0,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 409.033,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 1,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 382.802,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 2,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 354.209,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 338.539,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 338.06,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 404.647,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 369.22,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 468.656,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 422.802,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 651.149,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 684.482,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 685.74,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 538.1,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 415.077,
+            "wireBytes": 257761
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 390.044,
+            "wireBytes": 257761
+          }
+        ],
+        "candidateFused": [
+          {
+            "pair": 0,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 295.367,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 1,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 287.945,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 2,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 420.079,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 3,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 247.711,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 4,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 270.288,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 264.923,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 253.443,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 260.219,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 351.876,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 574.111,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 518.97,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 545.905,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 388.628,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baselineTwoCalls",
+              "candidateFused"
+            ],
+            "durationMs": 256.547,
+            "wireBytes": 257698
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidateFused",
+              "baselineTwoCalls"
+            ],
+            "durationMs": 259.281,
+            "wireBytes": 257698
+          }
+        ]
+      },
+      "equivalent": true,
+      "semantics": "A direct AX click followed by a full elements request; B direct AX click with a full postObserve result. Counter is expected to increment once per click.",
+      "summary": {
+        "baselineTwoCalls": {
+          "n": 15,
+          "p50Ms": 409.033,
+          "p95Ms": 684.859,
+          "p50WireBytes": 257761,
+          "p95WireBytes": 257761
+        },
+        "candidateFused": {
+          "n": 15,
+          "p50Ms": 287.945,
+          "p95Ms": 554.367,
+          "p50WireBytes": 257698,
+          "p95WireBytes": 257698
+        }
+      },
+      "counterBeforeAfter": [
+        36,
+        72
+      ]
+    },
+    "snapshot": {
+      "samples": {
+        "baselineFull": [
+          {
+            "pair": 0,
+            "durationMs": 152.855,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 1,
+            "durationMs": 165.547,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 2,
+            "durationMs": 146.857,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 3,
+            "durationMs": 168.953,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 4,
+            "durationMs": 150.683,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 5,
+            "durationMs": 152.866,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 6,
+            "durationMs": 153.89,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 7,
+            "durationMs": 170.203,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 8,
+            "durationMs": 163.875,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 9,
+            "durationMs": 152.27,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 10,
+            "durationMs": 142.338,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 11,
+            "durationMs": 150.862,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 12,
+            "durationMs": 155.086,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 13,
+            "durationMs": 155.894,
+            "wireBytes": 256712
+          },
+          {
+            "pair": 14,
+            "durationMs": 161.195,
+            "wireBytes": 256712
+          }
+        ],
+        "candidateDelta": [
+          {
+            "pair": 0,
+            "durationMs": 100.237,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 1,
+            "durationMs": 135.892,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 2,
+            "durationMs": 97.694,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 3,
+            "durationMs": 114.231,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 4,
+            "durationMs": 105.099,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 5,
+            "durationMs": 95.132,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 6,
+            "durationMs": 97.839,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 7,
+            "durationMs": 127.885,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 8,
+            "durationMs": 98.554,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 9,
+            "durationMs": 100.597,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 10,
+            "durationMs": 92.302,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 11,
+            "durationMs": 94.029,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 12,
+            "durationMs": 96.722,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 13,
+            "durationMs": 104.202,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          },
+          {
+            "pair": 14,
+            "durationMs": 98.372,
+            "wireBytes": 1425,
+            "changed": 1,
+            "removed": 0
+          }
+        ]
+      },
+      "summary": {
+        "baselineFull": {
+          "n": 15,
+          "p50Ms": 153.89,
+          "p95Ms": 169.328,
+          "p50WireBytes": 256712,
+          "p95WireBytes": 256712
+        },
+        "candidateDelta": {
+          "n": 15,
+          "p50Ms": 98.554,
+          "p95Ms": 130.287,
+          "p50WireBytes": 1425,
+          "p95WireBytes": 1425
+        }
+      },
+      "reconstructionEquivalent": true,
+      "equivalent": false,
+      "semantics": "B delta after a fixture counter change vs A complete tree on the same state; response byte savings are not AX traversal latency savings"
+    }
+  },
+  "host": "macOS-15.6.1-arm64-arm-64bit-Mach-O",
+  "sha256": {
+    "fixtureSource": "bc208f406793b8bf5059ade10c283e24578dc7ecf7c15e66cbd6d701dcd13589",
+    "baselineBinary": "454c15d39a9e49f9779e420fea04ccb4818012e9541085456726a5c35f01484b",
+    "candidateBinary": "614e3e924339e8106272e1f5f831a257ff3adf9b507b62c83b216e3e62dfdd53"
+  },
+  "notes": [
+    "Wall-clock MCP request/response includes JSON encoding and IPC, on warm serve sessions.",
+    "Snapshot deltas and maxVisited budgets are different work from full traversal; compare result semantics and wire bytes separately.",
+    "No permission grants are attempted; doctor preflight must report both permissions already granted."
+  ],
+  "fixtureInfo": {
+    "pid": 52185,
+    "controls": 520,
+    "documentCharacters": 140000
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "observedElements": 547
+}

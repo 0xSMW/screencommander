@@ -1,0 +1,68 @@
+{
+  "status": "partial",
+  "format": "png",
+  "scenariosSelected": [
+    "cold"
+  ],
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-3j4ip1oa/baseline/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/CaptureFixture.swift",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "ttlWaitSeconds": 2.25,
+  "seed": 20260922,
+  "sha256": {
+    "baselineBinary": "c53ec354c35cb3937b6943ccd3c03f2f00633fc63cc8bed1e0001e49603b338d",
+    "candidateBinary": "cb099ad81ab29d4e27918f7a50a62689f423ef4a9cf658a24bd6780890fe48f9",
+    "fixtureSource": "1c6ab481a6ec75cde71a4a52b98a548aa61ac772ce2d314724e94e035ff3b53c",
+    "pixelProbeSource": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2"
+  },
+  "scenarios": {
+    "cold": {
+      "samples": {
+        "baseline": [],
+        "candidate": []
+      },
+      "pixelsEquivalent": true,
+      "semantics": "fresh server per capture; startupMs=launch+initialize, durationMs=first screenshot request"
+    }
+  },
+  "notes": [
+    "All captures target one disposable fixture window by CGWindowID; no display or user-app capture.",
+    "MCP response duration includes capture, encoding, file write, JSON serialization, and stdio transfer.",
+    "Cold initialization, first capture, and combined times are reported separately; warm and expired-TTL sessions remain alive.",
+    "ImageIO pixel probing and fixture changes occur outside measured screenshot request time.",
+    "For live freshness/geometry checks, the candidate is captured immediately after mutation; baseline oracle is taken after TTL expiry."
+  ],
+  "scratchPath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-240unicm",
+  "fixturePID": 4758,
+  "initialFixtureGeometry": {
+    "contentCocoa": {
+      "h": 680,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "frameCocoa": {
+      "h": 708,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "marker": "red",
+    "pid": 4758,
+    "windowID": 159215
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "fixtureWindowID": 159215,
+  "error": "cold-0-baseline baseline-cold screenshot request: baseline-cold tools/call/screenshot request 2 timed out; pid=4779 alive=True; sample=exit=0 path=/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-240unicm/timeout-baseline-cold-2.sample.txt stderr=Sampling process 4779 for 1 second with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 4779 written to file /var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-240unicm/timeout-baseline-cold-2.sample.txt\n; stderrTail="
+}

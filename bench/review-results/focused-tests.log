@@ -1,0 +1,78 @@
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for production...
+[2/7] Write sources
+[4/7] Write swift-version--58304C5D6DBC2206.txt
+[6/8] Compiling ScreenCommander AXActions.swift
+/Users/stephenwalker/Code/projects/screencommander/Sources/ScreenCommander/AX/AXObserverStream.swift:589:42: warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+587 |                 return nil
+588 |             }
+589 |             return CFBooleanGetValue(ref as! CFBoolean)
+    |                                      |   | `- note: use 'as?' to perform a conditional downcast to 'CFBoolean'
+    |                                      |   `- warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+    |                                      `- note: add parentheses around the cast to silence this warning
+590 |         }
+591 |
+[6/10] Write Objects.LinkFileList
+[7/10] Linking screencommander
+[9/11] Compiling ScreenCommanderTests AXPerformanceTests.swift
+/Users/stephenwalker/Code/projects/screencommander/Tests/ScreenCommanderTests/ObserverPerformanceTests.swift:44:42: warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+ 42 |                 return nil
+ 43 |             }
+ 44 |             return CFBooleanGetValue(ref as! CFBoolean)
+    |                                      |   | `- note: use 'as?' to perform a conditional downcast to 'CFBoolean'
+    |                                      |   `- warning: treating a forced downcast to 'CFBoolean' as optional will never produce 'nil'
+    |                                      `- note: add parentheses around the cast to silence this warning
+ 45 |         }
+ 46 |
+[10/12] Compiling screencommanderPackageTests runner.swift
+[10/12] Write Objects.LinkFileList
+[11/12] Linking screencommanderPackageTests
+Build complete! (29.98s)
+Test Suite 'Selected tests' started at 2026-09-22 19:25:14.827.
+Test Suite 'screencommanderPackageTests.xctest' started at 2026-09-22 19:25:14.829.
+Test Suite 'ScreenCommanderEngineTests' started at 2026-09-22 19:25:14.829.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCanceledWindowResolutionCannotActivateOrClick]' started.
+Test Case '-[ScreenCommanderTests.ScreenCommanderEngineTests testCanceledWindowResolutionCannotActivateOrClick]' passed (0.005 seconds).
+Test Suite 'ScreenCommanderEngineTests' passed at 2026-09-22 19:25:14.833.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.005 (0.005) seconds
+Test Suite 'TTLCacheTests' started at 2026-09-22 19:25:14.833.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testAlreadyCanceledRequestsDoNotFetchOrReadCachedValues]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testAlreadyCanceledRequestsDoNotFetchOrReadCachedValues]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testCanceledWaiterCannotCancelSharedFetch]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testCanceledWaiterCannotCancelSharedFetch]' passed (0.003 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testConcurrentMissesShareOneFetchAndExpireTogether]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testConcurrentMissesShareOneFetchAndExpireTogether]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testErrorsAreNotCached]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testErrorsAreNotCached]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testFailedFlightDoesNotPoisonConcurrentOrLaterRequests]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testFailedFlightDoesNotPoisonConcurrentOrLaterRequests]' passed (0.004 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testForcedRefreshSupersedesOldFlightAndCoalescesRefreshers]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testForcedRefreshSupersedesOldFlightAndCoalescesRefreshers]' passed (0.006 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testInvalidateDiscardsCachedValueAndInFlightResult]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testInvalidateDiscardsCachedValueAndInFlightResult]' passed (0.002 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testKeysAreCachedIndependently]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testKeysAreCachedIndependently]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testRefetchesAfterTTLExpires]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testRefetchesAfterTTLExpires]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testReusesValueWithinTTL]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testReusesValueWithinTTL]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testSingleFlightFetchCountAB]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testSingleFlightFetchCountAB]' passed (0.000 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLCancellationAfterFetchDoesNotReturnSuccess]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLCancellationAfterFetchDoesNotReturnSuccess]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLConcurrentMissesRemainIndependent]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLConcurrentMissesRemainIndependent]' passed (0.001 seconds).
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLNeverCaches]' started.
+Test Case '-[ScreenCommanderTests.TTLCacheTests testZeroTTLNeverCaches]' passed (0.000 seconds).
+Test Suite 'TTLCacheTests' passed at 2026-09-22 19:25:14.858.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.023 (0.024) seconds
+Test Suite 'screencommanderPackageTests.xctest' passed at 2026-09-22 19:25:14.858.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.027 (0.029) seconds
+Test Suite 'Selected tests' passed at 2026-09-22 19:25:14.858.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.027 (0.030) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

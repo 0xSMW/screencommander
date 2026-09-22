@@ -1,0 +1,17 @@
+[0/1] Planning build
+Test Suite 'Selected tests' started at 2026-09-22 15:59:06.850.
+Test Suite 'screencommanderPackageTests.xctest' started at 2026-09-22 15:59:06.851.
+Test Suite 'ObserverPerformanceTests' started at 2026-09-22 15:59:06.851.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testLiveWindowObserverHydrationABBenchmark]' started.
+Test Case '-[ScreenCommanderTests.ObserverPerformanceTests testLiveWindowObserverHydrationABBenchmark]' passed (0.042 seconds).
+Test Suite 'ObserverPerformanceTests' passed at 2026-09-22 15:59:06.893.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.042 (0.043) seconds
+Test Suite 'screencommanderPackageTests.xctest' passed at 2026-09-22 15:59:06.893.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.042 (0.043) seconds
+Test Suite 'Selected tests' passed at 2026-09-22 15:59:06.893.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.042 (0.044) seconds
+SC_PERF_AB {"batched_p50_nanoseconds":104292,"batched_p95_nanoseconds":133250,"benchmark":"observer_hydration_live_window_ab","legacy_p50_nanoseconds":212458,"legacy_p95_nanoseconds":572833,"measured_pairs":20,"order":"alternating_legacy_first_batched_first","pid":61252,"record_equivalence":true,"scope":"real_ax_window_record_reads_only_no_event_delivery","warmup_pairs":3}
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.

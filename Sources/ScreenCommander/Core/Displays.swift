@@ -20,9 +20,12 @@ final class Displays: DisplayResolving {
     }
 
     func resolveDisplay(identifier: String) async throws -> ResolvedDisplay {
-        let content: SCShareableContent
+        var content: SCShareableContent
         do {
             content = try await contentProvider.content(onScreenWindowsOnly: true)
+            if !CaptureGeometry.displaysAreCurrent(content.displays) {
+                content = try await contentProvider.content(onScreenWindowsOnly: true, forceRefresh: true)
+            }
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate displays: \(error.localizedDescription)")
         }

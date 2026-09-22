@@ -1,0 +1,13 @@
+cold pair 0 candidate: spawn
+cold pair 0 candidate: initialize pid=4777
+cold pair 0 candidate: initialize complete
+cold pair 0 candidate: screenshot
+cold pair 0 candidate: screenshot complete 254.166ms
+cold pair 0 baseline: spawn
+cold pair 0 baseline: initialize pid=4779
+cold pair 0 baseline: initialize complete
+cold pair 0 baseline: screenshot
+partial: /Users/stephenwalker/Code/projects/screencommander/bench/capture-results/capture-cold-diagnostic.json (cold-0-baseline baseline-cold screenshot request: baseline-cold tools/call/screenshot request 2 timed out; pid=4779 alive=True; sample=exit=0 path=/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-240unicm/timeout-baseline-cold-2.sample.txt stderr=Sampling process 4779 for 1 second with 1 millisecond of run time between samples
+Sampling completed, processing symbols...
+Sample analysis of process 4779 written to file /var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-240unicm/timeout-baseline-cold-2.sample.txt
+; stderrTail=)

@@ -19,14 +19,19 @@ final class ScreenCaptureKitCapturer: ScreenCapturing {
             )
         }
 
-        let content: SCShareableContent
-        do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        } catch {
-            throw ScreenCommanderError.captureFailed("Could not enumerate displays for window capture: \(error.localizedDescription)")
+        let displays: [SCDisplay]
+        if let resolvedDisplays = window.displays {
+            displays = resolvedDisplays
+        } else {
+            // Support callers that supply a handle without a resolver snapshot.
+            do {
+                displays = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true).displays
+            } catch {
+                throw ScreenCommanderError.captureFailed("Could not enumerate displays for window capture: \(error.localizedDescription)")
+            }
         }
 
-        let intersectingDisplays = content.displays.filter { $0.frame.intersects(windowFrame) }
+        let intersectingDisplays = displays.filter { $0.frame.intersects(windowFrame) }
         guard let display = Self.displayContaining(windowFrame, in: intersectingDisplays) else {
             throw ScreenCommanderError.captureFailed("Window \(window.info.windowID) is not on a capturable display.")
         }

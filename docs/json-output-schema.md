@@ -23,7 +23,7 @@ the `structuredContent` of the MCP result and as its text content block — so t
 document is the contract for both the CLI and MCP surfaces. MCP-only additions:
 `screenshot` also returns an image content block, and `observe_wait` returns
 `{ outcome, matched?, events, droppedEvents? }` (an unmet `until` is an
-`observe_timeout` error envelope). MCP stdio requests run in parallel by default.
+`observe_timeout` error envelope with the collected result retained). MCP stdio requests run in parallel by default.
 To serialize a follow-on request, include `params.dependsOn` with the upstream
 JSON-RPC request id. To cancel an in-flight request, send
 `notifications/cancelled` with `params.requestId`; queued dependents are canceled
@@ -171,7 +171,16 @@ Brings an app to the foreground.
 - **result.windowID** (number, optional): present when `--window-id` was used
 - **result.metadataPath** (string or null): screenshot metadata used to compute `boundsPixels`; null when no `last-screenshot.json` exists
 - **result.axPrimed** (bool): whether Electron/Chromium AX priming was applied to the app
-- **result.truncated** (bool): true when traversal stopped at `--max-elements`
+- **result.truncated** (bool): true when traversal stopped early or a read was incomplete
+- **result.visitedCount** (number, optional): nodes visited before filtering
+- **result.partialReason** (string, optional): why a read is incomplete (`max_elements`, `max_visited`, `timeout`, `cancelled`, or `ax_error`)
+- **result.profile** (string, optional): `text` skips geometry and actions; scalar fields remain available. An empty actions array in this profile means unqueried.
+- **result.snapshotId** (string, optional, MCP): new complete snapshot reference; at most eight retained per engine session within an estimated 8 MiB content budget
+- **result.baseSnapshotId** (string, optional, MCP): baseline used for a delta; `elements` then contains changed/added positional records only
+- **result.removedIds** (string array, optional, MCP): positional IDs absent from the new complete observation
+- **result.resetReason** (string, optional, MCP): `snapshot_unavailable`, `scope_changed`, `incomplete_read`, or `snapshot_too_large`; `elements` is the full available observation, not a delta. Incomplete reads have no new snapshot ID.
+
+MCP `elements` accepts `snapshot: true` or `since: "<snapshotId>"`. Deltas describe record changes, not durable element identity. Reconstruct by deleting `removedIds` and replacing/inserting changed records by ID. No partial result may establish absence outside the reported read. `text`, when requested for a delta, renders only its changed records.
 - **result.text** (string, optional): indented text-only tree; present only with `--text`
 - **result.elements** (array): one record per AX element, in depth-first tree order:
   - **id** (string): dot-joined child-index path from the app element, e.g. `"0.3.2"`. Positional — re-read the tree instead of caching ids across UI changes.
@@ -232,3 +241,9 @@ elements on `role`/`title`/`value`.
 ## Compact JSON
 
 Use `--compact` or `SCREENCOMMANDER_JSON_COMPACT=1` to get one-line JSON (no pretty-print) for faster parsing and smaller output.
+
+### MCP post-action observation
+
+`click`, `type`, `key`, `keys`, `scroll`, `drag`, and `move` accept an optional `postObserve` object. Required `app` selects the app to read; optional `profile` (`full`/`text`), `since`, `maxElements` (default 200), `maxVisited` (2000), and `timeoutMs` (500) configure the read. Options are validated before delivery. `result.observation` has the elements schema above and requests a snapshot. `result.observationError` means delivery succeeded but observation failed; the outer action remains successful to avoid accidental repeated input. This is an immediate post-delivery read, not a guarantee of UI settling.
+
+On `observe_wait` predicate timeout, `isError` remains true and `exitCode` remains 73. Its error envelope additionally includes `result: {outcome, matched?, events, droppedEvents?}` so observed progress is retained. Event storage retains the newest 500 records in chronological order.

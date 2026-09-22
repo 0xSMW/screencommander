@@ -288,6 +288,8 @@ Behavior:
 - `--max-depth` (default 40, max 200), `--max-elements` (default 2000, max 10000, result marked `truncated` when hit), `--max-value-length` (200), `--roles`, and `--visible-only` bound the traversal.
 - Electron/Chromium apps are primed automatically (`AXManualAccessibility`, falling back to `AXEnhancedUserInterface`, restored afterwards); the result reports `axPrimed`.
 - Apps that expose no usable AX tree fail with exit code `71` (`ax_tree_unavailable`).
+- `--profile text` skips geometry and action discovery while preserving scalar text/state fields. Its empty `actions` means unqueried, not unsupported.
+- `--max-visited <1...100000>` bounds visited nodes including filtered containers. `--timeout-ms <1...60000>` sets a cooperative AX read deadline with per-handle messaging timeouts; cancellation and deadlines are checked between synchronous calls. Partial results include `visitedCount`, `truncated`, and `partialReason`.
 
 ### Observe
 
@@ -428,13 +430,19 @@ Behavior:
   request id; the follow-on starts after that upstream request completes.
 - `notifications/cancelled` with `params.requestId` cancels the matching in-flight
   request and any queued dependents.
-- Window/display enumeration (~100–300 ms) is cached for 2 seconds in serve mode, so
-  bursts like `windows` → `screenshot` → `click` pay it once. The CLI always
-  enumerates fresh.
+- Window/display enumeration is cached for 2 seconds per enumeration flavor in serve mode;
+  simultaneous misses share one fetch. Window capture reuses the resolver's display list.
+  Numeric window targets validate current geometry before cache reuse; app-name targets
+  resolve fresh window ordering. Moved/resized windows and changed display bounds force
+  a refresh. The CLI enumerates fresh. Screenshot pixels are always captured anew.
 - `screenshot` additionally returns the capture as an in-band MCP image content
   block (base64 PNG), so clients get pixels without a follow-up file read.
 - `observe_wait` wraps `observe --until` + timeout as a single call; an unmet
-  predicate is an `observe_timeout` error (`exitCode` 73 in the envelope).
+  predicate is an `observe_timeout` error (`exitCode` 73 in the envelope), with collected events retained in `result`.
+- MCP `elements` accepts `profile`, `maxVisited`, and `timeoutMs`. `snapshot: true` retains a bounded session snapshot; `since: "<snapshotId>"` returns changed positional records and `removedIds`. Each delta is based on a fresh AX read. Missing/evicted/incompatible snapshots return the full observation with `resetReason`; incomplete reads cannot become baselines. IDs remain positional and must be resolved freshly before acting.
+- Action tools accept optional `postObserve: {"app":"<name|pid>"}` to return one bounded post-delivery AX observation in the same call. Optional `profile`, `since`, `maxElements`, `maxVisited`, and `timeoutMs` control it. A post-read failure reports `observationError` while retaining the successful action result; it is not a reason to repeat the action. Immediate observation does not imply an asynchronous UI transition has settled.
+
+Reproduce the performance comparison using `bench/live_ab.py` against a baseline and candidate release binary. It creates a dedicated fixture window, checks semantic equivalence, and saves paired timings and response sizes; see `bench/README.md`.
 
 ## Scripting (JSON output)
 

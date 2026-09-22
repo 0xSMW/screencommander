@@ -1,0 +1,505 @@
+{
+  "status": "partial",
+  "format": "png",
+  "scenariosSelected": [
+    "warm",
+    "freshness",
+    "resize"
+  ],
+  "baseline": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-3j4ip1oa/baseline/screencommander",
+  "candidate": "/Users/stephenwalker/Code/projects/screencommander/.build/release/screencommander",
+  "fixture": "/Users/stephenwalker/Code/projects/screencommander/bench/CaptureFixture.swift",
+  "warmupsPerVariant": 3,
+  "samplesPerVariant": 15,
+  "ttlWaitSeconds": 2.25,
+  "seed": 20260922,
+  "sha256": {
+    "baselineBinary": "c53ec354c35cb3937b6943ccd3c03f2f00633fc63cc8bed1e0001e49603b338d",
+    "candidateBinary": "e4fb2e60cda8924ba6fda4a53270eb2556def75f2498f138dc414892f4c813ee",
+    "fixtureSource": "1c6ab481a6ec75cde71a4a52b98a548aa61ac772ce2d314724e94e035ff3b53c",
+    "pixelProbeSource": "d8a770e362783d49f01b47f0b0c8895316cf75dbdfd994eae2f1882a37e7fce2"
+  },
+  "scenarios": {
+    "warm": {
+      "samples": {
+        "baseline": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 336.681,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 892.197,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 367.515,
+            "wireBytes": 571481,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 184.782,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 161.69,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 163.814,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 286.597,
+            "wireBytes": 571482,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 166.485,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 550.534,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 390.925,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 545.575,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 238.785,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 164.429,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 152.391,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 161.256,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 665.028,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 1,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 1834.853,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 2,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 231.09,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 3,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 231.73,
+            "wireBytes": 571489,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 4,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 121.476,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 5,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 119.639,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 6,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 131.428,
+            "wireBytes": 571490,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 7,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 241.942,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 8,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 119.278,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 9,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 320.477,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 10,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 254.952,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 11,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 131.834,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 12,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 158.406,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 13,
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "durationMs": 116.49,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          },
+          {
+            "pair": 14,
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "durationMs": 116.138,
+            "wireBytes": 571498,
+            "fileBytes": 427226
+          }
+        ]
+      },
+      "pixelsEquivalent": true,
+      "semantics": "warm persistent serve sessions, same fixture window and pixels",
+      "summary": {
+        "baseline": {
+          "n": 15,
+          "p50Ms": 238.785,
+          "p95Ms": 653.033,
+          "p50WireBytes": 571490,
+          "p95WireBytes": 571490
+        },
+        "candidate": {
+          "n": 15,
+          "p50Ms": 158.406,
+          "p95Ms": 1015.975,
+          "p50WireBytes": 571498,
+          "p95WireBytes": 571498
+        }
+      }
+    },
+    "freshness": {
+      "candidatePreToPostCaptureSeconds": 0.346,
+      "prewarmStartToPostCaptureSeconds": 0.774,
+      "candidatePreToPostRequestStartSeconds": 0.214,
+      "beforeCandidateSHA256": "eb9e00c269ebe934a4db10e6db67cfad4561dbc4136dbf7e2233781f46968169",
+      "beforeCandidateBoundsPoints": {
+        "h": 708,
+        "w": 900,
+        "x": 130,
+        "y": 279
+      },
+      "candidateImmediate": {
+        "sample": {
+          "durationMs": 131.043,
+          "wireBytes": 508526,
+          "fileBytes": 379943,
+          "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:26:51.269Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-syci5imm/marker-candidate-immediate.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159265
+        }
+      },
+      "baselineImmediate": {
+        "sample": {
+          "durationMs": 167.936,
+          "wireBytes": 508518,
+          "fileBytes": 379943,
+          "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:26:51.442Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-syci5imm/marker-baseline-immediate.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159265
+        },
+        "markerCurrent": true,
+        "boundsCurrent": true,
+        "pixelSHA256": "a5fd998eab5a0a7a3fb84038b42e54904f0025ea7de6b6e5cf7816342543329c"
+      },
+      "baselineAfterTTL": {
+        "sample": {
+          "durationMs": 351.173,
+          "wireBytes": 519826,
+          "fileBytes": 388443,
+          "pixelSHA256": "4c3af0df8206581ede9890e51790f5035744e4b6b1912070b71c29f33bb491d0"
+        },
+        "metadata": {
+          "capturedAtISO8601": "2026-09-22T12:26:54.053Z",
+          "displayBoundsPoints": {
+            "h": 1117,
+            "w": 1728,
+            "x": 0,
+            "y": 0
+          },
+          "displayID": 1,
+          "imagePath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-syci5imm/marker-baseline-oracle.png",
+          "imageSizePixels": {
+            "h": 1416,
+            "w": 1800
+          },
+          "pointPixelScale": 2,
+          "windowBoundsPoints": {
+            "h": 708,
+            "w": 900,
+            "x": 130,
+            "y": 279
+          },
+          "windowID": 159265
+        }
+      },
+      "authoritativeFixtureBoundsCG": {
+        "h": 708,
+        "w": 900,
+        "x": 130,
+        "y": 279
+      },
+      "candidateGeometryAndMarkerMatchPostTTLOracle": true,
+      "candidatePixelHashMatchesPostTTLOracle": false,
+      "candidatePixelHashMatchesImmediateBaseline": true
+    }
+  },
+  "notes": [
+    "All captures target one disposable fixture window by CGWindowID; no display or user-app capture.",
+    "MCP response duration includes capture, encoding, file write, JSON serialization, and stdio transfer.",
+    "Cold initialization, first capture, and combined times are reported separately; warm and expired-TTL sessions remain alive.",
+    "ImageIO pixel probing and fixture changes occur outside measured screenshot request time.",
+    "For live freshness/geometry checks, the candidate is captured immediately after mutation; baseline oracle is taken after TTL expiry."
+  ],
+  "scratchPath": "/var/folders/tm/6b0xj5s56g92nmw4d6tc1sch0000gn/T/screencommander-capture-ab-syci5imm",
+  "fixturePID": 98519,
+  "initialFixtureGeometry": {
+    "contentCocoa": {
+      "h": 680,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "frameCocoa": {
+      "h": 708,
+      "w": 900,
+      "x": 130,
+      "y": 130
+    },
+    "marker": "red",
+    "pid": 98519,
+    "windowID": 159265
+  },
+  "permissionPreflight": {
+    "baseline": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    },
+    "candidate": {
+      "accessibilityGranted": true,
+      "screenRecordingGranted": true
+    }
+  },
+  "fixtureWindowID": 159265,
+  "error": "resize: post-change capture exceeded TTL; candidate-only=0.414s prewarm-start=4.372s"
+}

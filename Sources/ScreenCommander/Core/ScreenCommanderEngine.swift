@@ -25,6 +25,7 @@ final class ScreenCommanderEngine {
     private let fileManager: FileManager
     private let statePaths: StatePaths
     private let now: () -> Date
+    private let snapshots = ElementSnapshotStore()
 
     init(
         permissions: PermissionChecking,
@@ -115,7 +116,8 @@ final class ScreenCommanderEngine {
         if let windowIdentifier = request.windowIdentifier {
             let window = try await targets.resolveWindow(identifier: windowIdentifier, app: nil)
             let captured = try await capturer.capture(window: window, includeCursor: request.includeCursor)
-            let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
+            let encoded = try imageWriter.writeEncoded(image: captured.image, format: request.format, to: imageURL)
+            let pixelSize = encoded.pixelSize
 
             let metadata = ScreenshotMetadata(
                 capturedAtISO8601: Self.iso8601Formatter.string(from: now()),
@@ -135,14 +137,16 @@ final class ScreenCommanderEngine {
                 metadataPath: metadataURL.path,
                 lastMetadataPath: lastMetadataURL.path,
                 metadata: metadata,
-                image: captured.image
+                image: captured.image,
+                encodedImageData: encoded.data
             )
         }
 
         // Display capture path (existing behavior)
         let display = try await displays.resolveDisplay(identifier: request.displayIdentifier)
         let captured = try await capturer.capture(display: display, includeCursor: request.includeCursor)
-        let pixelSize = try imageWriter.write(image: captured.image, format: request.format, to: imageURL)
+        let encoded = try imageWriter.writeEncoded(image: captured.image, format: request.format, to: imageURL)
+        let pixelSize = encoded.pixelSize
 
         let metadata = ScreenshotMetadata(
             capturedAtISO8601: Self.iso8601Formatter.string(from: now()),
@@ -160,7 +164,8 @@ final class ScreenCommanderEngine {
             metadataPath: metadataURL.path,
             lastMetadataPath: lastMetadataURL.path,
             metadata: metadata,
-            image: captured.image
+            image: captured.image,
+                encodedImageData: encoded.data
         )
     }
 
@@ -413,7 +418,7 @@ final class ScreenCommanderEngine {
             )
         }
 
-        let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+        let live = try target.live ?? accessibilityReader.resolve(id: target.record.id, app: target.app)
         try axActions.perform(action: action, on: live)
     }
 
@@ -655,13 +660,13 @@ final class ScreenCommanderEngine {
             do {
                 switch tier {
                 case .ax:
-                    let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+                    let live = try target.live ?? accessibilityReader.resolve(id: target.record.id, app: target.app)
                     try axActions.setValue(request.text, on: live)
                     return result(deliveryMethod: .ax)
                 case .global:
                     // Best-effort focus so keystrokes land in the intended field, then
                     // the existing keyboard path.
-                    let live = try accessibilityReader.resolve(id: target.record.id, app: target.app)
+                    let live = try target.live ?? accessibilityReader.resolve(id: target.record.id, app: target.app)
                     try axActions.focus(on: live)
                     try typeViaKeyboard(request)
                     return result(deliveryMethod: .global)
@@ -732,6 +737,12 @@ final class ScreenCommanderEngine {
         guard request.maxValueLength >= 0 else {
             throw ScreenCommanderError.invalidArguments("--max-value-length must be non-negative.")
         }
+        if let cap = request.maxVisited, !(1...100_000).contains(cap) {
+            throw ScreenCommanderError.invalidArguments("maxVisited must be between 1 and 100000.")
+        }
+        if let timeout = request.timeoutMS, !(1...60_000).contains(timeout) {
+            throw ScreenCommanderError.invalidArguments("timeoutMs must be between 1 and 60000.")
+        }
         guard request.windowID == nil || !request.allWindows else {
             throw ScreenCommanderError.invalidArguments("--window-id and --all-windows are mutually exclusive.")
         }
@@ -756,7 +767,10 @@ final class ScreenCommanderEngine {
             maxElements: request.maxElements,
             roles: request.roles,
             visibleOnly: request.visibleOnly,
-            maxValueLength: request.maxValueLength
+            maxValueLength: request.maxValueLength,
+            profile: request.profile,
+            maxVisited: request.maxVisited,
+            timeoutMS: request.timeoutMS
         )
         let tree = try accessibilityReader.tree(app: app, options: options)
 
@@ -765,7 +779,7 @@ final class ScreenCommanderEngine {
         var elements = tree.elements
         var metadataPath: String?
         let lastMetadataURL = metadataStore.defaultLastMetadataURL
-        if let metadata = try loadLastMetadataIfAvailable(from: lastMetadataURL) {
+        if request.profile == .full, let metadata = try loadLastMetadataIfAvailable(from: lastMetadataURL) {
             metadataPath = lastMetadataURL.path
             elements = elements.map { record in
                 var record = record
@@ -776,15 +790,22 @@ final class ScreenCommanderEngine {
             }
         }
 
-        return ElementsResult(
+        var result = ElementsResult(
             app: app,
             windowID: request.windowID,
             metadataPath: metadataPath,
             axPrimed: tree.axPrimed,
             truncated: tree.truncated,
             elements: elements,
-            text: request.includeText ? AXTextRenderer.render(elements) : nil
+            text: request.includeText ? AXTextRenderer.render(elements) : nil,
+            profile: request.profile == .full ? nil : request.profile.rawValue,
+            visitedCount: tree.visitedCount,
+            partialReason: tree.partialReason
         )
+        if request.snapshot || request.since != nil {
+            result = snapshots.update(result, request: request)
+        }
+        return result
     }
 
     private func loadLastMetadataIfAvailable(from url: URL) throws -> ScreenshotMetadata? {
@@ -803,6 +824,7 @@ final class ScreenCommanderEngine {
     private struct ResolvedElementTarget {
         var app: ResolvedApp
         var record: AXElementRecord
+        var live: AXElement? = nil
     }
 
     /// Resolves `--element`/`--element-id` freshly against the current AX tree —
@@ -828,17 +850,11 @@ final class ScreenCommanderEngine {
             )
         }
 
-        let tree = try accessibilityReader.tree(app: app, options: AXTreeOptions())
-
         if let elementID {
-            guard let record = tree.elements.first(where: { $0.id == elementID }) else {
-                throw ScreenCommanderError.elementNotFound(
-                    "No element with id '\(elementID)' in '\(app.name)'. Ids are positional and "
-                        + "change with the UI — re-read the tree with 'elements --app \(app.name)'."
-                )
-            }
-            return ResolvedElementTarget(app: app, record: record)
+            let resolved = try accessibilityReader.readResolved(id: elementID, app: app)
+            return ResolvedElementTarget(app: app, record: resolved.record, live: resolved.element)
         }
+        let tree = try accessibilityReader.tree(app: app, options: AXTreeOptions())
 
         guard let query = element else {
             let roleHint = role.map { " with role '\($0)'" } ?? ""

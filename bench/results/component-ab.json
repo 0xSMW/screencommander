@@ -1,0 +1,54 @@
+[
+  {
+    "baseline_local_nanoseconds": 13412250,
+    "baseline_scalar_attribute_calls": 70000,
+    "benchmark": "observer_hydration_ab",
+    "iterations_per_variant": 10000,
+    "optimized_batch_attribute_calls": 10000,
+    "optimized_local_nanoseconds": 17001875,
+    "other_calls_per_record": {
+      "actions": 1,
+      "frame": 1
+    },
+    "scope": "local_fixture_no_remote_ipc"
+  },
+  {
+    "fixture": "generated_960x640_png",
+    "image_file_bytes": 14224,
+    "iterations": 20,
+    "new": {
+      "cpu_total_s": 0.09442900000000004,
+      "response_bytes": 19192,
+      "wall_p50_s": 0.004927833564579487,
+      "wall_p95_s": 0.005585792008787394
+    },
+    "old": {
+      "cpu_total_s": 0.18511400000000006,
+      "response_bytes": 19192,
+      "wall_p50_s": 0.00976104149594903,
+      "wall_p95_s": 0.010140166617929935
+    },
+    "warmups": 4
+  },
+  {
+    "baseline_bytes": 852838,
+    "baseline_records": 2000,
+    "candidate_bytes": 9198,
+    "candidate_records": 20,
+    "case": "snapshot_wire_2000_nodes_1_percent_changed",
+    "note": "Same full AX read; measures response bytes, not AX latency."
+  },
+  {
+    "batched_p50_nanoseconds": 104292,
+    "batched_p95_nanoseconds": 133250,
+    "benchmark": "observer_hydration_live_window_ab",
+    "legacy_p50_nanoseconds": 212458,
+    "legacy_p95_nanoseconds": 572833,
+    "measured_pairs": 20,
+    "order": "alternating_legacy_first_batched_first",
+    "pid": 61252,
+    "record_equivalence": true,
+    "scope": "real_ax_window_record_reads_only_no_event_delivery",
+    "warmup_pairs": 3
+  }
+]

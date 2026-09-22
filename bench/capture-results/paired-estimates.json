@@ -1,0 +1,22 @@
+{
+  "warm": {
+    "p50ReductionPercent": 22.1,
+    "medianPairedSavingMs": 32.385999999999996,
+    "pairedSaving95PercentBootstrapCI": [
+      26.628,
+      35.699
+    ],
+    "candidateFasterPairs": 13,
+    "pairs": 15
+  },
+  "ttl": {
+    "p50ReductionPercent": 10.2,
+    "medianPairedSavingMs": 27.30499999999998,
+    "pairedSaving95PercentBootstrapCI": [
+      11.930999999999983,
+      31.413999999999987
+    ],
+    "candidateFasterPairs": 12,
+    "pairs": 15
+  }
+}
