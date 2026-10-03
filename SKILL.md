@@ -1,298 +1,190 @@
-# screencommander Skill
+# screencommander runbook
 
-Use this skill to reliably control a macOS desktop through `screencommander` with a deterministic observe -> decide -> act loop. Prefer the accessibility tree over pixels: `elements` reads the screen as structured text in tens of milliseconds, `screenshot --window` captures one window even when it is covered by other windows, and element-targeted actions work without moving the user's cursor.
+screencommander drives macOS apps from the terminal. It reads an app's window and accessibility tree, then clicks, types, and presses keys in that app while the app stays in the background. The user's frontmost app and real cursor stay where they are, so the user can keep working while you act.
 
-## When to Use
+## Setup check
 
-- You need to observe and interact with macOS UI from Terminal.
-- You need to read what is on screen without a screenshot (`elements --text`), watch for UI changes in real time (`observe`), or capture and target a single window (`windows`, `screenshot --window <id>`).
-- You need reliable clicks, scrolls, drags, cursor moves, text entry, key chords, or ordered multi-step automation, including element-targeted actions that never touch the pointer (`click --element ... --no-cursor`).
-- You want immediate visual verification before/after each action.
+Run `screencommander doctor` once at the start. It reports the Screen Recording and Accessibility permissions, the private symbols background delivery needs, and the presence process that runs the agent cursor, leases, focus guard, and abort key. You cannot grant a permission yourself. If one is missing, give the user the System Settings path that `doctor` prints and wait.
 
-## Prerequisites
+## The loop
 
-- macOS 14+.
-- `screencommander` installed and available on `PATH`.
-- Permissions granted:
-  - Screen Recording (for screenshots and default action pre/post shots).
-  - Accessibility (for `click`, `scroll`, `drag`, `move`, `type`, `key`, `sequence`, `elements`, `observe`).
-
-## Core Rules
-
-1. Treat screenshot metadata as source of truth for coordinate mapping.
-2. Use matching image + metadata pairs; do not mix captures.
-3. Use Retina-aware screenshot pixel coordinates (image pixel space, top-left origin), not guessed point-space values.
-4. Default action behavior includes before/after screenshots (`preshot` + `postshot`).
-5. Use `--no-postshot` only when you explicitly want less output/faster runs, but it is not recommended.
-6. Default `click` activates a known target app/window before posting the click; use `--raw` only for strict low-level behavior.
-7. Default `type` mode is `paste` (`cmd+v`) for reliable full payload input.
-8. Prefer managed defaults (`~/Library/Caches/screencommander/...`); use explicit `--out`/`--meta` only when you need custom paths or a specific historical capture.
-9. Treat stale `metadataFreshness` as a recapture signal before continuing a coordinate chain. Use `--strict-metadata` when a stale coordinate click would be worse than no action.
-10. Keep default frame diff settings unless small UI changes are being missed; then raise `--diff-grid` or lower `--diff-threshold`.
-
-## Fast Start
+1. Observe with `state --app <name>`. It captures the app's front window without activating it, keeps the capture as the coordinate reference, and prints the tree as `[id] role "title" = value @(x,y wxh)` lines.
+2. Act on an element by id or label, with `--app`.
+3. Read the result. Pass `--json` to get the fields described in [Reading a result](#reading-a-result).
+4. Observe again before the next decision. Ids are positional child-index paths, so any UI change can shift them. Never reuse an id after the UI changed.
 
 ```bash
-screencommander screenshot
-# Inspect the printed image path and pick x,y in pixel space (top-left origin)
-screencommander click <x> <y>
-screencommander type "hello world"
-screencommander key "enter"
+screencommander state --app TextEdit
+screencommander click --element-id 0.2.1 --app TextEdit --json
+screencommander type "hello world" --element-id 0.2.1 --app TextEdit --json
+screencommander key cmd+s --app TextEdit --json
+screencommander state --app TextEdit
 ```
 
-`doctor` reports permissions with traffic lights (`🟢` granted, `🔴` denied).
+Input goes to the target app in the background. Do not run `focus` and do not pass `--foreground` unless a result fails with `background_delivery_unavailable` and the task cannot be done another way. `--foreground` activates the app and moves the user's real cursor. It still takes the lease, stops for the abort key, and waits until the user has stopped typing or moving the mouse anywhere. Tell the user before you use it.
 
-## Action Commands (Recommended Defaults)
+## Targets
 
-- Click:
-  ```bash
-  screencommander click <x> <y>
-  ```
-- Double click:
-  ```bash
-  screencommander click <x> <y> --double
-  ```
-- Modifier or middle click:
-  ```bash
-  screencommander click <x> <y> --button middle --modifiers cmd,shift
-  ```
-- Scroll below the fold:
-  ```bash
-  screencommander scroll <x> <y> --dy -5
-  ```
-- Drag:
-  ```bash
-  screencommander drag <x1> <y1> <x2> <y2>
-  ```
-- Move/hover:
-  ```bash
-  screencommander move <x> <y> --dwell-ms 250
-  ```
-- Type:
-  ```bash
-  screencommander type "text to input"
-  ```
-- Key chord:
-  ```bash
-  screencommander key "cmd+tab"
-  ```
+Always pass `--app <name|pid>`. Add `--window-id <id>` when the app has several windows and it matters which one gets the input. Keys then go to that window, which is made key first, or the action fails with `background_delivery_unavailable`.
 
-All above emit pre/post screenshot paths by default.
+Without a target, input lands somewhere you did not choose:
 
-Useful action-wide verification flags:
+- Element actions, `select-text`, `action`, and `elements` go to the frontmost app, which is usually the one the user is working in.
+- `type`, `key`, and `keys` go to the window of the last `state` or `screenshot --window` capture, else to the frontmost app.
+- Coordinate `click`, `scroll`, `drag`, and `move` go to the window of the last `state` or `screenshot --window` capture, else to whatever window is under the point.
+- `state` and `observe` refuse to run without `--app`.
+
+Find and start targets:
 
 ```bash
-screencommander click <x> <y> --strict-metadata
-screencommander click <x> <y> --diff-grid 128 --diff-threshold 0.02
-screencommander sequence --file ./sequence.json --diff-grid 128
+screencommander apps --running-only --filter notes
+screencommander windows --app Notes
+screencommander launch --app Notes
 ```
 
-`--strict-metadata` applies to coordinate `click`, `scroll`, `drag`, and `move`. `--diff-grid` and `--diff-threshold` apply to action commands that produce before/after screenshots.
+App names match exactly first, then by prefix. An ambiguous name fails with `invalid_arguments` and lists the candidates, so pass the pid instead. `launch` starts an app without activating it and waits until it runs. It reports an app that is already running instead of relaunching it, and the focus guard puts the user's app back if the new app takes focus. Run `state` after it.
 
-## Reading UI Structure Without Pixels (`elements`)
+## Observing
 
-Use `elements` to read an app's accessibility tree as text — cheaper and more precise than screenshot interpretation when the app exposes AX data:
+- `state --app <name>` captures one window and prints its tree with ids. `--window-id` picks another window. `--json` adds `boundsPixels` to each element inside the capture.
+- `state --app <name> --text` and `elements --app <name> --text` print text only, as `role "title": value` lines with no ids. Use them to read content, not to pick targets.
+- `elements --app <name>` reads the tree without a capture. On busy apps narrow it with `--roles AXButton,AXTextField`, `--visible-only`, `--window-id`, or `--all-windows`. It stops at `--max-elements` (default 2000) and then reports `truncated`.
+- `screenshot --window <id>` captures one window even when other windows cover it. Use the id from `windows`. A name matches by app-name prefix and can pick the wrong app.
 
-```bash
-screencommander elements --app Safari --text        # indented role "title": value view
-screencommander elements --app Safari --json        # full records for scripting
-screencommander elements --roles AXButton,AXTextField --visible-only
-```
+An id from any of the app's windows resolves, so ids from `state --window-id` or `elements --all-windows` work with `--element-id`. `--element "<label>"` searches the app's focused window, or the `--window-id` window when you pass one.
 
-Rules:
+Coordinates are pixels in the last capture, top-left origin, at Retina resolution. Take them from the image or from the center of an element's `boundsPixels` in `state --json`. The `@(x,y wxh)` in the human output is global points and is not a click coordinate. After a window capture, coordinate actions go to that window even if something else now covers the point. If a result's `metadataFreshness` says `stale`, capture again. `--strict-metadata` makes a stale capture fail with `stale_metadata` instead.
 
-1. Prefer `elements --text` for reading screen content; fall back to `screenshot` for AX-opaque apps (exit code `71` means no usable AX tree).
-2. Take a `screenshot` first, then `elements`: elements inside that capture get `boundsPixels`, whose center you can pass straight to `click <x> <y>` (default pixel space).
-3. Element ids (`0.3.2`) are positional child-index paths — they go stale when the UI changes. Re-run `elements` after each action instead of caching ids.
-4. Results are capped (`--max-elements`, default 2000, `truncated: true` when hit); narrow with `--roles`, `--visible-only`, or `--window-id` on busy apps.
+## Waiting for the UI
 
-## Pointer-Free Input (Element Clicks, `--via`, `--no-cursor`)
-
-Act on apps without coordinates — and without stealing the user's cursor:
+Use `observe` instead of polling with screenshots:
 
 ```bash
-screencommander click --element "General" --app "System Settings" --no-cursor
-screencommander click --element-id 0.3.2 --app Safari
-screencommander type "user@example.com" --element "Email" --app Safari
-screencommander scroll --element "Content" --app Safari --dy -5
-```
-
-How it works — a tiered actuator, tried in order, with the outcome reported:
-
-1. `ax`: `AXPress`/`AXShowMenu`/`AXValue` writes — coordinate-free, works on background apps, immune to concurrent user mouse movement.
-2. `pid`: the same CGEvents posted only to that app (`CGEventPostToPid`) — the real cursor never moves. Some apps ignore events while unfocused; check the frame diff or re-read `elements` to confirm effect.
-3. `global`: the classic path — moves the real cursor.
-
-Rules:
-
-1. Prefer `click --element` over coordinate clicks whenever `elements` shows the target: no stale-coordinate risk, no cursor theft.
-2. `--element` matches a case-insensitive title/label substring; disambiguate with `--role button` and `--app <name|pid>`. `--element-id` uses ids from `elements` (positional — always re-read, never cache).
-3. Use `--no-cursor` when a human is using the machine: delivery is restricted to `ax` -> `pid` and the pointer never moves.
-4. `--via ax|pid|global` forces one tier (no fallback); `--strict` makes downgrades fail with exit `72` instead of being recorded.
-5. Read `deliveryMethod` (and `requestedVia`) in JSON output to see which tier actually ran; a downgrade to `global` means the cursor moved.
-6. Exit `70` = element not found (re-run `elements`, adjust the query); exit `82` = ambiguous match (use `--element-id` or narrow with `--role`/`--app`); exit `72` = found but disabled, or unsupported for the forced tier.
-7. `type --element` sets the value directly (tier `ax`) — ideal for filling fields in background apps; the fallback focuses the element and pastes.
-8. Element clicks that fall through to `pid`/`global` land on the element's center; the result's `resolved` reports that point in global points.
-
-## Waiting on UI Changes (`observe`)
-
-Use `observe` instead of screenshot-and-recheck polling when you need to block until something happens. It streams NDJSON events (one per line) and can stop itself when a condition is met:
-
-```bash
-# Block until a specific window appears, then return; give up after 10s.
 screencommander observe --app Finder --until 'role=AXWindow title~=Downloads' --timeout-ms 10000
-
-# Watch a text field change while typing (Ctrl-C to stop).
-screencommander observe --app TextEdit --events value
 ```
 
-Rules:
+A predicate is space-separated `key=value` (exact) or `key~=value` (case-insensitive contains) conditions on `role`, `title`, `value`, or `id`, and all must hold. `id` matches only the tree as it was when `observe` started, so match elements that appear later by `role`, `title`, or `value`. On a match the last line is `{"matched": true, "element": ...}` and the exit code is 0. An unmet `--until` exits with `observe_timeout`. `--events value,focus,window,destroy,app` limits the stream.
 
-1. Prefer `observe --until '<predicate>' --timeout-ms N` over sleep-and-screenshot loops: it returns the instant the condition holds (or exits `73` if the timeout passes unmet).
-2. Predicates are whitespace-joined `key<op>value` conditions — keys `role`/`title`/`value`/`id`, ops `=` (exact) or `~=` (case-insensitive contains). All conditions must hold. `role`/`title`/`value` match both the initial tree scan and live events; `id` only matches the initial scan (live events carry no stable tree position), so match late-appearing elements on `role`/`title`/`value`, not `id`.
-3. Narrow the feed with `--events` (`value,focus,window,destroy,app`) so you only pay for the changes you care about.
-4. On a match, the final line is `{ "matched": true, "element": ... }` (exit `0`). A plain `--timeout-ms` without `--until` just exits `0` when it elapses.
+## Acting
 
-## Ordered Multi-Step Automation
+Target elements by `--element-id`, or by `--element "<label>"` narrowed with `--role`. Use coordinates only for things the tree does not expose.
 
-Use `sequence` for one-shot ordered workflows (`click` -> `scroll` -> `move` -> `type` -> `key`).
+| Goal | Command |
+|---|---|
+| Press a button, pick a row or tab | `click --element-id <id> --app <name>` |
+| Open a context menu | `click --element-id <id> --button right --app <name>` |
+| Double-click or modifier-click | `click --element-id <id> --double --app <name>`, `click --element-id <id> --modifiers cmd --app <name>` |
+| Insert text | `type "<text>" --element-id <id> --app <name>` |
+| Replace a field's whole value | `type "<text>" --element-id <id> --replace --app <name>` |
+| Shortcut or special key | `key cmd+s --app <name>`, `key return --app <name>` |
+| Hold keys | `keys down:shift press:down press:down up:shift --app <name>` |
+| Scroll a list or page | `scroll --element-id <id> --direction down --pages 2 --app <name>` |
+| Scroll at a point | `scroll <x> <y> --dy=-5 --app <name>` |
+| Select text | `select-text --element-id <id> --text "hello" --app <name>` or `--range 0,5` |
+| Any other accessibility action | `action --element-id <id> --name AXIncrement --app <name>` |
+| Hover or drag | `move <x> <y> --dwell-ms 250 --app <name>`, `drag <x1> <y1> <x2> <y2> --app <name>` |
+| Fixed multi-step run | `sequence --file steps.json` |
 
-```bash
-screencommander sequence --file ./sequence.json
-```
+`action` accepts only names in the element's `actions` list from `elements --json`, and the `AX` prefix is optional. Double, triple, modifier, and middle clicks cannot go through accessibility, so they land as window events at the element's center.
 
-Example:
+### Text input
+
+- `type` inserts at the field's caret and replaces only the selected text, the same as typing on the keyboard. `--replace` replaces the whole value and needs an element or a focused text field.
+- In native apps `type` writes through accessibility first and reads the value back. If the field ignores the write and its value is unchanged, `type` falls back to key events at the same caret.
+- In Chromium and Electron apps `type` sends key events first, because a web page's editor never sees accessibility writes. It writes through accessibility only when no key tier can run.
+- `type` never touches the clipboard. `--mode paste` uses it only together with `--foreground`.
+- Without an element, `type` writes into the app's focused text field, or sends key events to wherever the app's focus is. Prefer `--element-id`, or check that the field is focused first.
+- Check `verified` after every `type`. `false` after an accessibility write means the field rewrote the text, for example a formatter. Re-read `state` and do not type again, which would duplicate the text.
+
+### Keyboard shortcuts
+
+- In the background, `key` presses a Command chord that matches one of the app's menu items through accessibility, and the result's `menuItem` names it as `Menu > Item`. Any other Command chord goes to the app's window, which is made key for the moment without activating the app.
+- A chord that is not a menu item fails with `background_delivery_unavailable` when the app has no on-screen window. A menu item that stays disabled fails with `element_not_actionable`.
+- `keys` does not look up menu items, so send a single shortcut with `key`.
+- System and media keys such as `volumeup`, `play`, and `launchpad`, system shortcut aliases such as `spotlight` and `missioncontrol`, and chords macOS takes for itself (`cmd+tab`, `cmd+space`, `cmd+option+esc`, Lock Screen, Log Out, and the `cmd+shift+3`, `4`, and `5` screenshot chords) are refused in the background with `background_delivery_unavailable`. Do not reach for `--foreground` to switch apps unless the user asked.
+
+### Sequences
+
+`sequence` runs fixed steps in order. Each step has one key: `click`, `scroll`, `drag`, `move`, `type`, `key`, `keys`, `selectText`, `action`, `launch`, or `sleep`. Steps take the same targets as the commands, spelled `app`, `windowId`, `element`, `elementId`, `role`, `session`, and `agentCursor`, and the MCP tools' field names such as `durationMs` and `delayMs`. A misspelled field fails the whole file before any step runs, and the error names the step and the field. Ids can change between steps, so prefer labels.
 
 ```json
 {
   "steps": [
-    { "click": { "x": 935, "y": 1074, "meta": "~/Library/Caches/screencommander/last-screenshot.json" } },
-    { "scroll": { "x": 935, "y": 800, "dy": -4 } },
-    { "move": { "x": 935, "y": 720, "dwellMS": 100 } },
-    { "type": { "text": "hello from sequence", "mode": "paste" } },
-    { "sleep": { "ms": 100 } },
-    { "key": { "chord": "enter" } }
+    { "click": { "element": "Search", "role": "textfield", "app": "Notes" } },
+    { "type": { "text": "groceries", "app": "Notes" } },
+    { "sleep": { "ms": 200 } },
+    { "key": { "chord": "return", "app": "Notes" } }
   ]
 }
 ```
 
-`click`, `scroll`, and `type` steps also accept the pointer-free fields `element`, `elementId`, `role`, `app`, `via`, `noCursor` (click/scroll), and `strict`:
+The first failing step stops the run, and the error does not say which earlier steps ran. Re-observe before you retry.
 
-```json
-{ "click": { "element": "Save", "app": "TextEdit", "noCursor": true } }
-```
+## Reading a result
 
-## Troubleshooting
+- `deliveryMethod` is the tier that delivered the input. `ax` is an accessibility action or write with no events. `window` is events posted to the app's window. `focusAssisted` makes the window key without activating the app, then posts the same events. `global` activates the app and moves the real cursor, and only runs with `--foreground`.
+- `verified` is `true` or `false` when screencommander read the effect back, and `"unknown"` when it did not. Read-back happens for `type`, `select-text`, `scroll --direction`, and a `key` that pressed a menu item in a key window. `type` with key events reports `true` or `"unknown"`, never `false`. `scroll --direction` reports `false` when the scroll position did not move, often because the list is already at the end. Every other action, including `click`, `action`, `drag`, `move`, and `keys`, reports `"unknown"`, which means the events went out and nothing confirmed them. Re-observe before you rely on the effect.
+- `focus.preserved` is `false` when the frontmost app, its focused window, or its focused element changed during the action. `focus.guardRestored: true` means the target took focus and the focus guard put the user's app back. In that case `preserved` is `false` but the user's app is in front again. If `preserved` is `false` without `guardRestored`, focus moved and stayed moved. Tell the user and do not switch apps yourself. `focus.cursorMoved` is `true` only after a `--foreground` action.
+- `presence` is `active` when the lease, the wait for the user, and the focus guard ran. `unavailable` means the presence process could not be reached and the input went out without a cursor, lease, guard, or wait. Run `doctor` to see why. `disabled` means `SCREENCOMMANDER_PRESENCE=0`. `--foreground` actions report `active` too: they draw no cursor and begin no focus guard, but they lease their app, wait for the user, and stop for the abort key.
+- `menuItem` on a `key` result names the menu item it pressed. No `menuItem` means the chord went out as key events.
+- `keyWindowID` on `type`, `key`, and `keys` is the window the keys went to, when that is known. Check it when the app has several windows.
+- `axError` on a `click` means the app gave no answer to the accessibility press, for example `cannotComplete`. The press may have run, so screencommander did not click again. Re-observe before you retry, or you may press twice.
+- A bare coordinate click goes to whatever is topmost at the point. On the menu bar, a Stage Manager thumbnail, or an open menu it fails with `background_delivery_unavailable`. Pick a menu item with `click --element` instead.
+- Action commands also capture the main display before and after and compare the two. A background or covered window is not visible in those shots, so confirm with `state`. `--no-postshot` skips both captures. A `postshotError` in the result means the capture failed and the action still ran, so do not repeat the action.
 
-- Missing permission:
-  - Run `screencommander doctor`.
-  - Follow the printed System Settings guidance/deeplink.
-- Click appears to target wrong element:
-  - Capture a fresh screenshot and use its matching metadata.
-  - Verify coordinates in pixel space.
-  - Check `metadataFreshness` in JSON output; if stale, recapture before retrying.
-  - Retry with default human-like click (avoid `--raw`).
-- Enter/return issues in text fields:
-  - Keep `type` in default `paste` mode.
-  - Use `key "return"` or app-specific send controls if needed.
-- Need deterministic validation after actions:
-  - Use default pre/post capture and inspect printed `Preshot`/`Postshot` paths.
-  - For tiny changes such as checkbox toggles, retry verification with a larger `--diff-grid` or lower `--diff-threshold`.
+## When something goes wrong
 
-## Execution Notes
+| Error (exit) | Meaning | Next move |
+|---|---|---|
+| `background_delivery_unavailable` (51) | No background path for this input. The message says why: the app's profile is `unsupported`, the window is not on screen, a Command chord has no menu item and no window to make key, a system key or shortcut alias, or missing private symbols. | Act on an element instead if one exists. Otherwise tell the user what failed, and use `--foreground` only if the task needs it and the user agrees. |
+| `target_busy` (52) | Another agent session holds the lease on this app. | Wait and retry in the background, or work in another app. A lease ends once its session has left the app alone for 15 seconds. Pass the other `--session` name only if that session is your own. |
+| `aborted_by_user` (53) | The user pressed Control-Option-Command-Period. All agent input is stopped. | Stop and tell the user. Never retry with `--foreground` and never run `resume`. Only the user resumes. |
+| `user_interrupted` (54) | The user kept using the target app for about 5 seconds, or for a `--foreground` action kept using the keyboard or mouse anywhere, and the action was not delivered. | Wait until the user is done, re-read `state`, then retry in the background. Never retry with `--foreground`. |
+| `element_not_actionable` (72) | The element is disabled, does not list the action, a forced `--via` tier cannot do it, or `--strict` refused a fallback. | Read the message. Re-read `state`, wait for the control to enable, use an action from its `actions`, or drop `--via` and `--strict`. |
+| `element_not_found` (70) | No element matches the id or label. | Re-read `state` and use a fresh id or a better label. |
+| `element_ambiguous` (82) | The label matched several elements. The message lists them. | Use `--element-id` or add `--role`. |
+| `ax_tree_unavailable` (71) | The app exposes no usable tree yet. | If it is launching, wait with `observe` or retry `state`. If it stays empty, work from the window capture with coordinates. |
+| `window_minimized` (84) | A minimized window could not be captured. | Read it with `elements --app <name> --all-windows` and act by element id, or ask the user to restore it. |
+| `capture_timeout` (22) | A capture did not finish in time. | Retry once. If it repeats, run `doctor` and tell the user. |
+| `stale_metadata` (83) | The capture no longer matches the screen. | Capture again with `state` or `screenshot --window`. |
+| `app_not_found` (81) / `window_not_found` (80) | No running app or window matches. | Use `apps` or `windows`. Start a missing app with `launch --app <name>`. |
+| `observe_timeout` (73) | The `--until` condition never held. | Re-read `state` and decide again. |
+| `permission_denied_screen_recording` (10), `permission_denied_accessibility` (11) | A permission is missing. | Run `doctor`, give the user the printed System Settings path, and wait. |
 
-- This skill assumes `screencommander` is installed and available on `PATH`.
-- Keep this skill focused on command orchestration and verification, not app-specific assumptions.
+## Per-app expectations
 
-## App Playbooks (Generic)
+`doctor --app <name>` classifies an app from its bundle and sends no input. It reports a support level, the tier order for mouse and keyboard input, and a `reason`.
 
-### List + Detail Surfaces
+- `supported`: native AppKit and SwiftUI apps. Accessibility actions and window events work while the app is in the background.
+- `degraded`: some input is ignored while the app is inactive, and `reason` says which. Chromium and Electron apps take mouse and key events only through `focusAssisted`, and `type` sends them key events first. Catalyst apps have some controls that react only while the app is active. Qt and Java apps have sparse trees and need a key window. In practice, prefer element actions, re-observe after every action, and expect some `verified: "unknown"` results where nothing changed.
+- `unsupported`: game engines. Coordinate and keyboard input is refused with `background_delivery_unavailable`. Accessibility actions on elements are still tried.
 
-1. Capture screenshot.
-2. Click list item by pixel coordinate using matching metadata.
-3. Validate via postshot that detail pane changed.
-4. If not changed, recapture and retry with corrected coordinates.
+Window-addressed input reaches only a window's active tab or web view. Switch tabs before you act on another one. Chrome activates itself for menu commands that open a window or tab, and the result then shows `guardRestored: true`.
 
-### Compose + Send Surfaces
+## Sessions and the agent cursor
 
-1. Click compose/input area.
-2. `type` message with default paste mode.
-3. Trigger send via `key` chord or explicit send control click.
-4. Validate in postshot that content moved from input state to sent/applied state.
+Every action runs in a session that leases the target app. The CLI uses `--session <name>`, then `SCREENCOMMANDER_SESSION`, then `default`. A lease ends once the session has not acted on the app for 15 seconds, whether it came from a one-shot command or from `serve`. One-shot commands keep their app between calls inside that window, and `serve` loses all its leases when it exits. When more than one agent drives this Mac, give each its own session name with `SCREENCOMMANDER_SESSION=<name>`. A second session that touches a leased app gets `target_busy`. Each session draws its own cursor color.
 
-### Multi-Step Transaction
+The agent cursor shows the user where you are acting. It glides to the target before each pointer action, `select-text`, and `action`, and the action waits for the glide. Pass `--no-agent-cursor` when the user asks for no cursor, or for long runs of actions where speed matters. Leases, the focus guard, and the wait for the user still apply without it.
 
-1. Build `sequence.json` with ordered steps.
-2. Run `sequence --file ...`.
-3. Inspect per-step preshot/postshot paths to confirm each transition.
-4. Re-run only failed/corrected step sets when needed.
+While a session is active, screencommander keeps the display awake so the screen saver does not start mid-run.
 
-### Guarded/Destructive Actions
+## MCP server
 
-1. Require a fresh screenshot right before action.
-2. Confirm exact target visually from preshot.
-3. Execute single intended action (avoid batching until validated).
-4. Confirm result in postshot before proceeding to next destructive step.
+`screencommander serve --mcp` runs one warm process that speaks MCP over stdio and returns captures as images. Tool names follow the commands: `screenshot`, `click`, `type`, `key`, `keys`, `scroll`, `drag`, `move`, `elements`, `windows`, `focus`, `doctor`, and `cleanup` keep their names. `app_state` is `state`, `select_text` is `select-text`, `perform_action` is `action`, `list_apps` is `apps`, `launch_app` is `launch`, and `observe_wait` is `observe`. There is no `sequence` tool and no `resume` tool.
 
-## Window Targeting
+- Arguments are camelCase: `app`, `windowId`, `elementId`, `foreground`, `session`, `agentCursor`. Leave `foreground` unset.
+- Results are the same envelopes as `--json`, in `structuredContent`, with the same fields and error codes. Everything in [Reading a result](#reading-a-result) and [When something goes wrong](#when-something-goes-wrong) applies.
+- Start with `app_state`. The first call for a window returns the whole tree. Later calls return only changed records plus `removedIds`. Pass `full: true` to get the whole tree again.
+- Action tools accept `postObserve: {"app": "<name>"}`, which adds an `observation` tree delta to the result so you can skip a separate read.
+- `observe_wait` takes `app`, `timeoutMs`, and `until`, and returns the events and the outcome in one call.
+- Requests run in parallel. To order one after another, set `params.dependsOn` to the earlier request id.
+- Each server is its own session unless `SCREENCOMMANDER_SESSION` is set.
 
-### Enumerate Windows
+## Known limits
 
-Use `windows` to list all visible windows and their IDs before targeting:
-
-```bash
-screencommander windows
-screencommander windows --app Safari
-screencommander windows --json
-```
-
-### Per-Window Screenshot
-
-Capture a single window to get a clean, cropped image and correct coordinate mapping:
-
-```bash
-screencommander screenshot --window 12345
-screencommander screenshot --window Safari
-```
-
-- The sidecar metadata stores `windowID` and `windowBoundsPoints`.
-- `click` coordinates from this screenshot map via `windowBoundsPoints` — no manual offset needed.
-- Prefer window capture over full-display capture when only one app matters; reduces noise and improves click accuracy.
-
-### Focus an App
-
-Bring an app to the foreground before interacting with it via global input:
-
-```bash
-screencommander focus --app Safari
-screencommander focus --app 1234
-```
-
-- Use before `click`/`type` when the target app may be in the background.
-- Reports prior and new frontmost app so you can restore state if needed.
-
-### Error codes
-
-| Exit code | Meaning |
-|---|---|
-| 70 | Element not found — re-run `elements` and adjust `--element`/`--element-id` |
-| 72 | Element not actionable — disabled, or the forced tier can't express the action |
-| 80 | Window not found — check `windows` output for valid IDs |
-| 81 | App not found — verify app name/PID with `windows` or `ps aux` |
-| 82 | Element ambiguous — use `--element-id` or narrow with `--role`/`--app` |
-| 83 | Stale metadata — recapture or omit `--strict-metadata` for advisory-only freshness |
-
-## MCP Server Mode (`serve --mcp`)
-
-For agent sessions doing many actions, prefer the MCP server over one-shot CLI calls — it holds one warm engine (no per-action process startup) and returns screenshots as in-band images instead of file paths:
-
-```bash
-claude mcp add screencommander -- screencommander serve --mcp
-```
-
-- Tools mirror the CLI 1:1 (`screenshot`, `click`, `type`, `key`, `keys`, `scroll`, `drag`, `move`, `elements`, `windows`, `focus`, `observe_wait`, `doctor`, `cleanup`); tool results are the same JSON envelopes documented in `docs/json-output-schema.md`, returned as `structuredContent`.
-- Requests run in parallel by default. Use JSON-RPC request `params.dependsOn` when the next request must wait for a prior request id, for example a follow-on action after an `observe_wait`.
-- Independent reads and diagnostics should stay parallel; do not serialize them behind long waits.
-- `notifications/cancelled` with `params.requestId` cancels an in-flight request and queued dependents.
-- `observe_wait` replaces the streaming `observe` command: pass `app`, `timeoutMs`, and optionally `until`; it returns the events seen and the outcome in one call.
-- Keep using the CLI for shell scripts and one-off captures.
+- With Stage Manager on, a window in another stage is a thumbnail. Its capture is the thumbnail and coordinate actions fail. Act on its elements.
+- Minimized windows, hidden apps' windows, and windows on another Space can be captured but not clicked by coordinates. Act on their elements.
+- Key-event typing goes through the Mac's text settings, such as "Add period with double-space". Line breaks go out as Return and tabs as Tab. Accessibility writes insert the text exactly.
+- A running screen saver is not dismissed and a locked screen is not unlocked. If actions start failing on a locked Mac, tell the user.
+- Secure text fields are never read back, so `type` into them reports `verified: "unknown"`.
