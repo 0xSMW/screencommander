@@ -175,6 +175,34 @@ final class AXPerformanceTests: XCTestCase {
         XCTAssertTrue(diagnostics.hadTransientError)
     }
 
+    /// Calculator's AXSplitter answers AXUIElementCopyActionNames with failure
+    /// (-25200) on every read, and AppKit answers single attributes in a batch the
+    /// same way (Mail's AXSubrole, Finder's AXDescription). None of that loses an
+    /// element, so a read made only of those answers stays complete.
+    func testContentFailureAnswersDoNotMarkReadIncomplete() {
+        let diagnostics = AXReadDiagnostics()
+        diagnostics.record(.success, scope: .structure)
+        diagnostics.record(.failure, scope: .content)
+        diagnostics.record(.attributeUnsupported, scope: .content)
+        diagnostics.record(.noValue, scope: .content)
+        XCTAssertFalse(diagnostics.hadTransientError)
+    }
+
+    func testFailedExchangesStillMarkReadIncomplete() {
+        let cases: [(AXError, AXReadDiagnostics.Scope)] = [
+            (.failure, .structure),
+            (.cannotComplete, .structure),
+            (.invalidUIElement, .structure),
+            (.cannotComplete, .content),
+            (.invalidUIElement, .content),
+        ]
+        for (error, scope) in cases {
+            let diagnostics = AXReadDiagnostics()
+            diagnostics.record(error, scope: scope)
+            XCTAssertTrue(diagnostics.hadTransientError, "\(error.rawValue) \(scope)")
+        }
+    }
+
     func testRangedTextUsesUTF16OffsetsAndFallsBackOnIncompleteGrapheme() {
         let text = String(repeating: "😀", count: 100)
         var requestedUnits = 0
