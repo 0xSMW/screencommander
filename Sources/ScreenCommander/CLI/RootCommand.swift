@@ -107,7 +107,7 @@ enum OutputOptions {
 
 /// The one version string: `--version` and the MCP server's `serverInfo.version`.
 enum ScreenCommanderVersion {
-    static let current = "0.5.0"
+    static let current = "0.6.0"
 }
 
 /// Help text shared by several commands, so each option reads the same everywhere.
