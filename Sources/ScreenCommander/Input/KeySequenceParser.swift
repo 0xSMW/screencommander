@@ -7,7 +7,12 @@ struct KeySequenceParser {
         }
 
         let steps = try rawSteps.map { try parseStep($0) }
-        return KeySequence(steps: steps)
+        let shortcuts = rawSteps.compactMap { raw -> String? in
+            let parts = raw.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces).lowercased() != "sleep" else { return nil }
+            return KeyCodes.systemShortcutAlias(String(parts[1]))
+        }
+        return KeySequence(steps: steps, systemShortcuts: shortcuts)
     }
 
     private static func parseStep(_ raw: String) throws -> KeyStep {
@@ -42,6 +47,7 @@ struct KeySequenceParser {
             guard let ms = Int(payload), ms >= 0 else {
                 throw ScreenCommanderError.invalidArguments("sleep duration must be a non-negative integer: '\(payload)'.")
             }
+            try InputLimits.check(ms, in: InputLimits.keySleepMs, "A sleep step's milliseconds")
             return .sleep(milliseconds: ms)
         default:
             throw ScreenCommanderError.invalidArguments("Unknown step action '\(action)'. Expected down, up, press, or sleep.")

@@ -6,6 +6,10 @@ struct ParsedKeyChord {
     let raw: String
     let key: ResolvedKey
     let modifiers: [ModifierKey]
+    /// Set when the chord came from an alias for a system-wide shortcut
+    /// (`spotlight`, `raycast`, `missioncontrol`). Those only mean something when
+    /// posted globally. A raw chord such as `cmd+space` leaves this nil.
+    var systemShortcut: String? = nil
 
     var flags: CGEventFlags {
         modifiers.reduce(into: CGEventFlags()) { partialResult, modifier in
@@ -358,10 +362,100 @@ enum KeyCodes {
 
     private static func parseNamedChord(_ token: String, raw: String) -> ParsedKeyChord? {
         if let macro = resolveNamedMacroChord(token) {
-            return ParsedKeyChord(raw: raw, key: macro.key, modifiers: macro.modifiers)
+            return ParsedKeyChord(raw: raw, key: macro.key, modifiers: macro.modifiers,
+                                  systemShortcut: systemShortcutAlias(token))
         }
 
         return nil
+    }
+
+    /// The canonical name when `token` is an alias for a system-wide shortcut.
+    static func systemShortcutAlias(_ token: String) -> String? {
+        switch token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "spotlight": return "spotlight"
+        case "raycast": return "raycast"
+        case "missioncontrol", "mission-control", "mission_control": return "missioncontrol"
+        default: return nil
+        }
+    }
+
+    /// Chords macOS itself takes before any app sees them: the app switcher,
+    /// Spotlight, Force Quit, Lock Screen, Log Out, and the screenshot shortcuts.
+    /// Sent to an app in the background they arrive as ordinary keys and do
+    /// nothing, so without `--foreground` they are refused. Kept to chords no app
+    /// handles itself.
+    static let systemWideChords = [
+        "cmd+tab", "cmd+shift+tab",
+        "cmd+space", "cmd+option+space",
+        "cmd+option+esc",
+        "cmd+ctrl+q", "cmd+shift+q",
+        "cmd+shift+3", "cmd+shift+4", "cmd+shift+5",
+        "cmd+shift+ctrl+3", "cmd+shift+ctrl+4",
+    ]
+
+    private static let systemWideChordKeys: [CGKeyCode: [(flags: CGEventFlags, name: String)]] = {
+        var table: [CGKeyCode: [(flags: CGEventFlags, name: String)]] = [:]
+        for raw in systemWideChords {
+            guard let chord = try? parseChord(raw), case .keyboard(let keyCode, _) = chord.key else {
+                continue
+            }
+            table[keyCode, default: []].append((chord.flags, chord.normalized))
+        }
+        return table
+    }()
+
+    static let chordModifierMask: CGEventFlags = [.maskCommand, .maskShift, .maskAlternate, .maskControl]
+
+    /// The normalized name of a system-wide chord, when this key and these
+    /// modifiers are one. Fn is ignored.
+    static func systemWideChord(keyCode: CGKeyCode, flags: CGEventFlags) -> String? {
+        let modifiers = flags.intersection(chordModifierMask)
+        return systemWideChordKeys[keyCode]?.first { $0.flags == modifiers }?.name
+    }
+
+    static func systemWideChord(_ chord: ParsedKeyChord) -> String? {
+        guard case .keyboard(let keyCode, _) = chord.key else {
+            return nil
+        }
+        return systemWideChord(keyCode: keyCode, flags: chord.flags)
+    }
+
+    /// The first system-wide chord a key sequence presses, counting modifiers held
+    /// down by earlier `down:` steps.
+    static func systemWideChord(in sequence: KeySequence) -> String? {
+        var held = CGEventFlags()
+        for step in sequence.steps {
+            switch step {
+            case .keyDown(.keyboard(let keyCode, _), let flags):
+                if let modifier = KeyboardController.modifierFlag(forKeyCode: keyCode) {
+                    held.insert(modifier)
+                } else if let name = systemWideChord(keyCode: keyCode, flags: held.union(flags)) {
+                    return name
+                }
+            case .keyUp(.keyboard(let keyCode, _), _):
+                if let modifier = KeyboardController.modifierFlag(forKeyCode: keyCode) {
+                    held.remove(modifier)
+                }
+            case .press(.keyboard(let keyCode, _), let flags):
+                if let name = systemWideChord(keyCode: keyCode, flags: held.union(flags)) {
+                    return name
+                }
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    /// The `background_delivery_unavailable` reason for a system-wide chord.
+    static func systemWideChordRefusal(_ name: String) -> String {
+        "'\(name)' is a system-wide shortcut that macOS handles before any app sees it. Sent to an app in the "
+            + "background it would arrive as ordinary keys and do nothing, so it needs --foreground."
+    }
+
+    /// The `background_delivery_unavailable` reason for a system-wide shortcut alias.
+    static func systemShortcutRefusal(_ alias: String) -> String {
+        "'\(alias)' is a system-wide shortcut and needs --foreground. Sent in the background it would only reach the target app, where it does nothing useful."
     }
 
     private static func resolveNamedMacroChord(_ token: String) -> (key: ResolvedKey, modifiers: [ModifierKey])? {
