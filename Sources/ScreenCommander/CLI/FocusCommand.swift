@@ -4,13 +4,21 @@ import Foundation
 struct FocusCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "focus",
-        abstract: "Bring an app to the foreground."
+        abstract: "Bring an app to the front.",
+        discussion: """
+            This activates the app on purpose and takes focus from the user. Input commands do not \
+            need it, because they work in the background. It fails with aborted_by_user while the \
+            abort key (Control-Option-Command-Period) is in force.
+
+            Example:
+              screencommander focus --app TextEdit
+            """
     )
 
-    @Option(name: .long, help: "App to focus (name or PID). Required.")
+    @Option(name: .long, help: "App to activate: name or pid.")
     var app: String
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {

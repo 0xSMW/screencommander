@@ -4,46 +4,57 @@ import Foundation
 struct ElementsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "elements",
-        abstract: "Read an app's accessibility (AX) element tree: ground-truth UI structure and text without pixels."
+        abstract: "Read an app's accessibility tree: roles, text, state, element IDs, and bounds.",
+        discussion: """
+            Reads the app's focused window, or the windows chosen with --window-id or --all-windows, \
+            without activating the app or capturing pixels. Each element has an element ID such as \
+            0.3.2, which is its position in the tree. Pass it to --element-id in click, type, scroll, \
+            select-text, or action, and read the tree again after the UI changes. boundsPixels maps \
+            each element into the last screenshot.
+
+            Examples:
+              screencommander elements --app TextEdit --text
+              screencommander elements --app Safari --roles button,textfield --visible-only
+            """
     )
 
-    @Option(name: .long, help: "Target app by name or pid. Defaults to the frontmost application.")
+    @Option(name: .long, help: ArgumentHelp(HelpText.appFrontmost))
     var app: String?
 
-    @Option(name: .customLong("window-id"), help: "Restrict traversal to the window with this id.")
+    @Option(name: .customLong("window-id"), help: "Read only this window, by ID from 'windows'.")
     var windowID: UInt32?
 
-    @Flag(name: .customLong("all-windows"), help: "Traverse every window instead of just the focused one.")
+    @Flag(name: .customLong("all-windows"), help: "Read every window of the app instead of only the focused one.")
     var allWindows: Bool = false
 
-    @Flag(name: .long, help: "Emit an indented text-only view of the UI (role \"title\": value lines).")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.treeText))
     var text: Bool = false
 
-    @Option(name: .customLong("max-depth"), help: "Maximum tree depth to traverse (1...200).")
-    var maxDepth: Int = 40
-
-    @Option(name: .customLong("max-elements"), help: "Maximum number of elements to emit (1...10000); result is marked truncated when hit.")
-    var maxElements: Int = 2000
-
-    @Option(name: .long, help: "Comma-separated role filter, e.g. 'AXButton,AXTextField' (case-insensitive; 'button' also matches).")
+    @Option(name: .long, help: "Only return these roles, comma-separated and case-insensitive, such as AXButton,AXTextField or button,textfield.")
     var roles: String?
 
-    @Flag(name: .customLong("visible-only"), help: "Emit only elements whose frame intersects their window bounds.")
+    @Flag(name: .customLong("visible-only"), help: "Only return elements whose frame intersects their window.")
     var visibleOnly: Bool = false
 
-    @Option(name: .customLong("max-value-length"), help: "Truncate element values longer than this many characters.")
-    var maxValueLength: Int = 200
-
-    @Option(name: .long, help: "Read profile: full or text (omits geometry/actions).")
+    @Option(name: .long, help: "Fields to read: full, or text (skips bounds and actions, which is faster).")
     var profile: String = "full"
 
-    @Option(name: .customLong("max-visited"), help: "Hard visited-node budget (1...100000).")
+    @Option(name: .customLong("max-depth"), help: ArgumentHelp(HelpText.maxDepth))
+    var maxDepth: Int = 40
+
+    @Option(name: .customLong("max-elements"), help: ArgumentHelp(HelpText.maxElements))
+    var maxElements: Int = 2000
+
+    @Option(name: .customLong("max-value-length"), help: "Cut element values longer than this many characters.")
+    var maxValueLength: Int = 200
+
+    @Option(name: .customLong("max-visited"), help: "Stop after visiting this many nodes, 1 to 100000. The result then reports partialReason.")
     var maxVisited: Int?
 
-    @Option(name: .customLong("timeout-ms"), help: "AX read deadline in milliseconds (1...60000).")
+    @Option(name: .customLong("timeout-ms"), help: "Stop reading after this many milliseconds, 1 to 60000. The result then reports partialReason.")
     var timeoutMS: Int?
 
-    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {

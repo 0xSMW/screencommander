@@ -4,71 +4,94 @@ import Foundation
 struct ScrollCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "scroll",
-        abstract: "Map screenshot coordinates and post a scroll wheel event."
+        abstract: "Scroll at screenshot coordinates or over an element, in the background by default.",
+        discussion: """
+            Wheel events go to the target window (tier window), or to the window made key without \
+            raising it (tier focusAssisted), in the order the app's profile gives ('doctor --app'). \
+            --direction scrolls an element by pages, first through its page actions or scroll bar \
+            in accessibility (tier ax). None of these activate the app or move your cursor. With --foreground, coordinate scrolls go straight to tier global, and element \
+            scrolls try the background tiers first.
+
+            Examples:
+              screencommander scroll 600 400 --dy -5
+              screencommander scroll --app Safari --element-id 0.3.2 --direction down
+            """
     )
 
-    @Argument(help: "X coordinate in selected coordinate space (omit when using --element/--element-id).")
+    @Argument(help: "X coordinate in --space units. Omit with --element or --element-id.")
     var x: String?
 
-    @Argument(help: "Y coordinate in selected coordinate space (omit when using --element/--element-id).")
+    @Argument(help: "Y coordinate in --space units. Omit with --element or --element-id.")
     var y: String?
 
-    @Option(name: .long, help: "Vertical scroll delta.")
+    // `.unconditional` so a negative delta such as `--dy -5` is read as the value.
+    @Option(name: .long, parsing: .unconditional, help: "Vertical amount in --unit. Positive scrolls up, negative scrolls down.")
     var dy: Int32 = 0
 
-    @Option(name: .long, help: "Horizontal scroll delta.")
+    // `.unconditional` so a negative delta such as `--dx -5` is read as the value.
+    @Option(name: .long, parsing: .unconditional, help: "Horizontal amount in --unit. Positive scrolls left, negative scrolls right.")
     var dx: Int32 = 0
 
-    @Option(name: .long, help: "Scroll unit: lines (default) or pixels.")
+    @Option(name: .long, help: "Unit of --dx and --dy: lines or pixels.")
     var unit: ScrollUnit = .lines
 
-    @Option(name: .long, help: "Coordinate input space.")
+    @Option(name: .long, help: "Scroll an element by pages in this direction, instead of --dx and --dy. Needs --element or --element-id.")
+    var direction: ScrollDirection?
+
+    @Option(name: .long, help: "Pages to scroll with --direction, 1 to 50.")
+    var pages: Int = 1
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.space))
     var space: CoordinateSpace = .pixels
 
-    @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
+    @Option(name: .long, help: ArgumentHelp(HelpText.meta))
     var meta: String?
 
-    @Option(name: .long, help: "Scroll at an element's center by title/label substring (resolved fresh; pid then global delivery).")
-    var element: String?
-
-    @Option(name: .customLong("element-id"), help: "Scroll at the element with this id from 'elements'.")
-    var elementId: String?
-
-    @Option(name: .long, help: "Role filter to disambiguate --element matches (e.g. table or AXScrollArea).")
-    var role: String?
-
-    @Option(name: .long, help: "App owning the target element / receiving pid-delivered events (name or pid).")
-    var app: String?
-
-    @Option(name: .long, help: "Force one delivery tier: pid or global (scroll has no ax tier).")
-    var via: InputDeliveryMethod?
-
-    @Flag(name: .customLong("no-cursor"), help: "Never fall back to global delivery — the real cursor stays put (pid tier only).")
-    var noCursor: Bool = false
-
-    @Flag(name: .long, help: "Treat delivery-tier downgrades as errors (element_not_actionable) instead of recording them.")
-    var strict: Bool = false
-
-    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate scrolls when screenshot metadata is known stale.")
+    @Flag(name: .customLong("strict-metadata"), help: ArgumentHelp(HelpText.strictMetadata))
     var strictMetadata: Bool = false
 
-    @Flag(
-        name: .long,
-        inversion: .prefixedNo,
-        help: "Capture before/after screenshots around the action (enabled by default)."
-    )
+    @Option(name: .long, help: ArgumentHelp(HelpText.element))
+    var element: String?
+
+    @Option(name: .customLong("element-id"), help: ArgumentHelp(HelpText.elementID))
+    var elementId: String?
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.role))
+    var role: String?
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.appMixed))
+    var app: String?
+
+    @Option(name: .customLong("window-id"), help: ArgumentHelp(HelpText.windowID))
+    var windowId: UInt32?
+
+    @Flag(name: .long, help: ArgumentHelp(HelpText.foreground))
+    var foreground: Bool = false
+
+    @Option(name: .long, help: "Use only this delivery tier, with no fallback. ax needs --direction. global needs --foreground.")
+    var via: InputDeliveryMethod?
+
+    @Flag(name: .long, help: ArgumentHelp(HelpText.strict))
+    var strict: Bool = false
+
+    @Flag(name: .customLong("no-cursor"), help: .hidden)
+    var noCursor: Bool = false
+
+    @OptionGroup var presence: AgentPresenceOptions
+
+    @Flag(name: .long, inversion: .prefixedNo, help: ArgumentHelp(HelpText.postshot))
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.noDiff))
     var noDiff: Bool = false
 
-    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    @Option(name: .customLong("diff-grid"), help: ArgumentHelp(HelpText.diffGrid))
     var diffGrid: Int?
 
-    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    @Option(name: .customLong("diff-threshold"), help: ArgumentHelp(HelpText.diffThreshold))
     var diffThreshold: Double?
 
-    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {
@@ -109,7 +132,13 @@ struct ScrollCommand: ParsableCommand {
                 via: via,
                 noCursor: noCursor,
                 strict: strict,
-                strictMetadata: strictMetadata
+                strictMetadata: strictMetadata,
+                windowID: windowId,
+                foreground: foreground,
+                session: presence.session,
+                agentCursor: presence.agentCursor,
+                direction: direction,
+                pages: pages
             )
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
@@ -126,7 +155,9 @@ struct ScrollCommand: ParsableCommand {
                         action: result,
                         preshot: preshotResult?.result,
                         postshot: postshotResult?.result,
-                        diff: diff
+                        diff: diff,
+                        preshotError: CommandRuntime.shotFailure("Preshot"),
+                        postshotError: CommandRuntime.shotFailure("Postshot")
                     ),
                     compact: compact
                 )
@@ -145,10 +176,15 @@ struct ScrollCommand: ParsableCommand {
             if let freshness = result.metadataFreshness {
                 print("Metadata freshness: \(freshness.status.rawValue) (\(freshness.reason))")
             }
-            print("Delta: dx=\(result.dx), dy=\(result.dy) \(result.unit.rawValue)")
+            if let direction = result.direction {
+                print("Scrolled \(result.pages ?? 1) page(s) \(direction.rawValue)\(result.axMethod.map { " with \($0)" } ?? "").")
+            } else {
+                print("Delta: dx=\(result.dx), dy=\(result.dy) \(result.unit.rawValue)")
+            }
             if let metadataPath = result.metadataPath {
                 print("Metadata: \(metadataPath)")
             }
+            CommandRuntime.printFocus(result.focus)
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")
                 print("Preshot metadata: \(preshotResult.result.metadataPath)")

@@ -4,83 +4,103 @@ import Foundation
 struct ClickCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "click",
-        abstract: "Map screenshot coordinates to global space and post mouse events."
+        abstract: "Click at screenshot coordinates or on an element, in the background by default.",
+        discussion: """
+            Background delivery tries tiers in order and reports the one that worked as \
+            deliveryMethod. An element target with a plain left or right click is pressed through \
+            accessibility (tier ax). Otherwise mouse events go to the target window (tier window), or \
+            to the window made key without raising it (tier focusAssisted), in the order the app's \
+            profile gives ('doctor --app'). None of these activate the app or move your cursor. With \
+            --foreground, coordinate clicks go straight to tier global, and element clicks try the \
+            background tiers first.
+
+            Examples:
+              screencommander click 412 230
+              screencommander click --app TextEdit --element-id 0.3.2
+              screencommander click --app Calculator --element 7
+            """
     )
 
-    @Argument(help: "X coordinate in selected coordinate space (omit when using --element/--element-id).")
+    @Argument(help: "X coordinate in --space units. Omit with --element or --element-id.")
     var x: String?
 
-    @Argument(help: "Y coordinate in selected coordinate space (omit when using --element/--element-id).")
+    @Argument(help: "Y coordinate in --space units. Omit with --element or --element-id.")
     var y: String?
 
-    @Option(name: .long, help: "Coordinate input space.")
-    var space: CoordinateSpace = .pixels
-
-    @Option(name: .long, help: "Metadata JSON path. Defaults to managed state last-screenshot.json path.")
-    var meta: String?
-
-    @Option(name: .long, help: "Click an element by title/label substring instead of coordinates (resolved fresh at click time).")
-    var element: String?
-
-    @Option(name: .customLong("element-id"), help: "Click an element by its id from 'elements' (dot-joined child-index path, e.g. 0.3.2).")
-    var elementId: String?
-
-    @Option(name: .long, help: "Role filter to disambiguate --element matches (e.g. button or AXButton).")
-    var role: String?
-
-    @Option(name: .long, help: "App owning the target element (name or pid). Defaults to the frontmost app.")
-    var app: String?
-
-    @Option(name: .long, help: "Force one delivery tier: ax, pid, or global (no fallback; --strict implied).")
-    var via: InputDeliveryMethod?
-
-    @Flag(name: .customLong("no-cursor"), help: "Never fall back to global delivery — the real cursor stays put (element clicks use ax then pid).")
-    var noCursor: Bool = false
-
-    @Flag(name: .long, help: "Treat delivery-tier downgrades as errors (element_not_actionable) instead of recording them.")
-    var strict: Bool = false
-
-    @Flag(name: .customLong("verify-target"), help: "Hit-test the mapped point via accessibility before clicking and include the element in the result (coordinate clicks only).")
-    var verifyTarget: Bool = false
-
-    @Flag(name: .customLong("strict-metadata"), help: "Fail coordinate clicks when screenshot metadata is known stale.")
-    var strictMetadata: Bool = false
-
-    @Option(name: .long, help: "Mouse button.")
+    @Option(name: .long, help: "Mouse button: left, right, or middle.")
     var button: MouseButtonChoice = .left
 
-    @Flag(name: .long, help: "Send a double-click sequence.")
+    @Flag(name: .long, help: "Double-click.")
     var double: Bool = false
 
-    @Flag(name: .long, help: "Send a triple-click sequence.")
+    @Flag(name: .long, help: "Triple-click.")
     var triple: Bool = false
 
-    @Option(name: .long, help: "Comma-separated modifiers: cmd,shift,option,ctrl.")
+    @Option(name: .long, help: "Modifier keys to hold during the click, comma-separated: cmd, shift, option, ctrl.")
     var modifiers: String?
 
-    @Flag(name: .long, help: "Send an extra priming mouse-move first (useful when first action only positions cursor).")
-    var prime: Bool = false
-
-    @Flag(name: .long, help: "Use raw click events without human-like cursor priming or target-app activation.")
+    @Flag(name: .long, help: "Skip the pointer move and short pause sent before the click. With --foreground, also skip activating the target app.")
     var raw: Bool = false
 
-    @Flag(
-        name: .long,
-        inversion: .prefixedNo,
-        help: "Capture before/after screenshots around the action (enabled by default)."
-    )
+    /// Removed in 0.6.0. Still accepted, hidden, and has no effect, so scripts that
+    /// pass it keep working.
+    @Flag(name: .long, help: .hidden)
+    var prime: Bool = false
+
+    @Flag(name: .customLong("verify-target"), help: "Before a coordinate click, read the accessibility element at the point and report it as verifiedTarget. The click happens either way.")
+    var verifyTarget: Bool = false
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.space))
+    var space: CoordinateSpace = .pixels
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.meta))
+    var meta: String?
+
+    @Flag(name: .customLong("strict-metadata"), help: ArgumentHelp(HelpText.strictMetadata))
+    var strictMetadata: Bool = false
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.element))
+    var element: String?
+
+    @Option(name: .customLong("element-id"), help: ArgumentHelp(HelpText.elementID))
+    var elementId: String?
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.role))
+    var role: String?
+
+    @Option(name: .long, help: ArgumentHelp(HelpText.appMixed))
+    var app: String?
+
+    @Option(name: .customLong("window-id"), help: ArgumentHelp(HelpText.windowID))
+    var windowId: UInt32?
+
+    @Flag(name: .long, help: ArgumentHelp(HelpText.foreground))
+    var foreground: Bool = false
+
+    @Option(name: .long, help: "Use only this delivery tier, with no fallback. ax needs --element or --element-id. global needs --foreground.")
+    var via: InputDeliveryMethod?
+
+    @Flag(name: .long, help: ArgumentHelp(HelpText.strict))
+    var strict: Bool = false
+
+    @Flag(name: .customLong("no-cursor"), help: .hidden)
+    var noCursor: Bool = false
+
+    @OptionGroup var presence: AgentPresenceOptions
+
+    @Flag(name: .long, inversion: .prefixedNo, help: ArgumentHelp(HelpText.postshot))
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.noDiff))
     var noDiff: Bool = false
 
-    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    @Option(name: .customLong("diff-grid"), help: ArgumentHelp(HelpText.diffGrid))
     var diffGrid: Int?
 
-    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    @Option(name: .customLong("diff-threshold"), help: ArgumentHelp(HelpText.diffThreshold))
     var diffThreshold: Double?
 
-    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {
@@ -118,7 +138,7 @@ struct ClickCommand: ParsableCommand {
                 button: button,
                 doubleClick: double,
                 triple: triple,
-                primeClick: prime,
+                primeClick: false,
                 humanLike: !raw,
                 modifiers: parsedModifiers,
                 element: element,
@@ -129,7 +149,11 @@ struct ClickCommand: ParsableCommand {
                 noCursor: noCursor,
                 strict: strict,
                 verifyTarget: verifyTarget,
-                strictMetadata: strictMetadata
+                strictMetadata: strictMetadata,
+                windowID: windowId,
+                foreground: foreground,
+                session: presence.session,
+                agentCursor: presence.agentCursor
             )
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
@@ -146,7 +170,9 @@ struct ClickCommand: ParsableCommand {
                         action: result,
                         preshot: preshotResult?.result,
                         postshot: postshotResult?.result,
-                        diff: diff
+                        diff: diff,
+                        preshotError: CommandRuntime.shotFailure("Preshot"),
+                        postshotError: CommandRuntime.shotFailure("Postshot")
                     ),
                     compact: compact
                 )
@@ -176,6 +202,7 @@ struct ClickCommand: ParsableCommand {
             if let metadataPath = result.metadataPath {
                 print("Metadata: \(metadataPath)")
             }
+            CommandRuntime.printFocus(result.focus)
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")
                 print("Preshot metadata: \(preshotResult.result.metadataPath)")

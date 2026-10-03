@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import ScreenCommanderPresence
 
 /// `screencommander serve --mcp` — persistent daemon mode. One engine instance stays
 /// warm across calls (no per-action process startup or permission re-prompting), and
@@ -8,10 +9,22 @@ import Foundation
 struct ServeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "serve",
-        abstract: "Run screencommander as a persistent server (currently: an MCP server over stdio)."
+        abstract: "Run as an MCP server over stdio.",
+        discussion: """
+            The tools mirror the commands (state is app_state, apps is list_apps, launch is \
+            launch_app, select-text is select_text, action is perform_action, observe is \
+            observe_wait) and return the same JSON envelopes. Screenshots come back as image content. \
+            The server has its own agent session, serve-<pid>, unless SCREENCOMMANDER_SESSION is set. \
+            A lease on an app ends once the session leaves it alone for 15 seconds \
+            (SCREENCOMMANDER_LEASE_IDLE_MS), and every lease ends when the server exits or its input \
+            closes. Logs go to stderr.
+
+            Example:
+              screencommander serve --mcp
+            """
     )
 
-    @Flag(name: .long, help: "Speak the Model Context Protocol over stdio (newline-delimited JSON-RPC 2.0).")
+    @Flag(name: .long, help: "Serve the Model Context Protocol (newline-delimited JSON-RPC 2.0). Currently required.")
     var mcp = false
 
     func run() throws {
@@ -26,11 +39,29 @@ struct ServeCommand: ParsableCommand {
         // Server-owned engine with a short SCShareableContent TTL: a burst of tool
         // calls (windows → screenshot → click) pays the ~100–300 ms window/display
         // enumeration once instead of per call. The CLI keeps TTL 0 (always fresh).
-        let engine = ScreenCommanderEngine.live(shareableContentTTL: 2.0)
+        // `serve: true` gives this server its own presence session, and the engine's
+        // per-pid serializer keeps parallel tool calls from interleaving input.
+        let engine = ScreenCommanderEngine.live(shareableContentTTL: 2.0, serve: true)
         let registry = MCPToolRegistry(engine: engine, doctor: DoctorService())
         let server = MCPServer(registry: registry)
         let outputLock = NSLock()
-        let session = MCPServeSession(server: server) { line in
+        // Presence keeps the display awake while sessions are active. With presence
+        // off, this server does it itself for two minutes after each tool call.
+        let keepAwake: ActivityKeepAwake? = PresenceSettings.presenceEnabled()
+            ? nil
+            : ActivityKeepAwake(keepAwake: KeepAwake.live())
+        let keepAwakeTimer = keepAwake.map { activity -> DispatchSourceTimer in
+            let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+            timer.schedule(deadline: .now() + 15, repeating: 15)
+            timer.setEventHandler { activity.tick() }
+            timer.resume()
+            return timer
+        }
+        defer {
+            keepAwakeTimer?.cancel()
+            keepAwake?.stop()
+        }
+        let session = MCPServeSession(server: server, onToolCall: keepAwake.map { activity in { activity.noteActivity() } }) { line in
             outputLock.lock()
             defer { outputLock.unlock() }
             FileHandle.standardOutput.write(Data((line + "\n").utf8))
@@ -43,5 +74,9 @@ struct ServeCommand: ParsableCommand {
         try AsyncBridge.run {
             await session.finish()
         }
+        // Input ended. Release this server's leases and end its sessions now
+        // rather than when the process happens to exit. A server that is killed
+        // gets the same result when presence sees its connection close.
+        engine.endPresence()
     }
 }

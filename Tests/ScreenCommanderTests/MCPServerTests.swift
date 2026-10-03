@@ -69,6 +69,7 @@ private final class MCPFakeMetadataStore: SnapshotMetadataStoring {
 
 private final class MCPFakeMouse: MouseControlling {
     private(set) var clickPoints: [CGPoint] = []
+    private(set) var destinations: [MouseEventDestination] = []
 
     func click(
         at point: CGPoint,
@@ -81,21 +82,82 @@ private final class MCPFakeMouse: MouseControlling {
         destination: MouseEventDestination
     ) throws {
         clickPoints.append(point)
+        destinations.append(destination)
     }
 
-    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit, destination: MouseEventDestination) throws {}
-    func drag(from start: CGPoint, to end: CGPoint, button: MouseButtonChoice, steps: Int, durationMS: Int) throws {}
-    func move(to point: CGPoint) throws {}
+    func scroll(at point: CGPoint, dx: Int32, dy: Int32, unit: ScrollUnit, destination: MouseEventDestination) throws {
+        destinations.append(destination)
+    }
+
+    func drag(
+        from start: CGPoint,
+        to end: CGPoint,
+        button: MouseButtonChoice,
+        steps: Int,
+        durationMS: Int,
+        destination: MouseEventDestination
+    ) throws {
+        destinations.append(destination)
+    }
+
+    func move(to point: CGPoint, destination: MouseEventDestination) throws {
+        destinations.append(destination)
+    }
 }
 
 private final class MCPFakeKeyboard: KeyboardControlling {
     private(set) var runCount = 0
+    private(set) var destinations: [InputEventDestination] = []
 
-    func type(text: String, delayMilliseconds: Int?) throws {}
-    func typeByPasting(text: String) throws {}
-    func press(chord: ParsedKeyChord) throws {}
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws {
+        destinations.append(destination)
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination) throws {
+        destinations.append(destination)
+    }
+
+    func press(chord: ParsedKeyChord, destination: InputEventDestination) throws {
+        destinations.append(destination)
+    }
+
     func pressSystemKey(_ key: SystemKey) throws {}
-    func run(sequence: KeySequence) throws { runCount += 1 }
+
+    func run(sequence: KeySequence, destination: InputEventDestination) throws {
+        runCount += 1
+        destinations.append(destination)
+    }
+}
+
+/// The MCP fixture's only window: pid 9 covering the fake display.
+private let mcpFixtureWindow = InputWindowTarget(pid: 9, windowID: 90, bounds: CGRect(x: 0, y: 0, width: 400, height: 300))
+
+private final class MCPFakeWindowLocator: WindowLocating {
+    func window(id: CGWindowID) -> InputWindowTarget? {
+        id == mcpFixtureWindow.windowID ? mcpFixtureWindow : nil
+    }
+
+    func topWindow(at point: CGPoint, pid: pid_t?) -> InputWindowTarget? {
+        (pid == nil || pid == mcpFixtureWindow.pid) && mcpFixtureWindow.bounds.contains(point) ? mcpFixtureWindow : nil
+    }
+
+    func frontWindow(pid: pid_t) -> InputWindowTarget? {
+        pid == mcpFixtureWindow.pid ? mcpFixtureWindow : nil
+    }
+}
+
+extension MCPFakeWindowLocator: KeyWindowReading {
+    func keyWindowID(pid: pid_t) -> CGWindowID? {
+        frontWindow(pid: pid)?.windowID
+    }
+}
+
+private struct MCPFakeFocusSampler: FocusSampling {
+    func sample() -> FocusSample {
+        FocusSample(frontmostPid: 9, frontmostBundleID: "com.example.fixture", cursor: CGPoint(x: 1, y: 1))
+    }
+
+    func settle() {}
 }
 
 private final class MCPFakeRetention: CaptureRetentionManaging {
@@ -141,12 +203,32 @@ private final class MCPFakeReader: AccessibilityReading {
     func resolve(id: String, app: ResolvedApp) throws -> AXElement {
         AXElement.application(pid: app.pid)
     }
+
+    func windowID(ofElementID id: String, app: ResolvedApp) -> CGWindowID? {
+        mcpFixtureWindow.windowID
+    }
 }
 
 private final class MCPFakeAXActions: AXActionPerforming {
     func perform(action: String, on element: AXElement) throws {}
+    func attempt(action: String, on element: AXElement) -> AXError { .success }
+    func raiseWindow(pid: pid_t, windowID: CGWindowID) throws {}
     func setValue(_ value: String, on element: AXElement) throws {}
     func focus(on element: AXElement) throws {}
+    func readValue(of element: AXElement) -> String? { "Hello world" }
+    func setSelectedTextRange(_ range: AXTextRange, on element: AXElement) throws { selected = range }
+    func readSelectedTextRange(of element: AXElement) -> AXTextRange? { selected }
+    func readSelectedText(of element: AXElement) -> String? { nil }
+    func setSelectedText(_ text: String, on element: AXElement) throws {}
+    func isSettable(_ attribute: String, on element: AXElement) -> Bool { false }
+    func isSecureText(_ element: AXElement) -> Bool { false }
+    func focusedTextElement(pid: pid_t, windowID: CGWindowID?) -> AXElement? { nil }
+    func scrollByPage(_ element: AXElement, direction: ScrollDirection, pages: Int) throws -> AXScrollOutcome {
+        AXScrollOutcome(method: direction.pageActionName, before: 0, after: 0.5)
+    }
+    func scrollPosition(of element: AXElement, direction: ScrollDirection) -> Double? { nil }
+
+    private var selected: AXTextRange?
 }
 
 private final class MCPFakeObservation: ObservationSource, @unchecked Sendable {
@@ -165,6 +247,29 @@ private final class MCPFakeObservation: ObservationSource, @unchecked Sendable {
             }
         }
     }
+}
+
+private final class MCPFakeCatalog: AppCataloging {
+    func runningApps() -> [RunningAppEntry] {
+        [RunningAppEntry(name: "Fixture", bundleID: "com.example.fixture", pid: 9, frontmost: true, windowCount: 1, activationPolicy: "regular")]
+    }
+
+    func installedApps() -> (apps: [InstalledAppEntry], truncated: Bool) {
+        ([InstalledAppEntry(name: "Calculator", bundleID: "com.apple.calculator", path: "/System/Applications/Calculator.app", running: false)], false)
+    }
+
+    func bundleURL(pid: pid_t) -> URL? {
+        URL(fileURLWithPath: "/Applications/Fixture.app")
+    }
+
+    func resolveInstalled(identifier: String) throws -> InstalledAppTarget {
+        try AppCatalog.match(identifier: identifier, in: installedApps().apps)
+    }
+}
+
+private struct MCPFakeLauncher: AppLaunching {
+    func launch(url: URL) async throws -> pid_t { 31 }
+    func waitUntilReady(pid: pid_t, timeout: TimeInterval) async -> Bool { true }
 }
 
 private struct MCPFakeDoctor: DoctorReporting {
@@ -202,6 +307,7 @@ private struct MCPFixture {
     let keyboard: MCPFakeKeyboard
     let targets: MCPFakeTargets
     let observation: MCPFakeObservation
+    let reader: MCPFakeReader
 }
 
 private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) -> MCPFixture {
@@ -228,6 +334,7 @@ private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) 
     let keyboard = MCPFakeKeyboard()
     let targets = MCPFakeTargets()
     let observation = MCPFakeObservation()
+    let reader = MCPFakeReader()
 
     let engine = ScreenCommanderEngine(
         permissions: MCPFakePermissions(),
@@ -246,12 +353,22 @@ private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) 
         mouseController: mouse,
         keyboardController: keyboard,
         retention: MCPFakeRetention(),
-        accessibilityReader: MCPFakeReader(),
+        accessibilityReader: reader,
         axActions: MCPFakeAXActions(),
         targets: targets,
         observationSource: observation,
-        frontmostApp: { nil },
+        frontmostApp: { ResolvedApp(pid: 9, name: "Fixture", bundleID: "com.example.fixture") },
         activateApp: { _ in },
+        windowLocator: MCPFakeWindowLocator(),
+        keyWindows: MCPFakeWindowLocator(),
+        focusSampler: MCPFakeFocusSampler(),
+        deliveryCapabilities: .all,
+        deliveryProfile: { _ in .native },
+        bundleProfile: { url in
+            BackgroundDeliveryProfile(toolkit: .electron, preferredTier: .focusAssisted, authenticatedKeyboard: true, bundlePath: url?.path)
+        },
+        appCatalog: MCPFakeCatalog(),
+        appLauncher: MCPFakeLauncher(),
         statePaths: statePaths,
         now: now
     )
@@ -263,7 +380,8 @@ private func makeFixture(_ name: String, now: @escaping () -> Date = Date.init) 
         mouse: mouse,
         keyboard: keyboard,
         targets: targets,
-        observation: observation
+        observation: observation,
+        reader: reader
     )
 }
 
@@ -324,6 +442,7 @@ final class MCPServerTests: XCTestCase {
     private let expectedToolNames: Set<String> = [
         "screenshot", "click", "type", "key", "keys", "scroll", "drag", "move",
         "elements", "windows", "focus", "observe_wait", "doctor", "cleanup",
+        "app_state", "list_apps", "launch_app", "select_text", "perform_action",
     ]
 
     func testInitializeHandshake() async throws {
@@ -546,7 +665,7 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(response["error"]?["code"]?.intValue, -32600)
     }
 
-    func testToolsListExposesAllFourteenTools() async throws {
+    func testToolsListExposesEveryTool() async throws {
         let fixture = makeFixture("tools-list")
         try await initializeMCP(fixture.server)
         let response = try decodeResponse(await fixture.server.handle(
@@ -612,7 +731,72 @@ final class MCPServerTests: XCTestCase {
 
         let envelope = try XCTUnwrap(response["result"]?["structuredContent"])
         XCTAssertEqual(envelope["status"]?.stringValue, "ok")
-        XCTAssertEqual(envelope["result"]?["action"]?["deliveryMethod"]?.stringValue, "global")
+        XCTAssertEqual(envelope["result"]?["action"]?["deliveryMethod"]?.stringValue, "window")
+        XCTAssertEqual(fixture.mouse.destinations, [.window(mcpFixtureWindow)])
+        XCTAssertEqual(envelope["result"]?["action"]?["focus"]?["preserved"]?.boolValue, true)
+        XCTAssertEqual(envelope["result"]?["action"]?["verified"]?.stringValue, "unknown")
+    }
+
+    func testActionToolSchemasExposeBackgroundTargeting() async throws {
+        let fixture = makeFixture("target-schema")
+        let tools = try XCTUnwrap(fixture.registry.listToolsResult()["tools"]?.arrayValue)
+        for name in ["click", "type", "key", "keys", "scroll", "drag", "move"] {
+            let tool = try XCTUnwrap(tools.first { $0["name"]?.stringValue == name })
+            let properties = try XCTUnwrap(tool["inputSchema"]?["properties"])
+            XCTAssertEqual(properties["app"]?["type"]?.stringValue, "string", name)
+            XCTAssertEqual(properties["windowId"]?["type"]?.stringValue, "number", name)
+            XCTAssertEqual(properties["foreground"]?["type"]?.stringValue, "boolean", name)
+        }
+        let click = try XCTUnwrap(tools.first { $0["name"]?.stringValue == "click" })
+        let viaValues = click["inputSchema"]?["properties"]?["via"]?["enum"]?.arrayValue?.compactMap(\.stringValue)
+        XCTAssertEqual(viaValues, ["ax", "window", "focusAssisted", "global"])
+    }
+
+    func testActionToolsPlumbTargetAndForeground() async throws {
+        let fixture = makeFixture("target-plumbing")
+
+        let foregroundOutcome = await fixture.registry.call(name: "click", arguments: .object([
+            "x": .number(10), "y": .number(10), "foreground": .bool(true),
+        ]))
+        let foreground = try XCTUnwrap(foregroundOutcome)
+        XCTAssertFalse(foreground.isError)
+        XCTAssertEqual(foreground.envelope["result"]?["action"]?["deliveryMethod"]?.stringValue, "global")
+
+        let dragOutcome = await fixture.registry.call(name: "drag", arguments: .object([
+            "x1": .number(10), "y1": .number(10), "x2": .number(20), "y2": .number(20), "windowId": .number(90),
+        ]))
+        let drag = try XCTUnwrap(dragOutcome)
+        XCTAssertFalse(drag.isError)
+        XCTAssertEqual(drag.envelope["result"]?["action"]?["deliveryMethod"]?.stringValue, "window")
+        XCTAssertEqual(fixture.mouse.destinations, [.global, .window(mcpFixtureWindow)])
+
+        let missingWindowOutcome = await fixture.registry.call(name: "key", arguments: .object([
+            "chord": .string("a"), "windowId": .number(12345),
+        ]))
+        let missingWindow = try XCTUnwrap(missingWindowOutcome)
+        XCTAssertTrue(missingWindow.isError)
+        XCTAssertEqual(missingWindow.envelope["error"]?["code"]?.stringValue, "window_not_found")
+
+        let keysOutcome = await fixture.registry.call(name: "keys", arguments: .object([
+            "steps": .array([.string("press:a")]), "windowId": .number(90),
+        ]))
+        let keys = try XCTUnwrap(keysOutcome)
+        XCTAssertFalse(keys.isError)
+        XCTAssertEqual(fixture.keyboard.destinations, [.window(mcpFixtureWindow.requiringKeyFocus())], "a named window must get the keys")
+
+        let systemKeyOutcome = await fixture.registry.call(name: "key", arguments: .object([
+            "chord": .string("volumeup"),
+        ]))
+        let systemKey = try XCTUnwrap(systemKeyOutcome)
+        XCTAssertTrue(systemKey.isError)
+        XCTAssertEqual(systemKey.envelope["error"]?["code"]?.stringValue, "background_delivery_unavailable")
+
+        let legacyViaOutcome = await fixture.registry.call(name: "click", arguments: .object([
+            "x": .number(10), "y": .number(10), "via": .string("pid"),
+        ]))
+        let legacyVia = try XCTUnwrap(legacyViaOutcome)
+        XCTAssertFalse(legacyVia.isError)
+        XCTAssertEqual(legacyVia.envelope["result"]?["action"]?["requestedVia"]?.stringValue, "window")
     }
 
     func testToolsCallClickWithoutTargetIsToolError() async throws {
@@ -629,6 +813,135 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(envelope["error"]?["code"]?.stringValue, "invalid_arguments")
         XCTAssertEqual(envelope["exitCode"]?.intValue, 60)
         XCTAssertTrue(fixture.mouse.clickPoints.isEmpty)
+    }
+
+    // MARK: Parity tools
+
+    private func callTool(_ fixture: MCPFixture, _ name: String, arguments: JSONValue) async throws -> MCPToolOutcome {
+        let outcome = await fixture.registry.call(name: name, arguments: arguments)
+        return try XCTUnwrap(outcome, name)
+    }
+
+    private func parityFixture(_ name: String) -> MCPFixture {
+        let fixture = makeFixture(name)
+        fixture.targets.apps["Fixture"] = ResolvedApp(pid: 9, name: "Fixture", bundleID: "com.example.fixture")
+        fixture.targets.windows["90"] = WindowInfo(
+            windowID: 90, title: "Fixture", appName: "Fixture", pid: 9,
+            boundsPoints: RectD(x: 0, y: 0, w: 400, h: 300), isOnScreen: true, layer: 0
+        )
+        fixture.reader.treeResult = AXTreeResult(axPrimed: false, truncated: false, elements: [
+            AXElementRecord(id: "0", role: "AXWindow", title: "Fixture"),
+            AXElementRecord(id: "0.1", role: "AXTextField", title: "Name", value: "Hello world", actions: ["AXConfirm"],
+                            boundsPoints: RectD(x: 10, y: 10, w: 100, h: 20)),
+            AXElementRecord(id: "0.2", role: "AXScrollArea", title: "List", boundsPoints: RectD(x: 10, y: 40, w: 200, h: 200)),
+        ])
+        return fixture
+    }
+
+    func testAppStateReturnsImageAndTreeThenADelta() async throws {
+        let fixture = parityFixture("app-state")
+
+        let first = try await callTool(fixture, "app_state", arguments: .object(["app": .string("Fixture")]))
+        XCTAssertFalse(first.isError)
+        XCTAssertEqual(first.extraContent.first?["type"]?.stringValue, "image")
+        let firstResult = try XCTUnwrap(first.envelope["result"])
+        XCTAssertEqual(firstResult["windowID"]?.intValue, 90)
+        XCTAssertNotNil(firstResult["metadataPath"]?.stringValue)
+        XCTAssertEqual(firstResult["tree"]?["elements"]?.arrayValue?.count, 3)
+        let baseline = try XCTUnwrap(firstResult["tree"]?["snapshotId"]?.stringValue)
+
+        fixture.reader.treeResult = AXTreeResult(axPrimed: false, truncated: false, elements: [
+            AXElementRecord(id: "0", role: "AXWindow", title: "Fixture"),
+            AXElementRecord(id: "0.1", role: "AXTextField", title: "Name", value: "Hello there", actions: ["AXConfirm"],
+                            boundsPoints: RectD(x: 10, y: 10, w: 100, h: 20)),
+        ])
+        let second = try await callTool(fixture, "app_state", arguments: .object(["app": .string("Fixture")]))
+        let tree = try XCTUnwrap(second.envelope["result"]?["tree"])
+        XCTAssertEqual(tree["baseSnapshotId"]?.stringValue, baseline)
+        XCTAssertEqual(tree["elements"]?.arrayValue?.compactMap { $0["id"]?.stringValue }, ["0.1"])
+        XCTAssertEqual(tree["removedIds"]?.arrayValue?.compactMap(\.stringValue), ["0.2"])
+
+        let full = try await callTool(fixture, "app_state", arguments: .object([
+            "app": .string("Fixture"), "full": .bool(true),
+        ]))
+        XCTAssertNil(full.envelope["result"]?["tree"]?["baseSnapshotId"])
+        XCTAssertEqual(full.envelope["result"]?["tree"]?["elements"]?.arrayValue?.count, 2)
+    }
+
+    func testListAppsLaunchAppAndDoctorApp() async throws {
+        let fixture = parityFixture("apps-launch-doctor")
+
+        let apps = try await callTool(fixture, "list_apps", arguments: .object([:]))
+        XCTAssertEqual(apps.envelope["result"]?["running"]?.arrayValue?.first?["pid"]?.intValue, 9)
+        XCTAssertEqual(apps.envelope["result"]?["installed"]?.arrayValue?.first?["name"]?.stringValue, "Calculator")
+        let runningOnly = try await callTool(fixture, "list_apps", arguments: .object(["includeInstalled": .bool(false)]))
+        XCTAssertNil(runningOnly.envelope["result"]?["installed"])
+
+        let launch = try await callTool(fixture, "launch_app", arguments: .object(["app": .string("Calculator")]))
+        XCTAssertFalse(launch.isError)
+        XCTAssertEqual(launch.envelope["result"]?["app"]?["pid"]?.intValue, 31)
+        XCTAssertEqual(launch.envelope["result"]?["focus"]?["preserved"]?.boolValue, true)
+
+        let doctor = try await callTool(fixture, "doctor", arguments: .object(["app": .string("Fixture")]))
+        XCTAssertFalse(doctor.isError)
+        let profile = try XCTUnwrap(doctor.envelope["result"]?["appProfile"])
+        XCTAssertEqual(profile["running"]?.boolValue, true)
+        XCTAssertEqual(profile["profile"]?["toolkit"]?.stringValue, "electron")
+        XCTAssertEqual(profile["profile"]?["support"]?.stringValue, "supported")
+        XCTAssertTrue(fixture.mouse.destinations.isEmpty)
+        XCTAssertTrue(fixture.keyboard.destinations.isEmpty)
+    }
+
+    func testSelectTextPerformActionAndPageScroll() async throws {
+        let fixture = parityFixture("select-action-scroll")
+
+        let select = try await callTool(fixture, "select_text", arguments: .object([
+            "app": .string("Fixture"), "elementId": .string("0.1"), "text": .string("world"),
+        ]))
+        XCTAssertFalse(select.isError, "\(select.envelope)")
+        XCTAssertEqual(select.envelope["result"]?["action"]?["range"]?["location"]?.intValue, 6)
+        XCTAssertEqual(select.envelope["result"]?["action"]?["verified"]?.boolValue, true)
+
+        let halfRange = try await callTool(fixture, "select_text", arguments: .object([
+            "app": .string("Fixture"), "elementId": .string("0.1"), "location": .number(1),
+        ]))
+        XCTAssertEqual(halfRange.envelope["error"]?["code"]?.stringValue, "invalid_arguments")
+
+        let action = try await callTool(fixture, "perform_action", arguments: .object([
+            "app": .string("Fixture"), "elementId": .string("0.1"), "name": .string("AXPress"),
+        ]))
+        XCTAssertTrue(action.isError)
+        XCTAssertEqual(action.envelope["error"]?["code"]?.stringValue, "element_not_actionable")
+        XCTAssertTrue(action.envelope["error"]?["message"]?.stringValue?.contains("AXConfirm") == true)
+
+        let scroll = try await callTool(fixture, "scroll", arguments: .object([
+            "app": .string("Fixture"), "element": .string("List"), "direction": .string("down"), "pages": .number(2),
+        ]))
+        XCTAssertFalse(scroll.isError, "\(scroll.envelope)")
+        XCTAssertEqual(scroll.envelope["result"]?["action"]?["deliveryMethod"]?.stringValue, "ax")
+        XCTAssertEqual(scroll.envelope["result"]?["action"]?["axMethod"]?.stringValue, "AXScrollDownByPage")
+        XCTAssertEqual(scroll.envelope["result"]?["action"]?["pages"]?.intValue, 2)
+    }
+
+    func testParityToolSchemas() async throws {
+        let fixture = makeFixture("parity-schemas")
+        let tools = try XCTUnwrap(fixture.registry.listToolsResult()["tools"]?.arrayValue)
+        func properties(_ name: String) throws -> JSONValue {
+            try XCTUnwrap(tools.first { $0["name"]?.stringValue == name }?["inputSchema"]?["properties"], name)
+        }
+        for name in ["select_text", "perform_action"] {
+            let props = try properties(name)
+            XCTAssertNotNil(props["app"], name)
+            XCTAssertNotNil(props["session"], name)
+            XCTAssertNotNil(props["postObserve"], name)
+            XCTAssertNil(props["foreground"], "\(name) is AX-only")
+        }
+        let scroll = try properties("scroll")
+        XCTAssertEqual(scroll["direction"]?["enum"]?.arrayValue?.compactMap(\.stringValue), ["up", "down", "left", "right"])
+        XCTAssertEqual(scroll["via"]?["enum"]?.arrayValue?.first?.stringValue, "ax")
+        XCTAssertNotNil(try properties("doctor")["app"])
+        let appState = try XCTUnwrap(tools.first { $0["name"]?.stringValue == "app_state" })
+        XCTAssertEqual(appState["inputSchema"]?["required"]?.arrayValue?.compactMap(\.stringValue), ["app"])
     }
 
     func testToolsCallScreenshotWindowReturnsImageBlock() async throws {

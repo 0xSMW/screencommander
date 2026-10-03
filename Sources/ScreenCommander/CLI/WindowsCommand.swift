@@ -4,13 +4,20 @@ import Foundation
 struct WindowsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "windows",
-        abstract: "List visible windows, optionally filtered by app."
+        abstract: "List on-screen windows with their IDs, apps, titles, and bounds.",
+        discussion: """
+            Window IDs work with --window-id on input commands, elements, and state, and with \
+            screenshot --window.
+
+            Example:
+              screencommander windows --app Safari
+            """
     )
 
-    @Option(name: .long, help: "Filter to windows belonging to this app (name or PID).")
+    @Option(name: .long, help: "Only list windows of this app: name or pid.")
     var app: String?
 
-    @Flag(name: .long, help: "Emit machine-readable JSON output.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {

@@ -6,53 +6,72 @@ extension TextInputMode: ExpressibleByArgument {}
 struct TypeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "type",
-        abstract: "Inject text globally (paste mode by default, Unicode key events optional)."
+        abstract: "Type text into an app, in the background by default.",
+        discussion: """
+            Text goes in through accessibility first (tier ax), at the caret of the element target \
+            or of the app's focused text field, and is read back to set verified. Otherwise it goes to \
+            the app as Unicode key events through tier window or focusAssisted, in the order the app's \
+            profile gives. Chromium and Electron apps get key events first. None of these activate \
+            the app or move your cursor. With --foreground, key events go through tier global. The \
+            clipboard is used only with --mode paste and --foreground.
+
+            Examples:
+              screencommander type --app TextEdit "Hello"
+              screencommander type --app Safari --element-id 0.3.2 --replace "example.com"
+            """
     )
 
-    @Argument(help: "Text to type globally.")
+    @Argument(help: "Text to type.")
     var text: String
 
-    @Option(name: .long, parsing: .unconditional, help: "Optional delay in milliseconds between characters.")
+    @Option(name: .long, help: "How key events enter the text: unicode (one key event per character) or paste (the clipboard and cmd+v, used only with --foreground).")
+    var mode: TextInputMode = .unicode
+
+    @Option(name: .long, parsing: .unconditional, help: "Delay between key events in milliseconds, 0 to 10000.")
     var delayMS: String?
 
-    @Option(name: .long, help: "Text input mode: paste (clipboard + cmd+v) or unicode (per-character key events).")
-    var mode: TextInputMode = .paste
+    @Flag(name: .long, help: "Replace the field's whole value instead of inserting at the caret. Needs an element target or a focused text field.")
+    var replace: Bool = false
 
-    @Option(name: .long, help: "Type into an element by title/label substring: sets AXValue directly (tier ax), falling back to focus + keyboard.")
+    @Option(name: .long, help: ArgumentHelp(HelpText.element))
     var element: String?
 
-    @Option(name: .customLong("element-id"), help: "Type into the element with this id from 'elements'.")
+    @Option(name: .customLong("element-id"), help: ArgumentHelp(HelpText.elementID))
     var elementId: String?
 
-    @Option(name: .long, help: "Role filter to disambiguate --element matches (e.g. textfield or AXTextField).")
+    @Option(name: .long, help: ArgumentHelp(HelpText.role))
     var role: String?
 
-    @Option(name: .long, help: "App owning the target element (name or pid). Defaults to the frontmost app.")
+    @Option(name: .long, help: ArgumentHelp(HelpText.appKeyboardOrElement))
     var app: String?
 
-    @Option(name: .long, help: "Force one delivery tier: ax or global (type has no pid tier).")
+    @Option(name: .customLong("window-id"), help: ArgumentHelp(HelpText.windowID))
+    var windowId: UInt32?
+
+    @Flag(name: .long, help: ArgumentHelp(HelpText.foreground))
+    var foreground: Bool = false
+
+    @Option(name: .long, help: "Use only this delivery tier, with no fallback. ax needs an element target or a focused text field. global needs --foreground.")
     var via: InputDeliveryMethod?
 
-    @Flag(name: .long, help: "Treat delivery-tier downgrades as errors (element_not_actionable) instead of recording them.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.strict))
     var strict: Bool = false
 
-    @Flag(
-        name: .long,
-        inversion: .prefixedNo,
-        help: "Capture before/after screenshots around the action (enabled by default)."
-    )
+    @OptionGroup var presence: AgentPresenceOptions
+
+    @Flag(name: .long, inversion: .prefixedNo, help: ArgumentHelp(HelpText.postshot))
     var postshot: Bool = true
 
-    @Flag(name: .long, help: "Skip frame diff comparison between pre- and post-action screenshots.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.noDiff))
     var noDiff: Bool = false
 
-    @Option(name: .customLong("diff-grid"), help: "Frame diff grid size for before/after comparison (default 64).")
+    @Option(name: .customLong("diff-grid"), help: ArgumentHelp(HelpText.diffGrid))
     var diffGrid: Int?
 
-    @Option(name: .customLong("diff-threshold"), help: "Frame diff per-cell threshold from 0 to 1 (default 0.04).")
+    @Option(name: .customLong("diff-threshold"), help: ArgumentHelp(HelpText.diffThreshold))
     var diffThreshold: Double?
 
-    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {
@@ -80,7 +99,12 @@ struct TypeCommand: ParsableCommand {
                 role: role,
                 appIdentifier: app,
                 via: via,
-                strict: strict
+                strict: strict,
+                windowID: windowId,
+                foreground: foreground,
+                session: presence.session,
+                agentCursor: presence.agentCursor,
+                replace: replace
             )
 
             let preshotResult = postshot ? CommandRuntime.captureActionScreenshot(prefix: "Preshot") : nil
@@ -97,14 +121,16 @@ struct TypeCommand: ParsableCommand {
                         action: result,
                         preshot: preshotResult?.result,
                         postshot: postshotResult?.result,
-                        diff: diff
+                        diff: diff,
+                        preshotError: CommandRuntime.shotFailure("Preshot"),
+                        postshotError: CommandRuntime.shotFailure("Postshot")
                     ),
                     compact: compact
                 )
                 return
             }
 
-            print("Typed \(result.textLength) characters via \(result.deliveryMethod.rawValue).")
+            print("Typed \(result.textLength) characters via \(result.deliveryMethod.rawValue)\(result.replace == true ? ", replacing the value" : "").")
             if let record = result.element {
                 let label = record.title ?? record.description ?? ""
                 print("Element: \(record.role)\(label.isEmpty ? "" : " \"\(label)\"") (id \(record.id))")
@@ -113,6 +139,8 @@ struct TypeCommand: ParsableCommand {
                 print("Delay: \(delay) ms")
             }
             print("Mode: \(result.inputMode.rawValue)")
+            print("Verified: \(SelectTextCommand.describe(result.verified))")
+            CommandRuntime.printFocus(result.focus)
             if let preshotResult {
                 print("Preshot image: \(preshotResult.result.imagePath)")
                 print("Preshot metadata: \(preshotResult.result.metadataPath)")

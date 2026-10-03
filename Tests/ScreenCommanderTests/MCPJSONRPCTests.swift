@@ -37,6 +37,14 @@ final class MCPJSONRPCTests: XCTestCase {
         XCTAssertEqual(line, #"{"id":7}"#)
     }
 
+    func testJSONValueEncodesNumbersPastInt64WithoutTrapping() throws {
+        // 2^63: Double(Int64.max) rounds up to exactly this value.
+        let line = try JSONValue.array([.number(9_223_372_036_854_775_808), .number(-1e300)]).compactLine()
+        XCTAssertFalse(line.isEmpty)
+        let back = try JSONDecoder().decode(JSONValue.self, from: Data(line.utf8))
+        XCTAssertEqual(back.arrayValue?.first?.numberValue, 9_223_372_036_854_775_808)
+    }
+
     func testJSONValueEncodingFromEncodable() throws {
         struct Sample: Encodable {
             var name = "x"
