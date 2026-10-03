@@ -13,9 +13,19 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0")
     ],
     targets: [
+        .target(
+            name: "ScreenCommanderPresence",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("ApplicationServices"),
+                .linkedFramework("CoreGraphics"),
+                .linkedFramework("QuartzCore")
+            ]
+        ),
         .executableTarget(
             name: "ScreenCommander",
             dependencies: [
+                "ScreenCommanderPresence",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
             linkerSettings: [
@@ -28,7 +38,11 @@ let package = Package(
         ),
         .testTarget(
             name: "ScreenCommanderTests",
-            dependencies: ["ScreenCommander"]
+            dependencies: ["ScreenCommander", "ScreenCommanderPresence"]
+        ),
+        .testTarget(
+            name: "ScreenCommanderPresenceTests",
+            dependencies: ["ScreenCommanderPresence"]
         )
     ]
 )
