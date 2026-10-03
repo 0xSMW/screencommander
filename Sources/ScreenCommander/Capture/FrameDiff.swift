@@ -54,8 +54,11 @@ enum FrameDiff {
         var prePixels = [UInt8](repeating: 0, count: grid * grid * bytesPerPixel)
         var postPixels = [UInt8](repeating: 0, count: grid * grid * bytesPerPixel)
 
-        guard draw(pre, into: &prePixels, grid: grid, bytesPerRow: bytesPerRow),
-              draw(post, into: &postPixels, grid: grid, bytesPerRow: bytesPerRow) else {
+        // Both frames are drawn into the before frame's own color space, so captures
+        // tagged with their display's profile compare without a color conversion.
+        let space = comparisonSpace(for: pre)
+        guard draw(pre, into: &prePixels, grid: grid, bytesPerRow: bytesPerRow, space: space),
+              draw(post, into: &postPixels, grid: grid, bytesPerRow: bytesPerRow, space: space) else {
             return fullChange(width: postWidth, height: postHeight)
         }
 
@@ -110,13 +113,20 @@ enum FrameDiff {
         compare(pre, post, grid: config.grid, threshold: config.threshold)
     }
 
+    private static func comparisonSpace(for image: CGImage) -> CGColorSpace {
+        if let space = image.colorSpace, space.model == .rgb, space.supportsOutput {
+            return space
+        }
+        return CGColorSpaceCreateDeviceRGB()
+    }
+
     private static func draw(
         _ image: CGImage,
         into pixels: inout [UInt8],
         grid: Int,
-        bytesPerRow: Int
+        bytesPerRow: Int,
+        space colorSpace: CGColorSpace
     ) -> Bool {
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo.byteOrder32Big
             .union(CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue))
 

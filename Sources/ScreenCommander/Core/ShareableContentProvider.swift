@@ -123,16 +123,41 @@ final class TTLCache<Key: Hashable, Value> {
 /// must see the new window).
 final class ShareableContentProvider {
     private let cache: TTLCache<Bool, SCShareableContent>
+    private let timeout: TimeInterval
+    private let fetch: @Sendable (Bool) async throws -> SCShareableContent
 
-    init(ttl: TimeInterval = 0, now: @escaping () -> Date = Date.init) {
+    init(
+        ttl: TimeInterval = 0,
+        timeout: TimeInterval = CaptureDeadline.defaultSeconds,
+        now: @escaping () -> Date = Date.init,
+        fetch: @escaping @Sendable (_ onScreenWindowsOnly: Bool) async throws -> SCShareableContent = {
+            try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: $0)
+        }
+    ) {
         cache = TTLCache(ttl: ttl, now: now)
+        self.timeout = timeout
+        self.fetch = fetch
     }
 
     /// The two enumeration flavors used across the codebase, cached independently:
     /// on-screen-only (display resolution, window listing) and all-windows
     /// (window-capture resolution, which must find minimized/off-screen windows).
+    ///
+    /// The enumeration is a request that ScreenCaptureKit can leave unanswered, so
+    /// it runs under the capture deadline and fails with `capture_timeout`.
     func content(onScreenWindowsOnly: Bool, forceRefresh: Bool = false) async throws -> SCShareableContent {
-        try await cache.value(for: onScreenWindowsOnly, forceRefresh: forceRefresh) {
+        let (timeout, fetch) = (timeout, fetch)
+        return try await cache.value(for: onScreenWindowsOnly, forceRefresh: forceRefresh) {
+            try await CaptureDeadline.run(seconds: timeout, what: Self.enumerationDescription) {
+                try await fetch(onScreenWindowsOnly)
+            }
+        }
+    }
+
+    static let enumerationDescription = "Listing windows and displays through ScreenCaptureKit"
+
+    static func enumerate(onScreenWindowsOnly: Bool, timeout: TimeInterval = CaptureDeadline.defaultSeconds) async throws -> SCShareableContent {
+        try await CaptureDeadline.run(seconds: timeout, what: enumerationDescription) {
             try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: onScreenWindowsOnly)
         }
     }
