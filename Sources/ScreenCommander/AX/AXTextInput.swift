@@ -62,8 +62,15 @@ enum AXTextInput {
         let selection = actions.readSelectedTextRange(of: element)
         let expected = before.map { splice(text, into: $0, at: selection) }
 
-        if actions.isSettable(kAXSelectedTextAttribute, on: element),
-           (try? actions.setSelectedText(text, on: element)) != nil {
+        if actions.isSettable(kAXSelectedTextAttribute, on: element) {
+            // An AX timeout can follow a write that the app already applied.
+            // Even a throwing write needs read-back before another delivery.
+            do {
+                try actions.setSelectedText(text, on: element)
+            } catch {
+                // Read-back below decides whether retrying is safe. Without a
+                // readable baseline, completion stays unknown and stops here.
+            }
             if secure {
                 return .unknown
             }
@@ -90,7 +97,8 @@ enum AXTextInput {
         do {
             try actions.setValue(expected, on: element)
         } catch {
-            throw Refused(reason: "Writing AXValue failed: \(error).")
+            // The app may have applied the value before reporting failure.
+            // Only an unchanged read-back permits keyboard fallback.
         }
         let caret = (selection?.location).map { min($0, before.utf16.count) } ?? before.utf16.count
         try? actions.setSelectedTextRange(AXTextRange(location: caret + text.utf16.count, length: 0), on: element)
@@ -123,7 +131,8 @@ enum AXTextInput {
         do {
             try actions.setValue(text, on: element)
         } catch {
-            throw Refused(reason: "Writing AXValue failed: \(error).")
+            // A throwing write may have completed. Unreadable and secure
+            // values remain unverified rather than being typed a second time.
         }
         guard !secure, let before else {
             return .unknown

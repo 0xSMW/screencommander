@@ -6,6 +6,8 @@ import Carbon.HIToolbox
 protocol KeyboardControlling {
     func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws
     func typeByPasting(text: String, destination: InputEventDestination) throws
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws
     func press(chord: ParsedKeyChord, destination: InputEventDestination) throws
     /// Media and system keys are system-defined events with no target process; they
     /// only exist on the global path.
@@ -18,6 +20,18 @@ protocol KeyboardControlling {
 }
 
 extension KeyboardControlling {
+    // Compatibility for controllers without destination preparation. Controllers
+    // that prepare focus must override these and run the callback after preparation.
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try type(text: text, delayMilliseconds: delayMilliseconds, destination: destination)
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try typeByPasting(text: text, destination: destination)
+    }
+
     func withPrepared(_ destination: InputEventDestination, _ body: () throws -> Void) throws {
         try body()
     }
@@ -52,10 +66,15 @@ final class KeyboardController: KeyboardControlling {
     }
 
     func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws {
+        try type(text: text, delayMilliseconds: delayMilliseconds, destination: destination, beforePosting: {})
+    }
+
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         let source = try makeEventSource()
         try poster.prepare(destination)
         defer { poster.finish(destination) }
 
+        try beforePosting()
         let delay = max(0, delayMilliseconds ?? 0)
 
         for character in text {
@@ -65,16 +84,24 @@ final class KeyboardController: KeyboardControlling {
     }
 
     func typeByPasting(text: String, destination: InputEventDestination) throws {
+        try typeByPasting(text: text, destination: destination, beforePosting: {})
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         Self.pasteboardLock.lock()
         defer { Self.pasteboardLock.unlock() }
 
         let delay = pasteboardRestoreDelayMicroseconds
         try PasteboardSwap.withTemporaryString(text, on: pasteboard, wait: { usleep(delay) }) {
-            try press(chord: try KeyCodes.parseChord("cmd+v"), destination: destination)
+            try press(chord: try KeyCodes.parseChord("cmd+v"), destination: destination, beforePosting: beforePosting)
         }
     }
 
     func press(chord: ParsedKeyChord, destination: InputEventDestination) throws {
+        try press(chord: chord, destination: destination, beforePosting: {})
+    }
+
+    private func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         let source = try makeEventSource()
 
         if case .system(let systemKey, _) = chord.key {
@@ -91,6 +118,7 @@ final class KeyboardController: KeyboardControlling {
 
         try poster.prepare(destination)
         defer { poster.finish(destination) }
+        try beforePosting()
         try runModifiersForStep(flags: chord.flags, held: [], source: source, pressed: true, destination: destination)
 
         try postKeyboardEvent(

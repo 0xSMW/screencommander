@@ -392,15 +392,22 @@ public struct PresenceState: Sendable {
 
     // MARK: Focus guard
 
-    /// Begins or renews the guard on `targetPID`. Each renewal samples the
-    /// frontmost app again, so the guard never holds on to an app the user has
-    /// since left.
-    public mutating func beginGuard(targetPID: pid_t, leaseMs: Int, frontmostPID: pid_t?, now: Date) -> Result<GuardResult, PresenceError> {
+    /// Begins a guard, or extends an existing guard without resetting its history.
+    public mutating func beginGuard(targetPID: pid_t, leaseMs: Int, frontmostPID: pid_t?, now: Date, renew: Bool = false, previousFrontmostPID: pid_t? = nil) -> Result<GuardResult, PresenceError> {
         guard targetPID > 0 else {
             return .failure(PresenceError(code: .invalidRequest, message: "Target pid must be positive."))
         }
         let lease = min(max(Double(leaseMs) / 1000, 0), configuration.maximumGuardLease)
-        let previous = frontmostPID == targetPID ? nil : frontmostPID
+        if renew {
+            // A user-caused activation ends the guard. Renewal must not revive it.
+            guard var existing = guards[targetPID] else {
+                return .success(GuardResult(pid: targetPID, previousFrontmostPID: nil, leaseMs: 0))
+            }
+            existing.expiresAt = max(existing.expiresAt, now.addingTimeInterval(lease))
+            guards[targetPID] = existing
+            return .success(GuardResult(pid: targetPID, previousFrontmostPID: existing.previousFrontmostPID, leaseMs: Int((lease * 1000).rounded())))
+        }
+        let previous = frontmostPID == targetPID ? previousFrontmostPID : frontmostPID
         let lastRestoreAt = guards[targetPID]?.lastRestoreAt
         guards[targetPID] = FocusGuardLease(
             targetPID: targetPID, previousFrontmostPID: previous, beganAt: now, expiresAt: now.addingTimeInterval(lease)

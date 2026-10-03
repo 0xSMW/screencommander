@@ -952,25 +952,18 @@ final class ScreenCommanderEngine {
             session: request.session,
             agentCursor: request.agentCursor
         ) { destination in
-            if request.replace {
-                // Select the whole value so the keys replace it. Chromium reports
-                // no focused element while its window is not key, so when none was
-                // found, it is looked up again while the window is held key.
-                var field = focusedField
-                try keyboardController.withPrepared(field == nil ? destination : .global) {
-                    field = field ?? axActions.focusedTextElement(pid: keyTarget.pid, windowID: request.windowID)
-                    if let field {
-                        let length = axActions.readValue(of: field)?.utf16.count ?? 0
-                        try? axActions.setSelectedTextRange(AXTextRange(location: 0, length: length), on: field)
-                    }
-                }
-                guard field != nil else {
+            try typeViaKeyboard(request, destination: destination, beforePosting: {
+                guard request.replace else { return }
+                // Lookup after keyboard preparation: Chromium may expose the focused
+                // field only while its window is held key.
+                guard let field = focusedField
+                    ?? axActions.focusedTextElement(pid: keyTarget.pid, windowID: request.windowID) else {
                     throw ScreenCommanderError.elementNotActionable(
                         "--replace needs --element, --element-id, or a focused text field in the target app."
                     )
                 }
-            }
-            try typeViaKeyboard(request, destination: destination)
+                try Self.selectFullValueForKeyboardReplacement(field, actions: axActions)
+            })
         }
 
         return TypeResult(
@@ -1074,12 +1067,8 @@ final class ScreenCommanderEngine {
                         let secure = axActions.isSecureText(live)
                         let priorValue = secure ? nil : axActions.readValue(of: live)
                         let priorSelection = axActions.readSelectedTextRange(of: live)
-                        try axActions.focus(on: live)
-                        if request.replace {
-                            if let priorValue {
-                                try? axActions.setSelectedTextRange(AXTextRange(location: 0, length: priorValue.utf16.count), on: live)
-                            }
-                        } else if let priorSelection {
+                        if !request.replace { try axActions.focus(on: live) }
+                        if !request.replace, let priorSelection {
                             try? axActions.setSelectedTextRange(priorSelection, on: live)
                         }
                         var recipient: CGWindowID?
@@ -1088,7 +1077,12 @@ final class ScreenCommanderEngine {
                         } else {
                             recipient = keyRecipient(tier: tier, pid: target.app.pid, window: window)
                         }
-                        try typeViaKeyboard(request, destination: destination(for: tier, pid: target.app.pid, window: window))
+                        try typeViaKeyboard(request, destination: destination(for: tier, pid: target.app.pid, window: window), beforePosting: {
+                            if request.replace {
+                                try axActions.focus(on: live)
+                                try Self.selectFullValueForKeyboardReplacement(live, actions: axActions)
+                            }
+                        })
                         return result(deliveryMethod: tier, keyWindowID: recipient) {
                             keyTypingVerification(
                                 request: request, element: live, secure: secure, priorValue: priorValue, priorSelection: priorSelection
@@ -1193,13 +1187,34 @@ final class ScreenCommanderEngine {
         }
     }
 
-    private func typeViaKeyboard(_ request: TypeRequest, destination: InputEventDestination) throws {
+    /// Replacement requires proof of the complete value and the selection the app
+    /// actually accepted. Secure values are never read to obtain that proof.
+    static func selectFullValueForKeyboardReplacement(_ element: AXElement, actions: AXActionPerforming) throws {
+        guard !actions.isSecureText(element), let value = actions.readValue(of: element) else {
+            throw ScreenCommanderError.elementNotActionable(
+                "--replace cannot prove a full-value selection for a secure or unreadable text field."
+            )
+        }
+        let fullRange = AXTextRange(location: 0, length: value.utf16.count)
+        try actions.setSelectedTextRange(fullRange, on: element)
+        guard actions.readSelectedTextRange(of: element) == fullRange else {
+            throw ScreenCommanderError.elementNotActionable(
+                "--replace could not confirm that the text field selected its entire value."
+            )
+        }
+    }
+
+    private func typeViaKeyboard(
+        _ request: TypeRequest,
+        destination: InputEventDestination,
+        beforePosting: () throws -> Void = {}
+    ) throws {
         let mode = destination == .global ? request.inputMode : .unicode
         switch mode {
         case .paste:
-            try keyboardController.typeByPasting(text: request.text, destination: destination)
+            try keyboardController.typeByPasting(text: request.text, destination: destination, beforePosting: beforePosting)
         case .unicode:
-            try keyboardController.type(text: request.text, delayMilliseconds: request.delayMilliseconds, destination: destination)
+            try keyboardController.type(text: request.text, delayMilliseconds: request.delayMilliseconds, destination: destination, beforePosting: beforePosting)
         }
     }
 
@@ -1743,7 +1758,7 @@ final class ScreenCommanderEngine {
         var presenceState: ActionPresence = .disabled
         let guardLeaseMs = max(presencePolicy.guardLeaseMs, 5_000)
         if presence.isEnabled {
-            switch await presence.beginGuard(pid: pid, leaseMs: guardLeaseMs, session: session) {
+            switch await presence.beginLaunchGuard(pid: pid, leaseMs: guardLeaseMs, session: session, previousFrontmostPID: before.frontmostPid) {
             case .success:
                 presenceState = .active
             case .failure, .unavailable:
@@ -1755,7 +1770,7 @@ final class ScreenCommanderEngine {
         if presenceState == .active {
             // Apps often activate themselves in applicationDidFinishLaunching; renew
             // the lease from the moment the app is ready.
-            _ = await presence.beginGuard(pid: pid, leaseMs: guardLeaseMs, session: session)
+            _ = await presence.renewGuard(pid: pid, leaseMs: guardLeaseMs, session: session)
         }
 
         return LaunchResult(
@@ -2069,6 +2084,10 @@ final class ScreenCommanderEngine {
                         scrolled.verified = verification(start, axActions.scrollPosition(of: live, direction: direction))
                         return scrolled
                     }
+                } catch let partial as AXPartialScrollError {
+                    // Once AX has scrolled, replaying the request in a lower tier
+                    // would add the completed pages a second time.
+                    throw partial.underlyingError
                 } catch {
                     lastFailure = error
                 }
@@ -2927,51 +2946,59 @@ final class ScreenCommanderEngine {
             return (try await deliver(), .unavailable)
         }
 
-        try await yieldToUser(session: session, pid: pid, foreground: false, cursor: cursor)
+        return try await holdingLease(session: session, pid: pid) {
+            try await yieldToUser(session: session, pid: pid, foreground: false, cursor: cursor)
 
-        if cursor, let pointer {
-            let reply = await presence.moveCursor(
-                session: session,
-                to: PresencePoint(x: Double(pointer.point.x), y: Double(pointer.point.y)),
-                windowID: pointer.windowID
-            )
-            if let error = reply.error {
-                try Self.throwIfBlocking(error)
-            }
-        }
-
-        _ = await presence.beginGuard(pid: pid, leaseMs: presencePolicy.guardLeaseMs, session: session)
-
-        var follow: Task<Void, Never>?
-        if cursor, let dragTo {
-            let presence = presence
-            follow = Task {
-                _ = await presence.moveCursor(
+            if cursor, let pointer {
+                let reply = await presence.moveCursor(
                     session: session,
-                    to: PresencePoint(x: Double(dragTo.x), y: Double(dragTo.y)),
-                    windowID: pointer?.windowID
+                    to: PresencePoint(x: Double(pointer.point.x), y: Double(pointer.point.y)),
+                    windowID: pointer.windowID
                 )
+                if let error = reply.error {
+                    try Self.throwIfBlocking(error)
+                }
+            }
+
+            _ = await presence.beginGuard(pid: pid, leaseMs: presencePolicy.guardLeaseMs, session: session)
+
+            // Waiting and cursor motion can outlast a lease or the user's stop.
+            // Confirm ownership and the abort flag immediately before posting.
+            let leased = try await acquireLease(session: session, pid: pid)
+            try await checkNotAborted()
+
+            return try await holdingFocusGuard(session: session, pid: pid) {
+                var follow: Task<Void, Never>?
+                if cursor, let dragTo {
+                    let presence = presence
+                    follow = Task {
+                        _ = await presence.moveCursor(
+                            session: session,
+                            to: PresencePoint(x: Double(dragTo.x), y: Double(dragTo.y)),
+                            windowID: pointer?.windowID
+                        )
+                    }
+                }
+
+                let value: T
+                do {
+                    value = try await deliver()
+                } catch {
+                    await follow?.value
+                    throw error
+                }
+                await follow?.value
+
+                if cursor, let pressCount {
+                    _ = await presence.pressCursor(session: session, count: pressCount)
+                }
+                if cursor {
+                    // The next action's yield check puts the cursor back to idle.
+                    _ = await presence.setCursorState(session: session, state: .loading)
+                }
+                return (value, leased ? .active : .unavailable)
             }
         }
-
-        let value: T
-        do {
-            value = try await deliverRenewingLease(session: session, pid: pid, deliver)
-        } catch {
-            await follow?.value
-            throw error
-        }
-        await follow?.value
-
-        if cursor, let pressCount {
-            _ = await presence.pressCursor(session: session, count: pressCount)
-        }
-        if cursor {
-            // The agent is now deciding its next step. The next action's yield check
-            // puts the cursor back to idle, and the linger fades it out.
-            _ = await presence.setCursorState(session: session, state: .loading)
-        }
-        return (value, .active)
     }
 
     /// A `--foreground` action posts through the HID event tap and moves the real
@@ -2995,8 +3022,12 @@ final class ScreenCommanderEngine {
             guard try await acquireLease(session: session, pid: pid) else {
                 return (try await deliver(), .unavailable)
             }
-            try await yieldToUser(session: session, pid: pid, foreground: true, cursor: false)
-            return (try await deliverRenewingLease(session: session, pid: pid, deliver), .active)
+            return try await holdingLease(session: session, pid: pid) {
+                try await yieldToUser(session: session, pid: pid, foreground: true, cursor: false)
+                let leased = try await acquireLease(session: session, pid: pid)
+                try await checkNotAborted()
+                return (try await deliver(), leased ? .active : .unavailable)
+            }
         }
         // No target app to lease, such as a system key. Without a running presence
         // process there is no abort flag and no record of the user's input.
@@ -3007,6 +3038,7 @@ final class ScreenCommanderEngine {
         try await yieldToUser(session: nil, pid: nil, foreground: true, cursor: false) {
             await presence.statusIfRunning()
         }
+        try await checkNotAborted()
         return (try await deliver(), .active)
     }
 
@@ -3031,24 +3063,63 @@ final class ScreenCommanderEngine {
         }
     }
 
-    /// Delivers while renewing the lease every `leaseRenewInterval`, so a long
-    /// delivery (slow typing, a long drag) cannot outlast the lease's idle period
-    /// and let another session in halfway through.
-    private func deliverRenewingLease<T>(session: String, pid: pid_t, _ deliver: () async throws -> T) async throws -> T {
+    /// Keeps the app leased across every wait and the delivery itself.
+    private func holdingLease<T>(session: String, pid: pid_t, _ action: () async throws -> T) async throws -> T {
         let presence = presence
         let interval = presencePolicy.leaseRenewInterval
         let (hold, idle, linger) = (presencePolicy.leaseHoldMs, presencePolicy.leaseIdleMs, presencePolicy.cursorLingerMs)
         let renewal = Task.detached {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-                guard !Task.isCancelled else {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                } catch {
                     return
                 }
+                guard !Task.isCancelled else { return }
                 _ = await presence.acquire(session: session, pid: pid, holdMs: hold, idleMs: idle, lingerMs: linger)
             }
         }
-        defer { renewal.cancel() }
-        return try await deliver()
+        do {
+            let value = try await action()
+            renewal.cancel()
+            await renewal.value
+            return value
+        } catch {
+            renewal.cancel()
+            await renewal.value
+            throw error
+        }
+    }
+
+    /// Extends the same guard during delivery, then leaves a full guard period
+    /// after the action. Renewal preserves its restoration target and budget.
+    private func holdingFocusGuard<T>(session: String, pid: pid_t, _ action: () async throws -> T) async throws -> T {
+        let presence = presence
+        let leaseMs = presencePolicy.guardLeaseMs
+        let interval = max(0.001, Double(leaseMs) / 3000)
+        let renewal = Task.detached {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                _ = await presence.renewGuard(pid: pid, leaseMs: leaseMs, session: session)
+            }
+        }
+        do {
+            let value = try await action()
+            renewal.cancel()
+            await renewal.value
+            _ = await presence.renewGuard(pid: pid, leaseMs: leaseMs, session: session)
+            return value
+        } catch {
+            renewal.cancel()
+            await renewal.value
+            _ = await presence.renewGuard(pid: pid, leaseMs: leaseMs, session: session)
+            throw error
+        }
     }
 
     /// Waits while the user is working where this action would land. The cursor

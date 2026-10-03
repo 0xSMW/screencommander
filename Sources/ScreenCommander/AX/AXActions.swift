@@ -158,6 +158,13 @@ struct AXScrollOutcome: Equatable, Sendable {
     var after: Double?
 }
 
+/// A page sequence started scrolling before a later action failed. Delivery
+/// must stop here: retrying the requested page count would replay completed pages.
+struct AXPartialScrollError: Error {
+    let completedPages: Int
+    let underlyingError: Error
+}
+
 /// What an AX action's answer says about whether it ran.
 enum AXActionOutcome: Equatable {
     case performed
@@ -323,11 +330,14 @@ final class AXActions: AXActionPerforming {
         // refused first page moves on to the scroll bar.
         for candidate in chain where candidate.actionNames.contains(direction.pageActionName) {
             let before = scrollPosition(of: element, direction: direction)
-            guard (try? perform(action: direction.pageActionName, on: candidate)) != nil else {
+            do {
+                try Self.performPages(count: pages) {
+                    try perform(action: direction.pageActionName, on: candidate)
+                }
+            } catch let error as AXPartialScrollError {
+                throw error
+            } catch {
                 break
-            }
-            for _ in 1..<pages {
-                try perform(action: direction.pageActionName, on: candidate)
             }
             let after = Self.settledValue(from: before) { scrollPosition(of: element, direction: direction) }
             return AXScrollOutcome(method: direction.pageActionName, before: before, after: after)
@@ -345,7 +355,7 @@ final class AXActions: AXActionPerforming {
         if let button = bar.children.first(where: {
             $0.subrole == direction.pageButtonSubrole && $0.actionNames.contains(kAXPressAction)
         }) {
-            for _ in 0..<pages {
+            try Self.performPages(count: pages) {
                 try perform(action: kAXPressAction, on: button)
             }
             let after = Self.settledValue(from: before) { Self.numericValue(of: bar) }
@@ -369,6 +379,19 @@ final class AXActions: AXActionPerforming {
             )
         }
         return AXScrollOutcome(method: "AXValue", before: before, after: Self.numericValue(of: bar))
+    }
+
+    /// Keep first-page failures eligible for fallback, but preserve progress
+    /// when a later page fails so callers cannot replay the entire sequence.
+    static func performPages(count: Int, action: () throws -> Void) throws {
+        for completed in 0..<count {
+            do {
+                try action()
+            } catch {
+                guard completed > 0 else { throw error }
+                throw AXPartialScrollError(completedPages: completed, underlyingError: error)
+            }
+        }
     }
 
     func scrollPosition(of element: AXElement, direction: ScrollDirection) -> Double? {

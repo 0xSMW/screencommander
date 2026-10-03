@@ -93,7 +93,7 @@ struct PresencePolicy {
     /// While one delivery runs longer than this, its lease is renewed this often
     /// so it cannot go idle mid-action.
     var leaseRenewInterval: TimeInterval {
-        max(1, Double(leaseIdleMs) / 3000)
+        Double(leaseIdleMs) / 3000
     }
 
     /// `SCREENCOMMANDER_LEASE_IDLE_MS` and `SCREENCOMMANDER_CURSOR_LINGER_MS`
@@ -130,6 +130,8 @@ protocol PresenceControlling: AnyObject, Sendable {
     func moveCursor(session: String, to point: PresencePoint, windowID: UInt32?) async -> PresenceReply<CursorMoveResult>
     func pressCursor(session: String, count: Int) async -> PresenceReply<PresenceEmpty>
     func beginGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult>
+    func renewGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult>
+    func beginLaunchGuard(pid: pid_t, leaseMs: Int, session: String, previousFrontmostPID: pid_t?) async -> PresenceReply<GuardResult>
     /// Ends the focus guard on `pid` before screencommander itself activates it
     /// (`focus`, `--foreground`), so the guard does not undo that activation.
     /// Never starts the presence process.
@@ -137,6 +139,16 @@ protocol PresenceControlling: AnyObject, Sendable {
     /// Closes this process's connection: leases taken without a hold (`serve`)
     /// end at once, and so do sessions left without a lease.
     func disconnect()
+}
+
+extension PresenceControlling {
+    func renewGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult> {
+        await beginGuard(pid: pid, leaseMs: leaseMs, session: session)
+    }
+
+    func beginLaunchGuard(pid: pid_t, leaseMs: Int, session: String, previousFrontmostPID: pid_t?) async -> PresenceReply<GuardResult> {
+        await beginGuard(pid: pid, leaseMs: leaseMs, session: session)
+    }
 }
 
 /// Backed by `PresenceClient`, which starts the presence process on first use.
@@ -199,6 +211,14 @@ final class LivePresenceController: PresenceControlling, @unchecked Sendable {
 
     func beginGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult> {
         await client.beginGuard(pid: pid, leaseMs: leaseMs, session: session)
+    }
+
+    func renewGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult> {
+        await client.renewGuard(pid: pid, leaseMs: leaseMs, session: session)
+    }
+
+    func beginLaunchGuard(pid: pid_t, leaseMs: Int, session: String, previousFrontmostPID: pid_t?) async -> PresenceReply<GuardResult> {
+        await client.beginLaunchGuard(pid: pid, leaseMs: leaseMs, session: session, previousFrontmostPID: previousFrontmostPID)
     }
 
     func endGuard(pid: pid_t) async {

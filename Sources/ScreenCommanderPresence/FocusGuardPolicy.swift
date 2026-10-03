@@ -3,7 +3,7 @@ import Foundation
 /// A focus-steal lease on one target app, opened by `guard.begin`.
 public struct FocusGuardLease: Equatable, Sendable {
     public var targetPID: pid_t
-    /// The app that was frontmost when the guard last began or was renewed. Nil
+    /// The app that was frontmost when the guard began. Nil
     /// when the target itself was frontmost, which leaves nothing to put back.
     public var previousFrontmostPID: pid_t?
     /// When the action this lease covers began.

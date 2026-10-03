@@ -14,7 +14,9 @@ public enum PresenceProtocol {
     /// Version 2: leases expire after an idle period whatever the connection
     /// does, `hello` always answers with the server's version, and `shutdown`
     /// is refused from a client that did not greet with this version or later.
-    public static let version = 2
+    /// Version 3: guard renewals preserve their original focus and restore budget,
+    /// and launch guards can repair activation before the launch call returns.
+    public static let version = 3
 }
 
 // MARK: - Shared value types
@@ -211,11 +213,15 @@ public struct GuardBeginParams: Codable, Equatable, Sendable {
     public var pid: Int32
     public var leaseMs: Int
     public var session: String?
+    public var renew: Bool?
+    public var previousFrontmostPID: Int32?
 
-    public init(pid: Int32, leaseMs: Int, session: String? = nil) {
+    public init(pid: Int32, leaseMs: Int, session: String? = nil, renew: Bool? = nil, previousFrontmostPID: Int32? = nil) {
         self.pid = pid
         self.leaseMs = leaseMs
         self.session = session
+        self.renew = renew
+        self.previousFrontmostPID = previousFrontmostPID
     }
 }
 

@@ -70,6 +70,13 @@ public final class PresenceServer {
             environment: environment,
             keepAwake: KeepAwake(assertion: configuration.keepAwake ? DisplaySleepAssertion() : nil)
         )
+        core.onRestoreFocus = { previous, target in
+            DispatchQueue.main.async {
+                guard let thief = NSWorkspace.shared.frontmostApplication,
+                      thief.processIdentifier == target else { return }
+                PresenceServer.reactivate(previous, takingFocusFrom: thief)
+            }
+        }
 
         // The tap comes up before the socket so the first `hello` reports it accurately.
         let pointerApps = PointerAppResolver()

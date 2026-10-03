@@ -112,6 +112,8 @@ public final class PresenceCore: @unchecked Sendable {
     public var onShutdown: (() -> Void)?
     /// Called when the abort chord is seen or `resume` clears it.
     public var onAbortChanged: ((Bool) -> Void)?
+    /// Repairs a launch activation, outside the state lock.
+    public var onRestoreFocus: ((pid_t, pid_t) -> Void)?
 
     public init(
         configuration: PresenceStateConfiguration = PresenceStateConfiguration(),
@@ -281,13 +283,22 @@ public final class PresenceCore: @unchecked Sendable {
 
         case .guardBegin(let params):
             let frontmost = environment.frontmostPID()
-            let result = withLock {
+            let hidSeconds = environment.secondsSinceHIDInput()
+            let (result, repair) = withLock { () -> (Result<GuardResult, PresenceError>, FocusGuardDecision?) in
                 if let session = params.session {
                     state.touchSession(session, connection: connection, now: now)
                     // The guard begins right before delivery: the session is acting.
                     state.noteActed(session: session, targetPID: params.pid, now: now)
                 }
-                return state.beginGuard(targetPID: params.pid, leaseMs: params.leaseMs, frontmostPID: frontmost, now: now)
+                let result = state.beginGuard(targetPID: params.pid, leaseMs: params.leaseMs, frontmostPID: frontmost, now: now, renew: params.renew == true, previousFrontmostPID: params.previousFrontmostPID)
+                var repair: FocusGuardDecision?
+                if params.renew != true, params.previousFrontmostPID != nil, frontmost == params.pid, case .success = result {
+                    repair = state.focusDecision(activatedPID: params.pid, now: now, secondsSinceHIDInput: hidSeconds)
+                }
+                return (result, repair)
+            }
+            if case .restore(let previous) = repair {
+                onRestoreFocus?(previous, params.pid)
             }
             switch result {
             case .success(let lease): reply(.success(id: id, .guardLease(lease)))

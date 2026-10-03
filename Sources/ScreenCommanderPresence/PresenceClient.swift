@@ -237,6 +237,14 @@ public final class PresenceClient: @unchecked Sendable {
         send(.guardEnd(GuardEndParams(pid: pid))).map(Self.empty)
     }
 
+    public func renewGuard(pid: Int32, leaseMs: Int, session: String? = nil) async -> PresenceReply<GuardResult> {
+        await send(.guardBegin(GuardBeginParams(pid: pid, leaseMs: leaseMs, session: session, renew: true))).map(Self.guardLease)
+    }
+
+    public func beginLaunchGuard(pid: Int32, leaseMs: Int, session: String? = nil, previousFrontmostPID: Int32?) async -> PresenceReply<GuardResult> {
+        await send(.guardBegin(GuardBeginParams(pid: pid, leaseMs: leaseMs, session: session, previousFrontmostPID: previousFrontmostPID))).map(Self.guardLease)
+    }
+
     public func endGuard(pid: Int32) async -> PresenceReply<PresenceEmpty> {
         await send(.guardEnd(GuardEndParams(pid: pid))).map(Self.empty)
     }

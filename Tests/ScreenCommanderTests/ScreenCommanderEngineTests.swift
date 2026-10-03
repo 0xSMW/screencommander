@@ -212,6 +212,7 @@ private final class FakeMouseController: MouseControlling {
 }
 
 private final class FakeKeyboardController: KeyboardControlling {
+    var onType: (() -> Void)?
     private(set) var typed: [(text: String, delayMilliseconds: Int?)] = []
     private(set) var pasted: [String] = []
     private(set) var pressed: [ParsedKeyChord] = []
@@ -220,6 +221,7 @@ private final class FakeKeyboardController: KeyboardControlling {
     private(set) var destinations: [InputEventDestination] = []
 
     func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws {
+        onType?()
         typed.append((text: text, delayMilliseconds: delayMilliseconds))
         destinations.append(destination)
     }
@@ -227,6 +229,16 @@ private final class FakeKeyboardController: KeyboardControlling {
     func typeByPasting(text: String, destination: InputEventDestination) throws {
         pasted.append(text)
         destinations.append(destination)
+    }
+
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try withPrepared(destination, beforePosting)
+        try type(text: text, delayMilliseconds: delayMilliseconds, destination: destination)
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try withPrepared(destination, beforePosting)
+        try typeByPasting(text: text, destination: destination)
     }
 
     func press(chord: ParsedKeyChord, destination: InputEventDestination) throws {
@@ -605,6 +617,8 @@ private final class FakeAXActions: AXActionPerforming {
 
     /// Selection writes fail until the element is focused when set.
     var selectionNeedsFocus = false
+    var selectionError: Error?
+    var selectionApplies = true
     var selectedRange: AXTextRange?
     var selectedTextResult: String?
     private(set) var selectionWrites: [AXTextRange] = []
@@ -613,8 +627,9 @@ private final class FakeAXActions: AXActionPerforming {
         if selectionNeedsFocus, focusCount == 0 {
             throw ScreenCommanderError.elementNotActionable("Setting AXSelectedTextRange failed (cannot complete).")
         }
+        if let selectionError { throw selectionError }
         selectionWrites.append(range)
-        selectedRange = range
+        if selectionApplies { selectedRange = range }
     }
 
     func readSelectedTextRange(of element: AXElement) -> AXTextRange? {
@@ -3805,6 +3820,30 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.replace, true)
     }
 
+    func testKeyboardReplacementRefusesUnsafeSelectionInBareAndElementPaths() async {
+        for element in [false, true] {
+            for failure in ["secure", "unreadable", "failed", "ignored"] {
+                let fixture = makeInputEngineFixture("type-replace-unsafe-\(element)-\(failure)", frontmostApp: { Self.targetApp }, profile: { _ in Self.electronProfile })
+                fixture.targets.apps["TargetApp"] = Self.targetApp
+                fixture.reader.treeResult = AXTreeResult(axPrimed: true, truncated: false, elements: [buttonRecord(id: "0.3", role: "AXTextArea", title: "Name", actions: [])])
+                fixture.axActions.focusedText = AXElement.application(pid: 77)
+                fixture.axActions.text = failure == "unreadable" ? nil : "old"
+                fixture.axActions.selectedRange = AXTextRange(location: 3, length: 0)
+                fixture.axActions.secure = failure == "secure"
+                if failure == "failed" { fixture.axActions.selectionError = ScreenCommanderError.elementNotActionable("selection failed") }
+                fixture.axActions.selectionApplies = failure != "ignored"
+                do {
+                    _ = try await fixture.engine.type(TypeRequest(text: "NEW", delayMilliseconds: nil, inputMode: .unicode,
+                        element: element ? "Name" : nil, appIdentifier: "TargetApp", via: .focusAssisted, replace: true))
+                    XCTFail("Expected replacement refusal for \(failure)")
+                } catch {
+                    XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+                }
+                XCTAssertTrue(fixture.keyboard.typed.isEmpty, failure)
+            }
+        }
+    }
+
     func testTypeReplaceFindsChromiumsFocusedFieldOnceItsWindowIsKey() async throws {
         // Electron reports no focused element until its window is key.
         let fixture = makeInputEngineFixture("type-electron-replace-unfocused", frontmostApp: { Self.targetApp }, profile: { _ in Self.electronProfile })
@@ -4426,6 +4465,7 @@ private final class FakePresence: PresenceControlling, @unchecked Sendable {
         case move(session: String, point: PresencePoint, windowID: UInt32?)
         /// `delivered`: how many input deliveries had happened when the call arrived.
         case guardBegin(pid: pid_t, delivered: Int)
+        case guardRenew(pid: pid_t, delivered: Int)
         case press(session: String, count: Int, delivered: Int)
         case guardEnd(pid: pid_t)
     }
@@ -4455,6 +4495,8 @@ private final class FakePresence: PresenceControlling, @unchecked Sendable {
     var deliveries: () -> Int = { 0 }
     /// When set, `moveCursor` waits on it (serialization tests).
     var moveGate: WindowResolutionGate?
+    var onMove: (() async -> Void)?
+    private(set) var launchPreviousPID: pid_t?
     /// When set, `acquire` waits on it (serialization tests).
     var acquireGate: WindowResolutionGate?
 
@@ -4474,6 +4516,10 @@ private final class FakePresence: PresenceControlling, @unchecked Sendable {
 
     var snapshot: PresenceState {
         withLock { state }
+    }
+
+    var guardRemaining: TimeInterval? {
+        withLock { state.guards[77].map { $0.expiresAt.timeIntervalSince(clock) } }
     }
 
     /// The next `count` status checks report the user active in the session.
@@ -4607,6 +4653,7 @@ private final class FakePresence: PresenceControlling, @unchecked Sendable {
         if let moveGate {
             await moveGate.wait()
         }
+        await onMove?()
         guard available else { return .unavailable("fake: unreachable") }
         return .success(CursorMoveResult(session: session, point: point, arrived: true, visible: true, cursorWindowID: 9_000))
     }
@@ -4619,8 +4666,29 @@ private final class FakePresence: PresenceControlling, @unchecked Sendable {
     func beginGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult> {
         record(.guardBegin(pid: pid, delivered: deliveries()))
         guard available else { return .unavailable("fake: unreachable") }
-        withLock { state.noteActed(session: session, targetPID: pid, now: clock) }
-        return .success(GuardResult(pid: pid, previousFrontmostPID: 12, leaseMs: leaseMs))
+        return withLock {
+            state.noteActed(session: session, targetPID: pid, now: clock)
+            switch state.beginGuard(targetPID: pid, leaseMs: leaseMs, frontmostPID: 12, now: clock) {
+            case .success(let guardResult): return .success(guardResult)
+            case .failure(let error): return .failure(error)
+            }
+        }
+    }
+
+    func renewGuard(pid: pid_t, leaseMs: Int, session: String) async -> PresenceReply<GuardResult> {
+        record(.guardRenew(pid: pid, delivered: deliveries()))
+        guard available else { return .unavailable("fake: unreachable") }
+        return withLock {
+            switch state.beginGuard(targetPID: pid, leaseMs: leaseMs, frontmostPID: 12, now: clock, renew: true) {
+            case .success(let result): return .success(result)
+            case .failure(let error): return .failure(error)
+            }
+        }
+    }
+
+    func beginLaunchGuard(pid: pid_t, leaseMs: Int, session: String, previousFrontmostPID: pid_t?) async -> PresenceReply<GuardResult> {
+        launchPreviousPID = previousFrontmostPID
+        return await beginGuard(pid: pid, leaseMs: leaseMs, session: session)
     }
 
     func endGuard(pid: pid_t) async {
@@ -4726,15 +4794,108 @@ final class PresenceIntegrationTests: XCTestCase {
             .acquire(session: "default", pid: 77),
             .status,
             .move(session: "default", point: Self.clickPoint, windowID: 500),
-            .guardBegin(pid: 77, delivered: 0),
+            .guardBegin(pid: 77, delivered: 0), .acquire(session: "default", pid: 77), .probe,
             .press(session: "default", count: 2, delivered: 1),
-            .setState(session: "default", state: .loading),
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 1),
             // The receipt asks whether the focus guard restored focus meanwhile.
             .status,
         ])
         XCTAssertEqual(result.presence, .active)
         XCTAssertEqual(fixture.mouse.calls.count, 1)
         XCTAssertEqual(fixture.mouse.calls.first?.destination, .window(fixtureWindow))
+    }
+
+    func testAbortDuringSuccessfulCursorMovePostsNoInput() async {
+        let presence = FakePresence()
+        presence.onMove = { presence.aborted = true }
+        let fixture = makeFixture("presence-abort-during-glide", presence: presence)
+        do {
+            _ = try await fixture.engine.click(clickRequest())
+            XCTFail("Expected aborted_by_user")
+        } catch { assertCode(error, "aborted_by_user", 53) }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+    }
+
+    func testLeaseLostDuringGlideStopsBeforePosting() async {
+        let presence = FakePresence()
+        var policy = PresencePolicy()
+        policy.leaseIdleMs = 500
+        presence.onMove = {
+            presence.advance(0.6)
+            presence.leaseHeld(by: "other", pid: 77)
+        }
+        let fixture = makeFixture("presence-lost-lease-during-glide", presence: presence, policy: policy)
+        do {
+            _ = try await fixture.engine.click(clickRequest())
+            XCTFail("Expected target_busy")
+        } catch { assertCode(error, "target_busy", 52) }
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+    }
+
+    func testShortLeaseIsRenewedThroughoutCursorMotion() async throws {
+        let presence = FakePresence()
+        var policy = PresencePolicy()
+        policy.leaseIdleMs = 500
+        presence.onMove = {
+            for tick in 1...8 {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                presence.advance(0.1)
+                if tick == 6 {
+                    presence.leaseHeld(by: "other", pid: 77)
+                    XCTAssertEqual(presence.snapshot.leases[77]?.session, "default")
+                }
+            }
+        }
+        let fixture = makeFixture("presence-renew-glide", presence: presence, policy: policy)
+        _ = try await fixture.engine.click(clickRequest())
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+        XCTAssertEqual(presence.snapshot.leases[77]?.session, "default")
+    }
+
+    func testShortLeaseIsRenewedThroughoutBackgroundAndForegroundYield() async throws {
+        for foreground in [false, true] {
+            let presence = FakePresence()
+            var policy = PresencePolicy()
+            policy.leaseIdleMs = 500
+            presence.reportUserActive(forChecks: 1)
+            policy.sleep = { _ in
+                for tick in 1...8 {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    presence.advance(0.1)
+                    if tick == 6 {
+                        presence.leaseHeld(by: "other", pid: 77)
+                        XCTAssertEqual(presence.snapshot.leases[77]?.session, "default")
+                    }
+                }
+            }
+            let fixture = makeFixture("presence-renew-yield-\(foreground)", presence: presence, policy: policy)
+            _ = try await fixture.engine.type(TypeRequest(text: "X", delayMilliseconds: nil, inputMode: .unicode,
+                                                        appIdentifier: "TargetApp", foreground: foreground))
+            XCTAssertEqual(fixture.keyboard.typed.count, 1)
+        }
+    }
+
+    func testLongTypingRenewsLeaseAndGuardThenLeavesFullGuardPeriod() async throws {
+        let presence = FakePresence()
+        var policy = PresencePolicy()
+        policy.leaseIdleMs = 500
+        policy.guardLeaseMs = 300
+        let fixture = makeFixture("presence-renew-long-type", presence: presence, policy: policy)
+        fixture.keyboard.onType = {
+            for tick in 1...8 {
+                Thread.sleep(forTimeInterval: 0.1)
+                presence.advance(0.1)
+                XCTAssertGreaterThan(presence.guardRemaining ?? 0, 0, "guard stays active during delivery")
+                if tick == 6 {
+                    presence.leaseHeld(by: "other", pid: 77)
+                    XCTAssertEqual(presence.snapshot.leases[77]?.session, "default")
+                }
+            }
+        }
+        _ = try await fixture.engine.type(TypeRequest(text: "X", delayMilliseconds: nil, inputMode: .unicode,
+                                                    appIdentifier: "TargetApp"))
+        XCTAssertGreaterThanOrEqual(presence.guardRemaining ?? 0, 0.299)
+        XCTAssertEqual(fixture.keyboard.typed.count, 1)
     }
 
     func testKeyboardActionsSkipTheGlideAndPress() async throws {
@@ -4745,11 +4906,11 @@ final class PresenceIntegrationTests: XCTestCase {
         let typed = try await fixture.engine.type(TypeRequest(text: "a", delayMilliseconds: nil, inputMode: .unicode, appIdentifier: "TargetApp"))
 
         XCTAssertEqual(presence.calls, [
-            .acquire(session: "default", pid: 77), .status, .guardBegin(pid: 77, delivered: 0),
-            .setState(session: "default", state: .loading), .status,
+            .acquire(session: "default", pid: 77), .status, .guardBegin(pid: 77, delivered: 0), .acquire(session: "default", pid: 77), .probe,
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 1), .status,
             .acquire(session: "default", pid: 77), .status, .setState(session: "default", state: .idle),
-            .guardBegin(pid: 77, delivered: 1),
-            .setState(session: "default", state: .loading), .status,
+            .guardBegin(pid: 77, delivered: 1), .acquire(session: "default", pid: 77), .probe,
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 2), .status,
         ])
         XCTAssertEqual(key.presence, .active)
         XCTAssertEqual(typed.presence, .active)
@@ -4855,9 +5016,9 @@ final class PresenceIntegrationTests: XCTestCase {
             .status,
             .setState(session: "default", state: .idle),
             .move(session: "default", point: Self.clickPoint, windowID: 500),
-            .guardBegin(pid: 77, delivered: 0),
+            .guardBegin(pid: 77, delivered: 0), .acquire(session: "default", pid: 77), .probe,
             .press(session: "default", count: 1, delivered: 1),
-            .setState(session: "default", state: .loading),
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 1),
             .status,
         ])
         // The user's last input was 200 ms ago and the quiet period is 1 s.
@@ -4874,7 +5035,7 @@ final class PresenceIntegrationTests: XCTestCase {
         let afterFirst = presence.calls.count
         _ = try await fixture.engine.click(clickRequest())
 
-        XCTAssertEqual(presence.calls.prefix(afterFirst).dropLast().last, .setState(session: "default", state: .loading),
+        XCTAssertEqual(presence.calls.prefix(afterFirst).dropLast(2).last, .setState(session: "default", state: .loading),
                        "after a successful action the agent is deciding its next step")
         XCTAssertEqual(presence.calls.prefix(afterFirst).last, .status, "the receipt's focus-guard check")
         XCTAssertEqual(Array(presence.calls.dropFirst(afterFirst)), [
@@ -4882,9 +5043,9 @@ final class PresenceIntegrationTests: XCTestCase {
             .status,
             .setState(session: "default", state: .idle),
             .move(session: "default", point: Self.clickPoint, windowID: 500),
-            .guardBegin(pid: 77, delivered: 1),
+            .guardBegin(pid: 77, delivered: 1), .acquire(session: "default", pid: 77), .probe,
             .press(session: "default", count: 1, delivered: 2),
-            .setState(session: "default", state: .loading),
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 2),
             .status,
         ])
     }
@@ -4990,8 +5151,8 @@ final class PresenceIntegrationTests: XCTestCase {
         // the app is meant to come forward. The key ends any guard an earlier
         // background action left on the app before activating it.
         XCTAssertEqual(presence.calls, [
-            .acquire(session: "default", pid: 77), .status, .status,
-            .acquire(session: "default", pid: 77), .status, .guardEnd(pid: 77), .status,
+            .acquire(session: "default", pid: 77), .status, .acquire(session: "default", pid: 77), .probe, .status,
+            .acquire(session: "default", pid: 77), .status, .acquire(session: "default", pid: 77), .probe, .guardEnd(pid: 77), .status,
         ])
         XCTAssertEqual(click.presence, .active)
         XCTAssertEqual(key.presence, .active)
@@ -5288,7 +5449,7 @@ final class PresenceIntegrationTests: XCTestCase {
 
         let fromSettings = try await fixture.engine.click(clickRequest())
         let expected: [FakePresence.Call] = [
-            .acquire(session: "default", pid: 77), .status, .guardBegin(pid: 77, delivered: 0), .status,
+            .acquire(session: "default", pid: 77), .status, .guardBegin(pid: 77, delivered: 0), .acquire(session: "default", pid: 77), .probe, .guardRenew(pid: 77, delivered: 1), .status,
         ]
         XCTAssertEqual(presence.calls, expected)
         XCTAssertEqual(fromSettings.presence, .active)
@@ -5319,7 +5480,7 @@ final class PresenceIntegrationTests: XCTestCase {
             return nil
         }
         // agent-a is refused: serve-123 still holds pid 77.
-        XCTAssertEqual(sessions, ["serve-123", "agent-a"])
+        XCTAssertEqual(sessions, ["serve-123", "serve-123", "agent-a"])
     }
 
     func testPresenceSettingsResolveSessionAndCursorFromEnvironment() {
@@ -5368,12 +5529,12 @@ final class PresenceIntegrationTests: XCTestCase {
         XCTAssertEqual(presence.calls.filter { $0 != .status }, [
             .acquire(session: "default", pid: 77),
             .move(session: "default", point: Self.clickPoint, windowID: 500),
-            .guardBegin(pid: 77, delivered: 0), .press(session: "default", count: 1, delivered: 1),
-            .setState(session: "default", state: .loading),
+            .guardBegin(pid: 77, delivered: 0), .acquire(session: "default", pid: 77), .probe, .press(session: "default", count: 1, delivered: 1),
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 1),
             .acquire(session: "default", pid: 77), .setState(session: "default", state: .idle),
             .move(session: "default", point: Self.clickPoint, windowID: 500),
-            .guardBegin(pid: 77, delivered: 1), .press(session: "default", count: 1, delivered: 2),
-            .setState(session: "default", state: .loading),
+            .guardBegin(pid: 77, delivered: 1), .acquire(session: "default", pid: 77), .probe, .press(session: "default", count: 1, delivered: 2),
+            .setState(session: "default", state: .loading), .guardRenew(pid: 77, delivered: 2),
         ])
         XCTAssertEqual(presence.calls.filter { $0 == .status }.count, 4)
     }
@@ -5562,7 +5723,7 @@ final class PresenceIntegrationTests: XCTestCase {
 
         XCTAssertEqual(outcome?.isError, false)
         XCTAssertEqual(outcome?.envelope["result"]?["action"]?["presence"]?.stringValue, "active")
-        XCTAssertEqual(presence.calls, [.acquire(session: "mcp-agent", pid: 77), .status, .guardBegin(pid: 77, delivered: 0), .status])
+        XCTAssertEqual(presence.calls, [.acquire(session: "mcp-agent", pid: 77), .status, .guardBegin(pid: 77, delivered: 0), .acquire(session: "mcp-agent", pid: 77), .probe, .guardRenew(pid: 77, delivered: 1), .status])
     }
 
     func testSequenceStepsDecodeSessionAndAgentCursor() throws {
@@ -5867,7 +6028,20 @@ final class ParityToolsEngineTests: XCTestCase {
         XCTAssertEqual(result.presence, .active)
         // Presence is started before the launch, and the guard covers the new pid.
         XCTAssertEqual(presence.calls.first, .status)
-        XCTAssertEqual(presence.calls.filter { $0 == .guardBegin(pid: 4_242, delivered: 0) }.count, 2)
+        XCTAssertEqual(presence.calls.filter { $0 == .guardBegin(pid: 4_242, delivered: 0) }.count, 1)
+    }
+
+    func testLaunchPassesTheAppSampledBeforeLaunchToItsGuard() async throws {
+        let presence = FakePresence()
+        let launcher = FakeAppLauncher()
+        var earlyActivation = false
+        launcher.onLaunch = { earlyActivation = true }
+        let fixture = makeFixture("parity-launch-early-activation", catalog: calculatorCatalog(), launcher: launcher, presence: presence)
+        _ = try await fixture.engine.launch(LaunchRequest(appIdentifier: "Calculator"))
+        XCTAssertTrue(earlyActivation)
+        XCTAssertEqual(presence.launchPreviousPID, 12)
+        XCTAssertEqual(presence.calls.filter { $0 == .guardBegin(pid: 4_242, delivered: 0) }.count, 1)
+        XCTAssertEqual(presence.calls.filter { $0 == .guardRenew(pid: 4_242, delivered: 0) }.count, 1)
     }
 
     func testLaunchReportsAFocusChange() async throws {
@@ -6021,6 +6195,15 @@ final class ParityToolsEngineTests: XCTestCase {
         XCTAssertEqual(result.verified, .checked(true))
         XCTAssertEqual(result.direction, .down)
         XCTAssertEqual(result.pages, 2)
+        XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
+    }
+
+    func testPartiallyCompletedAXPagesDoNotReplayThroughWheel() async {
+        let fixture = makeFixture("parity-page-partial", records: [record("0.5", role: "AXScrollArea", title: "Content")])
+        fixture.axActions.scrollError = AXPartialScrollError(
+            completedPages: 1, underlyingError: ScreenCommanderError.elementNotActionable("second AX page failed")
+        )
+        await assertThrows(try await fixture.engine.scroll(pageScroll(.down, pages: 3)), code: "element_not_actionable")
         XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
     }
 
