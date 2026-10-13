@@ -10,6 +10,8 @@ final class MCPServeSession {
 
     private let server: MCPServer
     private let writer: Writer
+    /// Called for every `tools/call` request, before it is scheduled.
+    private let onToolCall: (() -> Void)?
     private let lock = NSLock()
 
     private var tasks: [String: Task<Void, Never>] = [:]
@@ -18,8 +20,9 @@ final class MCPServeSession {
     private var completedBeforeRegistration: Set<String> = []
     private var metadataContext: [String: String] = [:]
 
-    init(server: MCPServer, writer: @escaping Writer) {
+    init(server: MCPServer, onToolCall: (() -> Void)? = nil, writer: @escaping Writer) {
         self.server = server
+        self.onToolCall = onToolCall
         self.writer = writer
     }
 
@@ -39,6 +42,9 @@ final class MCPServeSession {
             return
         }
 
+        if request.method == "tools/call" {
+            onToolCall?()
+        }
         let id = request.id ?? .null
         let key = Self.key(for: id)
         let dependencyKey = request.params?["dependsOn"].map(Self.key(for:))

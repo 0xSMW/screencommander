@@ -4,95 +4,158 @@ import Foundation
 import Carbon.HIToolbox
 
 protocol KeyboardControlling {
-    func type(text: String, delayMilliseconds: Int?) throws
-    func typeByPasting(text: String) throws
-    func press(chord: ParsedKeyChord) throws
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws
+    func typeByPasting(text: String, destination: InputEventDestination) throws
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws
+    func press(chord: ParsedKeyChord, destination: InputEventDestination) throws
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws
+    /// Media and system keys are system-defined events with no target process; they
+    /// only exist on the global path.
     func pressSystemKey(_ key: SystemKey) throws
-    func run(sequence: KeySequence) throws
+    func run(sequence: KeySequence, destination: InputEventDestination) throws
+    /// Runs `body` between the destination's `prepare` and `finish`, so work that is
+    /// not a key event (an AX menu press) happens while `focusAssisted` holds the
+    /// target's window key.
+    func withPrepared(_ destination: InputEventDestination, _ body: () throws -> Void) throws
 }
 
+extension KeyboardControlling {
+    // Compatibility for controllers without destination preparation. Controllers
+    // that prepare focus must override these and run the callback after preparation.
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try type(text: text, delayMilliseconds: delayMilliseconds, destination: destination)
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try typeByPasting(text: text, destination: destination)
+    }
+
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try press(chord: chord, destination: destination)
+    }
+
+    func withPrepared(_ destination: InputEventDestination, _ body: () throws -> Void) throws {
+        try body()
+    }
+}
+
+/// Builds keyboard events and hands them to an `InputEventPosting` backend.
+///
+/// Events come from a private-state source and every event's flags are set
+/// explicitly: modifiers held by the user never leak in, and modifiers held by a
+/// chord or a `keys` sequence are carried on each event the target receives.
 final class KeyboardController: KeyboardControlling {
     private static let pasteboardLock = NSLock()
 
+    private let poster: InputEventPosting
+    private let pasteboard: PasteboardAccess
     private let enterKeyDownHoldMicroseconds: useconds_t = 20_000
-    private let pasteboardRestoreDelayMicroseconds: useconds_t = 250_000
+    private let pidKeyGapMicroseconds: useconds_t = 8_000
+    /// How long the pasted text stays on the pasteboard after cmd+v is posted.
+    private let pasteboardRestoreDelayMicroseconds: useconds_t
     private let systemDownState = Int(0xA)
     private let systemUpState = Int(0xB)
     private let systemAuxControlSubtype = Int16(0x08)
 
-    func type(text: String, delayMilliseconds: Int?) throws {
-        let source = try makeEventSource()
+    init(
+        poster: InputEventPosting = LiveInputEventPoster(),
+        pasteboard: PasteboardAccess = SystemPasteboard(),
+        pasteboardRestoreDelayMicroseconds: useconds_t = 500_000
+    ) {
+        self.poster = poster
+        self.pasteboard = pasteboard
+        self.pasteboardRestoreDelayMicroseconds = pasteboardRestoreDelayMicroseconds
+    }
 
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination) throws {
+        try type(text: text, delayMilliseconds: delayMilliseconds, destination: destination, beforePosting: {})
+    }
+
+    func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        let source = try makeEventSource()
+        try poster.prepare(destination)
+        defer { poster.finish(destination) }
+
+        try beforePosting()
         let delay = max(0, delayMilliseconds ?? 0)
 
         for character in text {
-            try postUnicodeCharacter(String(character), source: source)
-            if delay > 0 {
-                usleep(useconds_t(delay * 1_000))
-            }
+            try postUnicodeCharacter(String(character), source: source, destination: destination)
+            SleepTimer.sleep(milliseconds: delay)
         }
     }
 
-    func typeByPasting(text: String) throws {
+    func typeByPasting(text: String, destination: InputEventDestination) throws {
+        try typeByPasting(text: text, destination: destination, beforePosting: {})
+    }
+
+    func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         Self.pasteboardLock.lock()
         defer { Self.pasteboardLock.unlock() }
 
-        let pasteboard = NSPasteboard.general
-        let priorContents = PasteboardSnapshot.capture(from: pasteboard)
-        pasteboard.clearContents()
-
-        do {
-            guard pasteboard.setString(text, forType: .string) else {
-                throw ScreenCommanderError.inputSynthesisFailed("Could not set clipboard text for paste input.")
-            }
-
-            let pasteChord = try KeyCodes.parseChord("cmd+v")
-            try press(chord: pasteChord)
-        } catch {
-            try? priorContents.restore(to: pasteboard)
-            throw error
+        let delay = pasteboardRestoreDelayMicroseconds
+        try PasteboardSwap.withTemporaryString(text, on: pasteboard, wait: { usleep(delay) }) {
+            try press(chord: try KeyCodes.parseChord("cmd+v"), destination: destination, beforePosting: beforePosting)
         }
-
-        // CGEvent posting only queues the paste chord; the target app may read the
-        // pasteboard on a later run-loop turn. Keep our text available briefly so a
-        // slow or newly focused target does not paste the restored previous contents.
-        usleep(pasteboardRestoreDelayMicroseconds)
-        try priorContents.restore(to: pasteboard)
     }
 
-    func press(chord: ParsedKeyChord) throws {
+    func press(chord: ParsedKeyChord, destination: InputEventDestination) throws {
+        try press(chord: chord, destination: destination, beforePosting: {})
+    }
+
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         let source = try makeEventSource()
 
         if case .system(let systemKey, _) = chord.key {
             if !chord.modifiers.isEmpty {
                 throw ScreenCommanderError.invalidArguments("Modifiers are not supported with system keys.")
             }
-
+            try requireGlobal(destination, for: chord.normalized)
             try pressSystemKey(systemKey)
             return
         }
+        if let alias = chord.systemShortcut, destination != .global {
+            throw ScreenCommanderError.backgroundDeliveryUnavailable(KeyCodes.systemShortcutRefusal(alias))
+        }
 
-        try runModifiersForStep(flags: chord.flags, source: source, pressed: true)
+        try poster.prepare(destination)
+        defer { poster.finish(destination) }
+        try beforePosting()
+        try runModifiersForStep(flags: chord.flags, held: [], source: source, pressed: true, destination: destination)
 
         try postKeyboardEvent(
             keyCode: chord.key.keyboardCode,
             keyDown: true,
             flags: chord.flags,
-            source: source
+            source: source,
+            destination: destination
         )
 
         if chord.key.keyboardCode == CGKeyCode(kVK_Return) {
             usleep(enterKeyDownHoldMicroseconds)
+        } else if destination != .global {
+            usleep(pidKeyGapMicroseconds)
         }
 
         try postKeyboardEvent(
             keyCode: chord.key.keyboardCode,
             keyDown: false,
             flags: chord.flags,
-            source: source
+            source: source,
+            destination: destination
         )
 
-        try runModifiersForStep(flags: chord.flags, source: source, pressed: false)
+        try runModifiersForStep(flags: chord.flags, held: [], source: source, pressed: false, destination: destination)
+    }
+
+    func withPrepared(_ destination: InputEventDestination, _ body: () throws -> Void) throws {
+        try poster.prepare(destination)
+        defer { poster.finish(destination) }
+        try body()
     }
 
     func pressSystemKey(_ key: SystemKey) throws {
@@ -101,22 +164,41 @@ final class KeyboardController: KeyboardControlling {
         try postSystemKeyEvent(systemCode: key.nxKeyCode, keyDown: false)
     }
 
-    func run(sequence: KeySequence) throws {
+    func run(sequence: KeySequence, destination: InputEventDestination) throws {
         let source = try makeEventSource()
+
+        if destination != .global {
+            if let alias = sequence.systemShortcuts.first {
+                throw ScreenCommanderError.backgroundDeliveryUnavailable(KeyCodes.systemShortcutRefusal(alias))
+            }
+            for step in sequence.steps {
+                switch step {
+                case .keyDown(.system(_, let token), _), .keyUp(.system(_, let token), _), .press(.system(_, let token), _):
+                    try requireGlobal(destination, for: token)
+                default:
+                    break
+                }
+            }
+        }
+        try poster.prepare(destination)
+        defer { poster.finish(destination) }
+
+        // Modifiers held by earlier `down:` steps, carried on every later event.
+        var held = CGEventFlags()
 
         for step in sequence.steps {
             switch step {
             case .keyDown(let key, let flags):
-                try handleStepKeyDown(key: key, flags: flags, source: source)
+                try handleStepKeyDown(key: key, flags: flags, held: &held, source: source, destination: destination)
             case .keyUp(let key, let flags):
-                try handleStepKeyUp(key: key, flags: flags, source: source)
+                try handleStepKeyUp(key: key, flags: flags, held: &held, source: source, destination: destination)
             case .press(let key, let flags):
                 switch key {
                 case .keyboard:
-                    try runModifiersForStep(flags: flags, source: source, pressed: true)
-                    try postResolvedKey(key: key, keyDown: true, flags: flags, source: source)
-                    try postResolvedKey(key: key, keyDown: false, flags: flags, source: source)
-                    try runModifiersForStep(flags: flags, source: source, pressed: false)
+                    try runModifiersForStep(flags: flags, held: held, source: source, pressed: true, destination: destination)
+                    try postResolvedKey(key: key, keyDown: true, flags: held.union(flags), source: source, destination: destination)
+                    try postResolvedKey(key: key, keyDown: false, flags: held.union(flags), source: source, destination: destination)
+                    try runModifiersForStep(flags: flags, held: held, source: source, pressed: false, destination: destination)
                 case .system(let systemKey, _):
                     if !flags.isEmpty {
                         throw ScreenCommanderError.invalidArguments("Modifiers are not supported with system key steps.")
@@ -124,18 +206,33 @@ final class KeyboardController: KeyboardControlling {
                     try pressSystemKey(systemKey)
                 }
             case .sleep(let milliseconds):
-                if milliseconds > 0 {
-                    usleep(useconds_t(milliseconds * 1_000))
-                }
+                SleepTimer.sleep(milliseconds: milliseconds)
             }
         }
     }
 
-    private func handleStepKeyDown(key: ResolvedKey, flags: CGEventFlags, source: CGEventSource) throws {
+    private func requireGlobal(_ destination: InputEventDestination, for token: String) throws {
+        guard destination == .global else {
+            throw ScreenCommanderError.backgroundDeliveryUnavailable(
+                "'\(token)' is a system key with no target app; it can only be sent globally."
+            )
+        }
+    }
+
+    private func handleStepKeyDown(
+        key: ResolvedKey,
+        flags: CGEventFlags,
+        held: inout CGEventFlags,
+        source: CGEventSource,
+        destination: InputEventDestination
+    ) throws {
         switch key {
-        case .keyboard:
-            try runModifiersForStep(flags: flags, source: source, pressed: true)
-            try postResolvedKey(key: key, keyDown: true, flags: flags, source: source)
+        case .keyboard(let keyCode, _):
+            try runModifiersForStep(flags: flags, held: held, source: source, pressed: true, destination: destination)
+            if let modifier = Self.modifierFlag(forKeyCode: keyCode) {
+                held.insert(modifier)
+            }
+            try postResolvedKey(key: key, keyDown: true, flags: held.union(flags), source: source, destination: destination)
         case .system(let systemKey, _):
             if !flags.isEmpty {
                 throw ScreenCommanderError.invalidArguments("Modifiers are not supported with system key steps.")
@@ -144,11 +241,20 @@ final class KeyboardController: KeyboardControlling {
         }
     }
 
-    private func handleStepKeyUp(key: ResolvedKey, flags: CGEventFlags, source: CGEventSource) throws {
+    private func handleStepKeyUp(
+        key: ResolvedKey,
+        flags: CGEventFlags,
+        held: inout CGEventFlags,
+        source: CGEventSource,
+        destination: InputEventDestination
+    ) throws {
         switch key {
-        case .keyboard:
-            try postResolvedKey(key: key, keyDown: false, flags: flags, source: source)
-            try runModifiersForStep(flags: flags, source: source, pressed: false)
+        case .keyboard(let keyCode, _):
+            if let modifier = Self.modifierFlag(forKeyCode: keyCode) {
+                held.remove(modifier)
+            }
+            try postResolvedKey(key: key, keyDown: false, flags: held.union(flags), source: source, destination: destination)
+            try runModifiersForStep(flags: flags, held: held, source: source, pressed: false, destination: destination)
         case .system(let systemKey, _):
             if !flags.isEmpty {
                 throw ScreenCommanderError.invalidArguments("Modifiers are not supported with system key steps.")
@@ -157,7 +263,31 @@ final class KeyboardController: KeyboardControlling {
         }
     }
 
-    private func postResolvedKey(key: ResolvedKey, keyDown: Bool, flags: CGEventFlags, source: CGEventSource) throws {
+    /// The flag a modifier key sets while it is down, for both left and right keys.
+    static func modifierFlag(forKeyCode keyCode: CGKeyCode) -> CGEventFlags? {
+        switch Int(keyCode) {
+        case kVK_Command, kVK_RightCommand:
+            return .maskCommand
+        case kVK_Shift, kVK_RightShift:
+            return .maskShift
+        case kVK_Option, kVK_RightOption:
+            return .maskAlternate
+        case kVK_Control, kVK_RightControl:
+            return .maskControl
+        case kVK_Function:
+            return .maskSecondaryFn
+        default:
+            return nil
+        }
+    }
+
+    private func postResolvedKey(
+        key: ResolvedKey,
+        keyDown: Bool,
+        flags: CGEventFlags,
+        source: CGEventSource,
+        destination: InputEventDestination
+    ) throws {
         guard let keyCode = key.keyboardCode else {
             throw ScreenCommanderError.inputSynthesisFailed("Unable to post unsupported key type.")
         }
@@ -166,19 +296,33 @@ final class KeyboardController: KeyboardControlling {
             keyCode: keyCode,
             keyDown: keyDown,
             flags: flags,
-            source: source
+            source: source,
+            destination: destination
         )
     }
 
-    private func runModifiersForStep(flags: CGEventFlags, source: CGEventSource, pressed: Bool) throws {
+    /// Posts the chord's modifier keys around the main key. Each modifier event
+    /// carries the flags that are down at that moment, the way a real keyboard
+    /// reports them: flags grow as modifiers go down and shrink as they come up.
+    private func runModifiersForStep(
+        flags: CGEventFlags,
+        held: CGEventFlags,
+        source: CGEventSource,
+        pressed: Bool,
+        destination: InputEventDestination
+    ) throws {
         let modifiers = modifierKeys(from: flags)
         if pressed {
+            var current = held
             for modifier in modifiers where !modifier.isFnOnlyFlag {
-                try postKeyCode(modifier.keyCode, keyDown: true, flags: flags, source: source)
+                current.insert(modifier.flag)
+                try postKeyCode(modifier.keyCode, keyDown: true, flags: current, source: source, destination: destination)
             }
         } else {
+            var current = held.union(flags)
             for modifier in modifiers.reversed() where !modifier.isFnOnlyFlag {
-                try postKeyCode(modifier.keyCode, keyDown: false, flags: flags, source: source)
+                current.remove(modifier.flag)
+                try postKeyCode(modifier.keyCode, keyDown: false, flags: current.union(held), source: source, destination: destination)
             }
         }
     }
@@ -191,16 +335,23 @@ final class KeyboardController: KeyboardControlling {
         keyCode: CGKeyCode?,
         keyDown: Bool,
         flags: CGEventFlags,
-        source: CGEventSource
+        source: CGEventSource,
+        destination: InputEventDestination
     ) throws {
         guard let keyCode else {
             throw ScreenCommanderError.inputSynthesisFailed("Unable to post key event without keycode.")
         }
 
-        try postKeyCode(keyCode, keyDown: keyDown, flags: flags, source: source)
+        try postKeyCode(keyCode, keyDown: keyDown, flags: flags, source: source, destination: destination)
     }
 
-    private func postKeyCode(_ keyCode: CGKeyCode?, keyDown: Bool, flags: CGEventFlags, source: CGEventSource) throws {
+    private func postKeyCode(
+        _ keyCode: CGKeyCode?,
+        keyDown: Bool,
+        flags: CGEventFlags,
+        source: CGEventSource,
+        destination: InputEventDestination
+    ) throws {
         guard let keyCode else {
             throw ScreenCommanderError.inputSynthesisFailed("Unable to post key event without keycode.")
         }
@@ -210,7 +361,7 @@ final class KeyboardController: KeyboardControlling {
         }
 
         event.flags = flags
-        event.post(tap: .cghidEventTap)
+        poster.post(event, to: destination, kind: .keyboard)
     }
 
     private func postSystemKeyEvent(systemCode: Int64, keyDown: Bool) throws {
@@ -235,66 +386,154 @@ final class KeyboardController: KeyboardControlling {
             throw ScreenCommanderError.inputSynthesisFailed("Could not convert system-defined event for system key.")
         }
 
-        cgEvent.post(tap: .cghidEventTap)
+        poster.post(cgEvent, to: .global, kind: .keyboard)
     }
 
-    private func postUnicodeCharacter(_ character: String, source: CGEventSource) throws {
-        let utf16 = Array(character.utf16)
+    /// Line breaks and tabs go out on their own keys, Return and Tab, the way a
+    /// keyboard sends them. On key code 0 they would read as the A key to an app that
+    /// looks at key codes, which Chromium does. Nil for every other character.
+    static func dedicatedKey(for character: Character) -> (keyCode: CGKeyCode, text: String)? {
+        switch character {
+        case "\n", "\r", "\r\n":
+            return (CGKeyCode(kVK_Return), "\r")
+        case "\t":
+            return (CGKeyCode(kVK_Tab), "\t")
+        default:
+            return nil
+        }
+    }
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+    private func postUnicodeCharacter(_ character: String, source: CGEventSource, destination: InputEventDestination) throws {
+        let dedicated = character.count == 1 ? Self.dedicatedKey(for: Character(character)) : nil
+        let utf16 = Array((dedicated?.text ?? character).utf16)
+        let keyCode = dedicated?.keyCode ?? 0
+
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
             throw ScreenCommanderError.inputSynthesisFailed("Could not create Unicode keyboard events.")
         }
 
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        keyDown.flags = []
+        keyUp.flags = []
 
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        poster.post(keyDown, to: destination, kind: .keyboard)
+        if destination != .global {
+            usleep(pidKeyGapMicroseconds)
+        }
+        poster.post(keyUp, to: destination, kind: .keyboard)
     }
 
     private func makeEventSource() throws -> CGEventSource {
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
+        guard let source = SyntheticEventSource.make() else {
             throw ScreenCommanderError.inputSynthesisFailed("Could not create keyboard event source.")
         }
         return source
     }
 }
 
-private struct PasteboardSnapshot {
-    private struct Item {
-        var values: [(type: NSPasteboard.PasteboardType, data: Data)]
+// MARK: - Pasteboard
+
+/// Every item on a pasteboard, with every type's raw data, so a restore puts back
+/// images, files, and rich text as well as plain text.
+struct PasteboardSnapshot: Equatable {
+    struct Value: Equatable {
+        var type: String
+        var data: Data
     }
 
-    private var items: [Item]
+    var items: [[Value]]
+}
 
-    static func capture(from pasteboard: NSPasteboard) -> PasteboardSnapshot {
-        let items = (pasteboard.pasteboardItems ?? []).map { item in
-            Item(values: item.types.compactMap { type in
-                item.data(forType: type).map { (type: type, data: $0) }
-            })
-        }
-        return PasteboardSnapshot(items: items)
+/// The pasteboard operations paste mode needs. `SystemPasteboard` in production;
+/// tests use a fake so they never touch the user's clipboard.
+protocol PasteboardAccess: AnyObject {
+    /// Increments on every ownership change, including another app's write.
+    var changeCount: Int { get }
+    func snapshot() -> PasteboardSnapshot
+    /// Clears the pasteboard and writes `text`. Returns the change count the write
+    /// produced, or nil when the write failed.
+    func replace(withString text: String) -> Int?
+    func restore(_ snapshot: PasteboardSnapshot) -> Bool
+}
+
+final class SystemPasteboard: PasteboardAccess {
+    private let pasteboard: NSPasteboard
+
+    init(_ pasteboard: NSPasteboard = .general) {
+        self.pasteboard = pasteboard
     }
 
-    func restore(to pasteboard: NSPasteboard) throws {
-        pasteboard.clearContents()
+    var changeCount: Int { pasteboard.changeCount }
 
-        guard !items.isEmpty else {
-            return
-        }
-
-        let pasteboardItems = items.map { item in
-            let restored = NSPasteboardItem()
-            for value in item.values {
-                restored.setData(value.data, forType: value.type)
+    func snapshot() -> PasteboardSnapshot {
+        PasteboardSnapshot(items: (pasteboard.pasteboardItems ?? []).map { item in
+            item.types.compactMap { type in
+                item.data(forType: type).map { PasteboardSnapshot.Value(type: type.rawValue, data: $0) }
             }
-            return restored
-        }
+        })
+    }
 
-        guard pasteboard.writeObjects(pasteboardItems) else {
+    func replace(withString text: String) -> Int? {
+        let count = pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string) ? count : nil
+    }
+
+    func restore(_ snapshot: PasteboardSnapshot) -> Bool {
+        pasteboard.clearContents()
+        guard !snapshot.items.isEmpty else { return true }
+        let items = snapshot.items.map { values in
+            let item = NSPasteboardItem()
+            for value in values {
+                item.setData(value.data, forType: NSPasteboard.PasteboardType(value.type))
+            }
+            return item
+        }
+        return pasteboard.writeObjects(items)
+    }
+}
+
+/// Puts text on the pasteboard for the length of one paste, then puts the user's
+/// clipboard back.
+enum PasteboardSwap {
+    /// `wait` runs after `body` succeeds and gives the target time to read the
+    /// pasteboard, since posting cmd+v only queues the chord. The prior contents
+    /// are restored after `wait`, or right away when the write or `body` fails.
+    /// When something else has written to the pasteboard since our write (its
+    /// change count moved on), that newer content is left alone.
+    static func withTemporaryString(
+        _ text: String,
+        on pasteboard: PasteboardAccess,
+        wait: () -> Void,
+        body: () throws -> Void
+    ) throws {
+        let prior = pasteboard.snapshot()
+        let before = pasteboard.changeCount
+        guard let written = pasteboard.replace(withString: text) else {
+            // A failed write may still have cleared the pasteboard.
+            if pasteboard.changeCount != before {
+                _ = restoreIfOwned(prior, on: pasteboard, ownedCount: pasteboard.changeCount)
+            }
+            throw ScreenCommanderError.inputSynthesisFailed("Could not set clipboard text for paste input.")
+        }
+        do {
+            try body()
+        } catch {
+            _ = restoreIfOwned(prior, on: pasteboard, ownedCount: written)
+            throw error
+        }
+        wait()
+        guard restoreIfOwned(prior, on: pasteboard, ownedCount: written) else {
             throw ScreenCommanderError.inputSynthesisFailed("Could not restore previous clipboard contents after paste input.")
         }
+    }
+
+    /// True when the restore succeeded or was skipped because the pasteboard is no
+    /// longer ours.
+    private static func restoreIfOwned(_ prior: PasteboardSnapshot, on pasteboard: PasteboardAccess, ownedCount: Int) -> Bool {
+        guard pasteboard.changeCount == ownedCount else { return true }
+        return pasteboard.restore(prior)
     }
 }
 

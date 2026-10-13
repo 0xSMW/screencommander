@@ -5,22 +5,30 @@ import Foundation
 struct ObserveCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "observe",
-        abstract: "Stream real-time UI-change events for an app (NDJSON, one event per line)."
+        abstract: "Stream an app's UI change events as JSON lines.",
+        discussion: """
+            Prints one JSON object per line as events arrive, until Ctrl-C, --timeout-ms, or a match \
+            for --until. A match prints a final {"matched": true, "element": ...} line. Errors are \
+            JSON envelopes too.
+
+            Example:
+              screencommander observe --app TextEdit --until role=AXSheet --timeout-ms 5000
+            """
     )
 
-    @Option(name: .long, help: "Target app by name or pid.")
+    @Option(name: .long, help: ArgumentHelp(HelpText.appName))
     var app: String
 
-    @Option(name: .long, help: "Comma-separated event kinds to stream: value,focus,window,destroy,app. Default: all.")
+    @Option(name: .long, help: "Event kinds to stream, comma-separated: value, focus, window, destroy, app. (default: all)")
     var events: String?
 
-    @Option(name: .customLong("timeout-ms"), help: "Stop after this many milliseconds. Without --until, exits 0; with --until unmet, exits 73.")
-    var timeoutMs: Int?
-
-    @Option(name: .long, help: "Stop when an event's element matches this predicate, e.g. 'role=AXButton title~=Save' (= exact, ~= case-insensitive contains; keys: role,title,value,id). role/title/value match live events; id matches only the initial tree scan.")
+    @Option(name: .long, help: "Stop when an element matches this predicate, such as 'role=AXButton title~=Save'. Keys: role, title, value, id. = is exact, ~= is a case-insensitive substring. id matches only elements present when observe starts.")
     var until: String?
 
-    @Flag(name: .long, help: "Accepted for consistency; observe always emits NDJSON (one JSON object per line, ignoring pretty/compact).")
+    @Option(name: .customLong("timeout-ms"), help: "Stop after this many milliseconds and exit 0, or exit 73 (observe_timeout) when --until has not matched.")
+    var timeoutMs: Int?
+
+    @Flag(name: .long, help: "No effect: observe always prints one compact JSON object per line.")
     var json: Bool = false
 
     mutating func run() throws {

@@ -2,11 +2,6 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// Private-but-stable HIServices symbol that maps an AX window element to its CGWindowID.
-/// Used only for `--window-id` targeting; failures degrade to `nil` (no crash, no throw).
-@_silgen_name("_AXUIElementGetWindow")
-private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
-
 /// The public headers expose `kAXPositionAttribute`/`kAXSizeAttribute` but not the
 /// combined frame attribute, which most apps nevertheless implement.
 private let axFrameAttributeName = "AXFrame"
@@ -24,9 +19,21 @@ final class AXReadDiagnostics {
         if receivedCount != requestedCount { markIncomplete() }
     }
 
-    func record(_ error: AXError) {
-        switch error {
-        case .cannotComplete, .invalidUIElement, .failure:
+    /// What an AX call reads. A structural call enumerates elements, so any failure
+    /// may have dropped part of the tree. A content call reads one element's
+    /// attributes or actions, so a lost element is impossible and only a failed
+    /// exchange with the app (cannotComplete) or a vanished element leaves the
+    /// record unreliable. AppKit answers some attributes and action lists with a
+    /// plain `failure` on every read (Calculator's and Finder's AXSplitter action
+    /// names, Mail's AXSubrole), which is a property of that element, not a lost read.
+    enum Scope {
+        case structure
+        case content
+    }
+
+    func record(_ error: AXError, scope: Scope = .structure) {
+        switch (error, scope) {
+        case (.cannotComplete, _), (.invalidUIElement, _), (.failure, .structure):
             hadTransientError = true
         default:
             break
@@ -156,9 +163,10 @@ struct AXElement {
 
     /// CGWindowID for window elements; `nil` for non-windows or when unavailable.
     var windowID: CGWindowID? {
-        var id: CGWindowID = 0
-        let error = _AXUIElementGetWindow(raw, &id)
-        diagnostics?.record(error)
+        guard let (error, id) = PrivateAPI.axGetWindow(raw) else {
+            return nil
+        }
+        diagnostics?.record(error, scope: .content)
         guard error == .success, id != 0 else {
             return nil
         }
@@ -168,7 +176,7 @@ struct AXElement {
     var actionNames: [String] {
         var names: CFArray?
         let error = AXUIElementCopyActionNames(raw, &names)
-        diagnostics?.record(error)
+        diagnostics?.record(error, scope: .content)
         guard error == .success,
               let names = names as? [String] else {
             return []
@@ -190,7 +198,7 @@ struct AXElement {
             rangeValue,
             &result
         )
-        diagnostics?.record(error)
+        diagnostics?.record(error, scope: .content)
         guard error == .success, let result else {
             return nil
         }
@@ -209,7 +217,7 @@ struct AXElement {
             AXCopyMultipleAttributeOptions(),
             &values
         )
-        diagnostics?.record(error)
+        diagnostics?.record(error, scope: .content)
         guard error == .success,
               let values = values as? [AnyObject],
               values.count == names.count else {
@@ -227,7 +235,7 @@ struct AXElement {
                 if AXValueGetType(axValue) == .axError {
                     var attributeError = AXError.success
                     if AXValueGetValue(axValue, .axError, &attributeError) {
-                        diagnostics?.record(attributeError)
+                        diagnostics?.record(attributeError, scope: .content)
                     }
                     return nil
                 }
@@ -241,12 +249,17 @@ struct AXElement {
     func copyAttribute(_ name: String) -> CFTypeRef? {
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(raw, name as CFString, &value)
-        diagnostics?.record(error)
+        diagnostics?.record(error, scope: Self.structuralAttributes.contains(name) ? .structure : .content)
         guard error == .success else {
             return nil
         }
         return value
     }
+
+    /// Attributes that enumerate elements. Every other attribute is content.
+    private static let structuralAttributes: Set<String> = [
+        kAXChildrenAttribute, kAXWindowsAttribute, kAXFocusedWindowAttribute, kAXParentAttribute
+    ]
 
     func setAttribute(_ name: String, value: CFTypeRef) -> AXError {
         let error = AXUIElementSetAttributeValue(raw, name as CFString, value)

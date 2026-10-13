@@ -143,6 +143,45 @@ final class AXTreeWalkerTests: XCTestCase {
 }
 
 final class AXElementRecordTests: XCTestCase {
+    func testChromiumTreeWithoutAWebAreaLooksUnbuilt() {
+        let frame = [AXElementRecord(id: "0", role: "AXWindow"), AXElementRecord(id: "0.0", role: "AXGroup")]
+        XCTAssertTrue(AXPriming.looksUnbuilt(frame))
+        XCTAssertFalse(AXPriming.looksUnbuilt(frame + [AXElementRecord(id: "0.0.0", role: "AXWebArea")]))
+        let toolbar = (0..<40).map { AXElementRecord(id: "0.\($0)", role: "AXButton") }
+        XCTAssertTrue(AXPriming.looksUnbuilt(toolbar), "a browser's toolbar without its page is still unbuilt")
+    }
+
+    func testFilteredOrShallowReadOfABuiltChromiumTreeDoesNotWait() {
+        let buttons = AXTreeResult(axPrimed: true, truncated: false, elements: [AXElementRecord(id: "0.4", role: "AXButton")])
+        var probes = 0
+        let built: () -> Bool = { probes += 1; return true }
+
+        XCTAssertFalse(AXPriming.isUnbuilt(buttons, options: AXTreeOptions(roles: ["AXButton"]), probeHasWebArea: built))
+        XCTAssertFalse(AXPriming.isUnbuilt(buttons, options: AXTreeOptions(maxDepth: 3), probeHasWebArea: built))
+        XCTAssertFalse(AXPriming.isUnbuilt(buttons, options: AXTreeOptions(visibleOnly: true), probeHasWebArea: built))
+        let capped = AXTreeResult(axPrimed: true, truncated: true, elements: buttons.elements)
+        XCTAssertFalse(AXPriming.isUnbuilt(capped, options: AXTreeOptions(maxElements: 1), probeHasWebArea: built))
+        XCTAssertEqual(probes, 4, "each filtered read asks the app's own tree")
+
+        XCTAssertTrue(AXPriming.isUnbuilt(buttons, options: AXTreeOptions(roles: ["AXButton"]), probeHasWebArea: { false }))
+    }
+
+    func testWholeTreeReadAnswersForItselfWithoutAProbe() {
+        let frame = AXTreeResult(axPrimed: true, truncated: false, elements: [AXElementRecord(id: "0", role: "AXWindow")])
+        XCTAssertTrue(AXPriming.isUnbuilt(frame, options: AXTreeOptions(), probeHasWebArea: { XCTFail("no probe"); return true }))
+        let page = AXTreeResult(axPrimed: true, truncated: false, elements: [AXElementRecord(id: "0.0", role: "AXWebArea")])
+        XCTAssertFalse(AXPriming.isUnbuilt(page, options: AXTreeOptions(roles: ["AXButton"]), probeHasWebArea: { XCTFail("no probe"); return false }))
+    }
+
+    func testWebAreaProbeReadsTheSameWindowsWithNoFilter() {
+        let probe = AXPriming.webAreaProbeOptions(for: AXTreeOptions(windowID: 9, maxDepth: 2, roles: ["AXButton"], visibleOnly: true))
+        XCTAssertEqual(probe.windowID, 9)
+        XCTAssertEqual(probe.roles, ["AXWebArea"])
+        XCTAssertEqual(probe.maxElements, 1)
+        XCTAssertEqual(probe.maxDepth, AXPriming.webAreaProbeDepth)
+        XCTAssertFalse(probe.visibleOnly)
+    }
+
     func testDepthDerivedFromIDPath() {
         XCTAssertEqual(AXElementRecord(id: "0", role: "AXWindow").depth, 0)
         XCTAssertEqual(AXElementRecord(id: "0.3", role: "AXGroup").depth, 1)

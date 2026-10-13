@@ -15,6 +15,9 @@ struct RunningAppSnapshot: Equatable {
     var pid: pid_t
     var localizedName: String?
     var bundleID: String?
+    /// Activation policy `prohibited`: an XPC service or daemon with no UI of its
+    /// own, such as `CursorUIViewService`. Only an exact name picks one.
+    var isBackgroundOnly = false
 }
 
 struct WindowInfo: Codable, Sendable {
@@ -35,6 +38,55 @@ struct ResolvedWindow {
     var scWindow: SCWindow?
     // Reuse the same enumeration for capture geometry instead of querying SCK twice.
     var displays: [SCDisplay]? = nil
+    /// ScreenCaptureKit never returns from a capture of a minimized window, so the
+    /// capturer takes another path for these.
+    var isMinimized = false
+    /// Not on screen: minimized, its app hidden, or on another Space. ScreenCaptureKit
+    /// does not return from these either, so they are captured through the window server.
+    var isOffScreen = false
+}
+
+/// Minimized windows, from Accessibility. They are not on screen, so the window
+/// lists that `state` and `windows` use do not include them.
+enum MinimizedWindows {
+    /// CGWindowIDs of the app's minimized windows. Empty when AX cannot answer.
+    static func ids(pid: pid_t) -> [CGWindowID] {
+        let app = AXElement.application(pid: pid)
+        app.setMessagingTimeout(seconds: 0.25)
+        return app.windows.compactMap { window in
+            window.setMessagingTimeout(seconds: 0.25)
+            guard let minimized = window.copyAttribute(kAXMinimizedAttribute),
+                  CFGetTypeID(minimized) == CFBooleanGetTypeID(),
+                  CFBooleanGetValue((minimized as! CFBoolean)) else {
+                return nil
+            }
+            return window.windowID
+        }
+    }
+
+    /// CGWindowIDs of the app's windows that AX lists but that are not on screen
+    /// (minimized, or the app is hidden), minimized ones first. Windows on other
+    /// Spaces are usually missing, because AX does not list them.
+    static func offScreenIDs(pid: pid_t, onScreen: Set<CGWindowID>) -> [CGWindowID] {
+        let app = AXElement.application(pid: pid)
+        app.setMessagingTimeout(seconds: 0.25)
+        var minimized: [CGWindowID] = []
+        var others: [CGWindowID] = []
+        for window in app.windows {
+            window.setMessagingTimeout(seconds: 0.25)
+            guard let id = window.windowID, id != 0, !onScreen.contains(id) else {
+                continue
+            }
+            if let value = window.copyAttribute(kAXMinimizedAttribute),
+               CFGetTypeID(value) == CFBooleanGetTypeID(),
+               CFBooleanGetValue((value as! CFBoolean)) {
+                minimized.append(id)
+            } else {
+                others.append(id)
+            }
+        }
+        return minimized + others
+    }
 }
 
 // MARK: - Protocol
@@ -55,15 +107,30 @@ enum AppActivator {
         guard runningApp.activate() else {
             throw ScreenCommanderError.inputSynthesisFailed("Could not activate app '\(app.name)' with PID \(app.pid).")
         }
-        for _ in 0..<10 {
-            if runningApp.isActive {
+        try waitUntilFrontmost(app)
+    }
+
+    /// Polls until `app` is frontmost. `NSRunningApplication.isActive` only updates
+    /// from main-run-loop notifications, which neither the CLI nor `serve` spins, so
+    /// it stays false after `activate()`. The window server's front process is
+    /// asked instead, with `FrontmostApp` as the fallback when the symbols are missing.
+    static func waitUntilFrontmost(
+        _ app: ResolvedApp,
+        attempts: Int = 20,
+        isFrontmost: (pid_t) -> Bool = { pid in
+            PrivateAPI.isFrontProcess(pid) ?? (FrontmostApp.current()?.pid == pid)
+        },
+        pause: () -> Void = { usleep(25_000) }
+    ) throws {
+        for attempt in 0..<attempts {
+            if isFrontmost(app.pid) {
                 return
             }
-            usleep(25_000)
+            if attempt < attempts - 1 {
+                pause()
+            }
         }
-        guard runningApp.isActive else {
-            throw ScreenCommanderError.inputSynthesisFailed("App '\(app.name)' with PID \(app.pid) did not become active.")
-        }
+        throw ScreenCommanderError.inputSynthesisFailed("App '\(app.name)' with PID \(app.pid) did not become active.")
     }
 }
 
@@ -76,11 +143,12 @@ final class Targets: TargetResolving {
     init(
         contentProvider: ShareableContentProvider = ShareableContentProvider(),
         runningApplications: @escaping () -> [RunningAppSnapshot] = {
-            NSWorkspace.shared.runningApplications.map {
+            RunningApplications.current().map {
                 RunningAppSnapshot(
                     pid: $0.processIdentifier,
                     localizedName: $0.localizedName,
-                    bundleID: $0.bundleIdentifier
+                    bundleID: $0.bundleIdentifier,
+                    isBackgroundOnly: $0.activationPolicy == .prohibited
                 )
             }
         }
@@ -120,7 +188,11 @@ final class Targets: TargetResolving {
             )
         }
 
-        let prefixMatches = allApps.filter { $0.localizedName?.lowercased().hasPrefix(lower) == true }
+        // A prefix never picks a background-only service: "Cursor" must not resolve
+        // to the system's CursorUIViewService when Cursor itself is not running.
+        let prefixMatches = allApps.filter {
+            !$0.isBackgroundOnly && $0.localizedName?.lowercased().hasPrefix(lower) == true
+        }
         if prefixMatches.count == 1 {
             let a = prefixMatches[0]
             return resolvedApp(from: a)
@@ -131,7 +203,10 @@ final class Targets: TargetResolving {
             )
         }
 
-        throw ScreenCommanderError.appNotFound("No running app matching '\(identifier)'.")
+        throw ScreenCommanderError.appNotFound(
+            "No running app matching '\(identifier)'. If it is installed, start it in the background with "
+                + "'screencommander launch --app \(identifier)' (MCP: launch_app), then retry."
+        )
     }
 
     private func resolvedApp(from app: RunningAppSnapshot) -> ResolvedApp {
@@ -155,6 +230,8 @@ final class Targets: TargetResolving {
         let content: SCShareableContent
         do {
             content = try await contentProvider.content(onScreenWindowsOnly: true)
+        } catch let error as ScreenCommanderError {
+            throw error
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }
@@ -191,6 +268,8 @@ final class Targets: TargetResolving {
             if selected.map({ !CaptureGeometry.isCurrent(window: $0, displays: content.displays) }) ?? true {
                 content = try await contentProvider.content(onScreenWindowsOnly: false, forceRefresh: true)
             }
+        } catch let error as ScreenCommanderError {
+            throw error
         } catch {
             throw ScreenCommanderError.captureFailed("Could not enumerate windows: \(error.localizedDescription)")
         }
@@ -200,7 +279,16 @@ final class Targets: TargetResolving {
             }
             throw ScreenCommanderError.windowNotFound("No window matching '\(identifier)'.")
         }
-        return ResolvedWindow(info: windowInfo(from: win), scWindow: win, displays: content.displays)
+        let info = windowInfo(from: win)
+        // Only an off-screen window can be minimized; the AX check is skipped otherwise.
+        let minimized = !win.isOnScreen && info.pid > 0 && MinimizedWindows.ids(pid: info.pid).contains(info.windowID)
+        return ResolvedWindow(
+            info: info,
+            scWindow: win,
+            displays: content.displays,
+            isMinimized: minimized,
+            isOffScreen: !win.isOnScreen
+        )
     }
 
     private func selectWindow(identifier: String, app: ResolvedApp?, content: SCShareableContent) -> SCWindow? {

@@ -4,13 +4,20 @@ import Foundation
 struct CleanupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cleanup",
-        abstract: "Prune managed capture artifacts older than a threshold."
+        abstract: "Delete managed captures older than a given age.",
+        discussion: """
+            Deletes .png, .jpeg, .jpg, and .json files in ~/Library/Caches/screencommander/captures. \
+            It keeps last-screenshot.json and files saved elsewhere with --out.
+
+            Example:
+              screencommander cleanup --older-than-hours 2
+            """
     )
 
-    @Option(name: .long, help: "Retention age in hours. Default is 24.")
+    @Option(name: .long, help: "Delete captures older than this many hours. (default: 24)")
     var olderThanHours: Int?
 
-    @Flag(name: .long, help: "Emit a single machine-readable JSON object to stdout (success or error envelope). For scripting; see README.")
+    @Flag(name: .long, help: ArgumentHelp(HelpText.json))
     var json: Bool = false
 
     mutating func run() throws {

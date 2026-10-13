@@ -34,4 +34,6 @@ enum KeyStep: Sendable, Equatable {
 
 struct KeySequence: Sendable, Equatable {
     var steps: [KeyStep]
+    /// System-wide shortcut aliases named by the steps, in order.
+    var systemShortcuts: [String] = []
 }

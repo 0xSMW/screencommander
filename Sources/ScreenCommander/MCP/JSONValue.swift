@@ -39,9 +39,10 @@ enum JSONValue: Codable, Equatable, Sendable {
         case .number(let value):
             // Whole numbers encode without a fractional part so ids like 1 round-trip
             // as 1, not 1.0 (JSON-RPC clients compare ids textually surprisingly often).
-            if value.truncatingRemainder(dividingBy: 1) == 0,
-               value >= Double(Int64.min), value <= Double(Int64.max) {
-                try container.encode(Int64(value))
+            // `Int64(exactly:)`, since Double(Int64.max) rounds up past Int64.max and
+            // a range check against it lets 2^63 through to a trapping conversion.
+            if let whole = Int64(exactly: value) {
+                try container.encode(whole)
             } else {
                 try container.encode(value)
             }
