@@ -165,6 +165,12 @@ struct AXPartialScrollError: Error {
     let underlyingError: Error
 }
 
+/// An AX mutation may have run, or its target disappeared. Neither permits
+/// replay through a different scroll tier, even on the first page.
+struct AXUnconfirmedScrollError: Error {
+    let underlyingError: Error
+}
+
 /// What an AX action's answer says about whether it ran.
 enum AXActionOutcome: Equatable {
     case performed
@@ -332,8 +338,10 @@ final class AXActions: AXActionPerforming {
             let before = scrollPosition(of: element, direction: direction)
             do {
                 try Self.performPages(count: pages) {
-                    try perform(action: direction.pageActionName, on: candidate)
+                    try Self.requireConfirmedScroll(attempt(action: direction.pageActionName, on: candidate), operation: direction.pageActionName)
                 }
+            } catch let error as AXUnconfirmedScrollError {
+                throw error
             } catch let error as AXPartialScrollError {
                 throw error
             } catch {
@@ -356,7 +364,7 @@ final class AXActions: AXActionPerforming {
             $0.subrole == direction.pageButtonSubrole && $0.actionNames.contains(kAXPressAction)
         }) {
             try Self.performPages(count: pages) {
-                try perform(action: kAXPressAction, on: button)
+                try Self.requireConfirmedScroll(attempt(action: kAXPressAction, on: button), operation: direction.pageButtonSubrole)
             }
             let after = Self.settledValue(from: before) { Self.numericValue(of: bar) }
             return AXScrollOutcome(method: direction.pageButtonSubrole, before: before, after: after)
@@ -373,20 +381,31 @@ final class AXActions: AXActionPerforming {
         let step = Double(visible) / Double(content - visible) * Double(pages)
         let target = min(1, max(0, direction.isTowardEnd ? current + step : current - step))
         let error = bar.setAttribute(kAXValueAttribute, value: NSNumber(value: target))
-        guard error == .success else {
-            throw ScreenCommanderError.elementNotActionable(
-                "Setting the scroll bar AXValue failed (\(Self.describe(error))); falls through to wheel events."
-            )
-        }
+        try Self.requireConfirmedScroll(error, operation: "Setting the scroll bar AXValue")
         return AXScrollOutcome(method: "AXValue", before: before, after: Self.numericValue(of: bar))
     }
 
-    /// Keep first-page failures eligible for fallback, but preserve progress
-    /// when a later page fails so callers cannot replay the entire sequence.
+    /// Only confirmed refusals may fall through. A timeout or lost element must
+    /// stop the ladder, including page buttons and AXValue writes.
+    static func requireConfirmedScroll(_ status: AXError, operation: String) throws {
+        let error = ScreenCommanderError.elementNotActionable("\(operation) failed (\(Self.describe(status))).")
+        switch AXActionOutcome(status) {
+        case .performed: return
+        case .refused: throw error
+        case .elementGone, .unconfirmed:
+            throw AXUnconfirmedScrollError(underlyingError: error)
+        }
+    }
+
+    /// Keep confirmed first-page refusals eligible for fallback, but preserve
+    /// uncertain outcomes and progress so callers cannot replay mutations.
     static func performPages(count: Int, action: () throws -> Void) throws {
         for completed in 0..<count {
             do {
                 try action()
+            } catch let error as AXUnconfirmedScrollError {
+                guard completed > 0 else { throw error }
+                throw AXPartialScrollError(completedPages: completed, underlyingError: error.underlyingError)
             } catch {
                 guard completed > 0 else { throw error }
                 throw AXPartialScrollError(completedPages: completed, underlyingError: error)

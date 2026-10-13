@@ -378,9 +378,25 @@ public final class PresenceClient: @unchecked Sendable {
             if case .success(let fd) = UnixSocket.connect(path: configuration.socketPath) {
                 let stale = ClientConnection(fd: fd)
                 stale.start()
-                _ = stale.sendBlocking(.shutdown, timeout: configuration.requestTimeout)
+                // Version 2 and later gate shutdown on a greeting on this socket.
+                // Recheck the version: a newer server may have replaced the old one
+                // between the first greeting and this connection.
+                let hello = HelloParams(pid: getpid(), client: configuration.clientName)
+                let greeting = stale.sendBlocking(.hello(hello), timeout: configuration.requestTimeout)
+                let mayReplace: Bool
+                switch greeting {
+                case .success(.hello(let result)):
+                    mayReplace = result.protocolVersion < PresenceProtocol.version
+                case .failure(let error):
+                    mayReplace = error.code == .unsupportedVersion // pre-v2 servers
+                default:
+                    mayReplace = false
+                }
+                if mayReplace {
+                    _ = stale.sendBlocking(.shutdown, timeout: configuration.requestTimeout)
+                }
                 stale.close()
-                waitForSocketRelease()
+                if mayReplace { waitForSocketRelease() }
             }
             result = openAndGreet(allowSpawn: true)
         }
@@ -462,8 +478,9 @@ public final class PresenceClient: @unchecked Sendable {
     private func waitForSocketRelease() {
         let deadline = Date().addingTimeInterval(configuration.spawnTimeout)
         while Date() < deadline {
-            if case .failure = UnixSocket.connect(path: configuration.socketPath) {
-                return
+            switch UnixSocket.connect(path: configuration.socketPath) {
+            case .failure: return
+            case .success(let fd): close(fd)
             }
             usleep(20_000)
         }

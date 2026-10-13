@@ -269,6 +269,17 @@ final class PresenceSocketTests: XCTestCase {
         XCTAssertTrue(old.receivedShutdown, "the client asked the older server to stop")
     }
 
+    func testAClientGreetsVersionTwoOnTheShutdownConnection() throws {
+        server.stop()
+        unlink(socketPath + ".lock")
+        let old = OldServer(path: socketPath, version: 2, answersHello: true)
+        try old.start()
+        defer { old.stop() }
+        let stub = PresenceLaunchConfiguration(executableURL: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", "exit 0"])
+        _ = makeClient(launch: stub).connect()
+        XCTAssertTrue(old.receivedShutdown, "v2 requires hello on the same connection before accepting shutdown")
+    }
+
     func testAClientLeavesANewerServerAlone() throws {
         server.stop()
         unlink(socketPath + ".lock")
@@ -432,6 +443,7 @@ private final class OldServer: @unchecked Sendable {
 
     private func serve(_ fd: Int32) {
         defer { close(fd) }
+        var greetedVersion = 0
         var buffer = [UInt8](repeating: 0, count: 4096)
         var pending = Data()
         while true {
@@ -450,9 +462,12 @@ private final class OldServer: @unchecked Sendable {
                 let reply: String
                 switch method {
                 case "hello" where answersHello:
+                    greetedVersion = (object["params"] as? [String: Any])?["protocolVersion"] as? Int ?? 0
                     reply = #"{"id":\#(id),"ok":true,"result":{"protocolVersion":\#(version),"serverPID":1,"tapAvailable":true}}"#
                 case "hello":
                     reply = #"{"id":\#(id),"ok":false,"error":{"code":"unsupported_version","message":"Server speaks protocol \#(version)."}}"#
+                case "shutdown" where version >= 2 && greetedVersion < version:
+                    reply = #"{"id":\#(id),"ok":false,"error":{"code":"unsupported_version","message":"Greeting required."}}"#
                 case "shutdown":
                     lock.lock()
                     shutdown = true

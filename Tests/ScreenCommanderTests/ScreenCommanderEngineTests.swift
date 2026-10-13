@@ -6,6 +6,21 @@ import XCTest
 import ScreenCommanderPresence
 @testable import ScreenCommander
 
+private final class ReplacementEventPoster: InputEventPosting {
+    var prepares = 0
+    var keyDowns: [Int64] = []
+    var onPrepare: () -> Void = {}
+    var onDelete: () -> Void = {}
+    func prepare(_ destination: InputEventDestination) throws { prepares += 1; onPrepare() }
+    func finish(_ destination: InputEventDestination) {}
+    func post(_ event: CGEvent, to destination: InputEventDestination, kind: InputEventKind) {
+        guard event.type == .keyDown else { return }
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        keyDowns.append(code)
+        if code == 51 { onDelete() } // kVK_Delete (backspace)
+    }
+}
+
 private final class FakePermissions: PermissionChecking {
     private(set) var screenRecordingChecks = 0
     private(set) var accessibilityChecks = 0
@@ -3820,6 +3835,74 @@ final class ScreenCommanderEngineTests: XCTestCase {
         XCTAssertEqual(result.replace, true)
     }
 
+    func testEmptyKeyboardReplacementClearsBareAndExplicitFieldsAfterPreparation() async throws {
+        for explicit in [false, true] {
+            // nil is the Chromium/Electron default, which chooses keyboard delivery.
+            for tier: InputDeliveryMethod? in [nil, .window, .focusAssisted, .global] {
+                let poster = ReplacementEventPoster()
+                let fixture = makeInputEngineFixture(
+                    "type-empty-replace-\(explicit)-\(String(describing: tier))",
+                    frontmostApp: { Self.targetApp }, profile: { _ in Self.electronProfile },
+                    keyboardController: KeyboardController(poster: poster)
+                )
+                fixture.targets.apps["TargetApp"] = Self.targetApp
+                fixture.reader.treeResult = AXTreeResult(axPrimed: true, truncated: false, elements: [buttonRecord(id: "0.3", role: "AXTextArea", title: "Name", actions: [])])
+                fixture.axActions.focusedText = AXElement.application(pid: 77)
+                fixture.axActions.text = "old😀"
+                poster.onPrepare = { fixture.axActions.selectedRange = AXTextRange(location: 2, length: 0) }
+                poster.onDelete = {
+                    XCTAssertEqual(fixture.axActions.selectedRange, AXTextRange(location: 0, length: 5))
+                    fixture.axActions.text = ""
+                    fixture.axActions.selectedRange = AXTextRange(location: 0, length: 0)
+                }
+                let result = try await fixture.engine.type(TypeRequest(
+                    text: "", delayMilliseconds: nil, inputMode: .unicode,
+                    element: explicit ? "Name" : nil, appIdentifier: "TargetApp", via: tier,
+                    foreground: tier == .global, replace: true
+                ))
+                XCTAssertEqual(fixture.axActions.text, "")
+                XCTAssertEqual(poster.keyDowns, [51])
+                XCTAssertEqual(poster.prepares, 1)
+                XCTAssertEqual(result.replace, true)
+            }
+        }
+    }
+
+    func testEmptyKeyboardReplacementRefusesUnconfirmedSelectionBeforeDelete() async {
+        for explicit in [false, true] {
+            let poster = ReplacementEventPoster()
+            let fixture = makeInputEngineFixture("type-empty-unsafe-\(explicit)", frontmostApp: { Self.targetApp }, keyboardController: KeyboardController(poster: poster))
+            fixture.targets.apps["TargetApp"] = Self.targetApp
+            fixture.reader.treeResult = AXTreeResult(axPrimed: true, truncated: false, elements: [buttonRecord(id: "0.3", role: "AXTextArea", title: "Name", actions: [])])
+            fixture.axActions.focusedText = AXElement.application(pid: 77)
+            fixture.axActions.text = "old"
+            fixture.axActions.selectionApplies = false
+            poster.onPrepare = { fixture.axActions.selectedRange = AXTextRange(location: 2, length: 0) }
+            do {
+                _ = try await fixture.engine.type(TypeRequest(text: "", delayMilliseconds: nil, inputMode: .unicode,
+                    element: explicit ? "Name" : nil, appIdentifier: "TargetApp", via: .focusAssisted, replace: true))
+                XCTFail("Unconfirmed replacement selection must fail")
+            } catch {
+                XCTAssertEqual((error as? ScreenCommanderError)?.stableCode, "element_not_actionable")
+            }
+            XCTAssertTrue(poster.keyDowns.isEmpty)
+            XCTAssertEqual(poster.prepares, 1)
+            XCTAssertEqual(fixture.axActions.text, "old")
+        }
+    }
+
+    func testEmptyKeyboardInsertionPostsNoDeleteAndPreservesSelection() async throws {
+        let poster = ReplacementEventPoster()
+        let fixture = makeInputEngineFixture("type-empty-insert", frontmostApp: { Self.targetApp }, keyboardController: KeyboardController(poster: poster))
+        fixture.targets.apps["TargetApp"] = Self.targetApp
+        fixture.axActions.text = "old"
+        fixture.axActions.selectedRange = AXTextRange(location: 0, length: 3)
+        _ = try await fixture.engine.type(TypeRequest(text: "", delayMilliseconds: nil, inputMode: .unicode, appIdentifier: "TargetApp", via: .window))
+        XCTAssertEqual(fixture.axActions.text, "old")
+        XCTAssertEqual(fixture.axActions.selectedRange, AXTextRange(location: 0, length: 3))
+        XCTAssertTrue(poster.keyDowns.isEmpty)
+    }
+
     func testKeyboardReplacementRefusesUnsafeSelectionInBareAndElementPaths() async {
         for element in [false, true] {
             for failure in ["secure", "unreadable", "failed", "ignored"] {
@@ -5500,6 +5583,87 @@ final class PresenceIntegrationTests: XCTestCase {
 
     // MARK: Serialization
 
+    func testCancelledQueuedInputDoesNotDeliverAndReleasesItsKeys() async throws {
+        for foreground in [false, true] {
+            let presence = FakePresence()
+            let gate = WindowResolutionGate()
+            presence.acquireGate = gate
+            let fixture = makeFixture("presence-cancel-queued-\(foreground)", presence: presence, focusSampler: LockedFocusSampler())
+            let engine = fixture.engine
+            let first = Task { try await engine.key(KeyRequest(chord: "enter", appIdentifier: "TargetApp", foreground: foreground)) }
+            try await waitUntil { presence.calls.contains { if case .acquire = $0 { return true }; return false } }
+            let second = Task { try await engine.key(KeyRequest(chord: "tab", appIdentifier: "TargetApp", foreground: foreground)) }
+            try await Task.sleep(nanoseconds: 100_000_000)
+            second.cancel()
+            await gate.open()
+            _ = try await first.value
+            do { _ = try await second.value; XCTFail("Cancelled queued input must throw") }
+            catch is CancellationError {}
+            XCTAssertEqual(fixture.keyboard.destinations.count, 1)
+            // A subsequent input needs both the PID key and, for foreground, the
+            // global key. Completion proves cancellation released both.
+            _ = try await engine.key(KeyRequest(chord: "escape", appIdentifier: "TargetApp", foreground: foreground))
+            XCTAssertEqual(fixture.keyboard.destinations.count, 2)
+        }
+    }
+
+    func testCancellationDuringUnavailableLeaseDoesNotDeliver() async throws {
+        let presence = FakePresence()
+        let gate = WindowResolutionGate()
+        presence.acquireGate = gate
+        let fixture = makeFixture("presence-cancel-unavailable", presence: presence, focusSampler: LockedFocusSampler())
+        let engine = fixture.engine
+        let request = clickRequest()
+        let action = Task { try await engine.click(request) }
+        try await waitUntil { presence.calls.contains { if case .acquire = $0 { return true }; return false } }
+        action.cancel()
+        presence.available = false
+        await gate.open()
+        do { _ = try await action.value; XCTFail("Cancelled unavailable lease must not deliver") }
+        catch is CancellationError {}
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        _ = try await engine.click(request)
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testCancellationDuringCursorWaitPostsNothing() async throws {
+        let presence = FakePresence()
+        let gate = WindowResolutionGate()
+        presence.moveGate = gate
+        let fixture = makeFixture("presence-cancel-glide", presence: presence, focusSampler: LockedFocusSampler())
+        let engine = fixture.engine
+        let request = clickRequest()
+        let action = Task { try await engine.click(request) }
+        try await waitUntil { presence.calls.contains { if case .move = $0 { return true }; return false } }
+        action.cancel()
+        await gate.open()
+        do { _ = try await action.value; XCTFail("Cancelled cursor wait must not deliver") }
+        catch is CancellationError {}
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        _ = try await engine.click(request)
+        XCTAssertEqual(fixture.mouse.calls.count, 1)
+    }
+
+    func testCancellationDuringUserYieldRestoresCursorAndPostsNothing() async throws {
+        let presence = FakePresence()
+        presence.reportUserActive(forChecks: 10)
+        let gate = WindowResolutionGate()
+        let sleeping = expectation(description: "yield sleep entered")
+        var policy = PresencePolicy()
+        policy.sleep = { _ in sleeping.fulfill(); await gate.wait() }
+        let fixture = makeFixture("presence-cancel-yield", presence: presence, policy: policy)
+        let engine = fixture.engine
+        let request = clickRequest()
+        let action = Task { try await engine.click(request) }
+        await fulfillment(of: [sleeping], timeout: 2)
+        action.cancel()
+        await gate.open()
+        do { _ = try await action.value; XCTFail("Cancelled yield must not deliver") }
+        catch is CancellationError {}
+        XCTAssertTrue(fixture.mouse.calls.isEmpty)
+        XCTAssertTrue(presence.calls.contains(.setState(session: "default", state: .idle)))
+    }
+
     func testConcurrentActionsOnOnePidDoNotInterleave() async throws {
         let presence = FakePresence()
         let gate = WindowResolutionGate()
@@ -6204,6 +6368,31 @@ final class ParityToolsEngineTests: XCTestCase {
             completedPages: 1, underlyingError: ScreenCommanderError.elementNotActionable("second AX page failed")
         )
         await assertThrows(try await fixture.engine.scroll(pageScroll(.down, pages: 3)), code: "element_not_actionable")
+        XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
+    }
+
+    func testUncertainFirstAXScrollDoesNotReplayThroughWheel() async {
+        for operation in ["AXScrollDownByPage", "AXIncrementPage", "AXValue"] {
+            let fixture = makeFixture("parity-page-uncertain-\(operation)", records: [record("0.5", role: "AXScrollArea", title: "Content")])
+            do {
+                try AXActions.requireConfirmedScroll(.cannotComplete, operation: operation)
+            } catch { fixture.axActions.scrollError = error }
+            await assertThrows(try await fixture.engine.scroll(pageScroll(.down)), code: "element_not_actionable")
+            XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
+        }
+    }
+
+    func testUncertainLaterAXPagePreservesPublicErrorAndDoesNotReplay() async {
+        let fixture = makeFixture("parity-page-later-uncertain", records: [record("0.5", role: "AXScrollArea", title: "Content")])
+        var attempts = 0
+        do {
+            try AXActions.performPages(count: 3) {
+                attempts += 1
+                try AXActions.requireConfirmedScroll(attempts == 1 ? .success : .cannotComplete, operation: "AXScrollDownByPage")
+            }
+        } catch { fixture.axActions.scrollError = error }
+        await assertThrows(try await fixture.engine.scroll(pageScroll(.down, pages: 3)), code: "element_not_actionable")
+        XCTAssertEqual(attempts, 2)
         XCTAssertTrue(fixture.mouse.scrollCalls.isEmpty)
     }
 

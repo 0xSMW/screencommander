@@ -427,6 +427,7 @@ final class ScreenCommanderEngine {
         ) { () async throws -> ClickResult in
             var lastFailure: Error?
             for tier in tiers {
+                try Task.checkCancellation()
                 do {
                     switch tier {
                     case .ax:
@@ -508,9 +509,12 @@ final class ScreenCommanderEngine {
             return
         }
         // See `focus`: the guard must not undo an activation the caller asked for.
+        try Task.checkCancellation()
         await presence.endGuard(pid: app.pid)
+        try Task.checkCancellation()
         try activateApp(app)
         usleep(120_000)
+        try Task.checkCancellation()
     }
 
     private func checkMetadataFreshness(
@@ -717,6 +721,7 @@ final class ScreenCommanderEngine {
         ) { () async throws -> ScrollResult in
             var lastFailure: Error?
             for tier in tiers {
+                try Task.checkCancellation()
                 do {
                     if tier == .global {
                         try await prepareForegroundElement(target, point: center)
@@ -1046,6 +1051,7 @@ final class ScreenCommanderEngine {
         ) { () async throws -> TypeResult in
             var lastFailure: Error?
             for tier in tiers {
+                try Task.checkCancellation()
                 do {
                     let live = try target.live ?? accessibilityReader.resolve(id: target.record.id, app: target.app)
                     switch tier {
@@ -1214,7 +1220,13 @@ final class ScreenCommanderEngine {
         case .paste:
             try keyboardController.typeByPasting(text: request.text, destination: destination, beforePosting: beforePosting)
         case .unicode:
-            try keyboardController.type(text: request.text, delayMilliseconds: request.delayMilliseconds, destination: destination, beforePosting: beforePosting)
+            if request.replace && request.text.isEmpty {
+                // Delete the proved whole-value selection within the same keyboard
+                // preparation; preparing again could move the caret.
+                try keyboardController.press(chord: try KeyCodes.parseChord("delete"), destination: destination, beforePosting: beforePosting)
+            } else {
+                try keyboardController.type(text: request.text, delayMilliseconds: request.delayMilliseconds, destination: destination, beforePosting: beforePosting)
+            }
         }
     }
 
@@ -2046,6 +2058,7 @@ final class ScreenCommanderEngine {
             let live = try target.live ?? accessibilityReader.resolve(id: target.record.id, app: target.app)
             var lastFailure: Error?
             for tier in tiers {
+                try Task.checkCancellation()
                 do {
                     switch tier {
                     case .ax:
@@ -2084,6 +2097,8 @@ final class ScreenCommanderEngine {
                         scrolled.verified = verification(start, axActions.scrollPosition(of: live, direction: direction))
                         return scrolled
                     }
+                } catch let uncertain as AXUnconfirmedScrollError {
+                    throw uncertain.underlyingError
                 } catch let partial as AXPartialScrollError {
                     // Once AX has scrolled, replaying the request in a lower tier
                     // would add the completed pages a second time.
@@ -2461,6 +2476,7 @@ final class ScreenCommanderEngine {
     ) async throws -> InputDeliveryMethod {
         var lastFailure: Error?
         for tier in plan.tiers {
+            try Task.checkCancellation()
             do {
                 let destination: InputEventDestination
                 if let window = plan.window {
@@ -2820,6 +2836,7 @@ final class ScreenCommanderEngine {
         ) { () async throws -> (InputDeliveryMethod, CGWindowID?) in
             var lastFailure: Error?
             for tier in tiers {
+                try Task.checkCancellation()
                 do {
                     if tier == .global, appIdentifier != nil || windowID != nil {
                         try await activateIfNeeded(app)
@@ -2901,9 +2918,16 @@ final class ScreenCommanderEngine {
         let keys = InputSerializer.keys(pid: pid, global: foreground)
         await inputSerializer.acquire(keys)
         do {
+            try Task.checkCancellation()
+            // Presence calls can suspend without throwing cancellation. Check again
+            // at the delivery boundary, including disabled/unavailable presence.
+            let checkedDeliver = {
+                try Task.checkCancellation()
+                return try await deliver()
+            }
             let result: (T, ActionPresence)
             if foreground {
-                result = try await performForegroundInput(pid: pid, session: session, deliver)
+                result = try await performForegroundInput(pid: pid, session: session, checkedDeliver)
             } else {
                 result = try await performInputHoldingTarget(
                     pid: pid,
@@ -2912,7 +2936,7 @@ final class ScreenCommanderEngine {
                     pointer: pointer,
                     dragTo: dragTo,
                     pressCount: pressCount,
-                    deliver
+                    checkedDeliver
                 )
             }
             await inputSerializer.release(keys)
@@ -3151,6 +3175,10 @@ final class ScreenCommanderEngine {
         }
 
         while true {
+            if Task.isCancelled {
+                await restore()
+                try Task.checkCancellation()
+            }
             let reply: PresenceReply<PresenceStatus>
             if let fetch {
                 reply = await fetch()
@@ -3186,6 +3214,10 @@ final class ScreenCommanderEngine {
             let untilQuiet = max(0.05, presencePolicy.userQuietPeriod - sinceInput)
             let interval = min(presencePolicy.userYieldCheckInterval, untilQuiet, max(0.05, presencePolicy.userYieldTimeout - waited))
             await presencePolicy.sleep(interval)
+            if Task.isCancelled {
+                await restore()
+                try Task.checkCancellation()
+            }
             waited += interval
         }
         await restore()

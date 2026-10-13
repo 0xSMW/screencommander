@@ -9,6 +9,7 @@ protocol KeyboardControlling {
     func type(text: String, delayMilliseconds: Int?, destination: InputEventDestination, beforePosting: () throws -> Void) throws
     func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws
     func press(chord: ParsedKeyChord, destination: InputEventDestination) throws
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws
     /// Media and system keys are system-defined events with no target process; they
     /// only exist on the global path.
     func pressSystemKey(_ key: SystemKey) throws
@@ -30,6 +31,11 @@ extension KeyboardControlling {
     func typeByPasting(text: String, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         try beforePosting()
         try typeByPasting(text: text, destination: destination)
+    }
+
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+        try beforePosting()
+        try press(chord: chord, destination: destination)
     }
 
     func withPrepared(_ destination: InputEventDestination, _ body: () throws -> Void) throws {
@@ -101,7 +107,7 @@ final class KeyboardController: KeyboardControlling {
         try press(chord: chord, destination: destination, beforePosting: {})
     }
 
-    private func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
+    func press(chord: ParsedKeyChord, destination: InputEventDestination, beforePosting: () throws -> Void) throws {
         let source = try makeEventSource()
 
         if case .system(let systemKey, _) = chord.key {
